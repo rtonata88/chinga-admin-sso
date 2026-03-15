@@ -40,6 +40,7 @@ const platformGroup: SidebarNavGroup = {
     title: 'Platform',
     items: [
         { label: 'Platform', icon: 'pi pi-globe', href: '/platform' },
+        { label: 'Users', icon: 'pi pi-users', href: '/platform/users' },
         { label: 'Tenants', icon: 'pi pi-building', href: '/platform/tenants' },
         { label: 'Games', icon: 'pi pi-play', href: '/platform/games' },
         { label: 'Revenue', icon: 'pi pi-dollar', href: '/platform/revenue' },
