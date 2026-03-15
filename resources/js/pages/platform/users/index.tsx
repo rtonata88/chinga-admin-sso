@@ -539,7 +539,7 @@ export default function PlatformUsersIndex() {
                                             key={i}
                                             label={`${a.display_name} @ ${a.tenant_name}`}
                                             removable
-                                            onRemove={() => removeTenantRole(a.role, a.tenant_id)}
+                                            onRemove={() => { removeTenantRole(a.role, a.tenant_id); return true; }}
                                         />
                                     ))}
                                 </div>
