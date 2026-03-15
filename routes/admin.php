@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\KycReviewController;
 use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\VenueManagementController;
 use App\Http\Middleware\EnsureTenantAdmin;
@@ -32,6 +33,9 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
 
     Route::get('audit-logs', [ReportController::class, 'auditLogs'])->name('audit-logs');
 
+    // Assignable Roles
+    Route::get('roles', [RoleManagementController::class, 'listRoles'])->name('roles.index');
+
     // User Management
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/', [UserManagementController::class, 'index'])->name('index');
@@ -43,6 +47,9 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
         Route::post('{uuid}/activate', [UserManagementController::class, 'activate'])->name('activate');
         Route::post('{uuid}/unlock', [UserManagementController::class, 'unlock'])->name('unlock');
         Route::post('{uuid}/reset-password', [UserManagementController::class, 'resetPassword'])->name('reset-password');
+        Route::get('{uuid}/roles', [RoleManagementController::class, 'getUserRoles'])->name('roles.show');
+        Route::post('{uuid}/roles', [RoleManagementController::class, 'assignRole'])->name('roles.store');
+        Route::delete('{uuid}/roles/{role}', [RoleManagementController::class, 'removeRole'])->name('roles.destroy');
     });
 
     // KYC Review
