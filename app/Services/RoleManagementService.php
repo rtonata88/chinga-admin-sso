@@ -84,6 +84,7 @@ class RoleManagementService
         }
 
         $this->guardHierarchy($actor, $role, strict: false);
+        $this->guardTenantExists($tenantId, $role);
 
         DB::transaction(function () use ($actor, $target, $role, $roleName, $tenantId) {
             User::lockForUpdate()->find($target->id);
@@ -95,7 +96,7 @@ class RoleManagementService
             $this->guardLastSuperAdmin($roleName);
 
             $oldRoles = $target->getRoleNames();
-            $target->removeRole($roleName, $tenantId);
+            $target->roles()->wherePivot('role_id', $role->id)->wherePivot('tenant_id', $tenantId)->detach($role->id);
             $target->load('roles');
             $newRoles = $target->getRoleNames();
 
