@@ -72,9 +72,16 @@ return new class extends Migration
 
     private function hasIndex(string $table, string $indexName): bool
     {
-        $indexes = collect(
-            \Illuminate\Support\Facades\DB::select("SHOW INDEX FROM {$table}")
-        );
+        $connection = Schema::getConnection();
+        $driver = $connection->getDriverName();
+
+        if ($driver === 'sqlite') {
+            $indexes = collect($connection->select("PRAGMA index_list({$table})"));
+
+            return $indexes->contains('name', $indexName);
+        }
+
+        $indexes = collect($connection->select("SHOW INDEX FROM {$table}"));
 
         return $indexes->contains('Key_name', $indexName);
     }
