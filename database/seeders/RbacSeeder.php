@@ -116,7 +116,7 @@ class RbacSeeder extends Seeder
                 'kyc.*', 'reports.*', 'oauth-clients.*', 'responsible-gambling.*',
             ],
             'tenant_admin' => [
-                'users.view', 'users.create', 'users.update', 'users.manage-status',
+                'users.view', 'users.create', 'users.update', 'users.manage-status', 'users.manage-roles',
                 'venues.*', 'voucher-codes.*', 'kyc.*',
                 'reports.view', 'reports.export',
                 'oauth-clients.view', 'oauth-clients.create', 'oauth-clients.update', 'oauth-clients.delete',
