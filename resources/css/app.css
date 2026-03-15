@@ -1,0 +1,305 @@
+@import 'tailwindcss';
+
+@import "tw-animate-css";
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.87 0 0);
+    --chart-1: oklch(0.646 0.222 41.116);
+    --chart-2: oklch(0.6 0.118 184.704);
+    --chart-3: oklch(0.398 0.07 227.392);
+    --chart-4: oklch(0.828 0.189 84.429);
+    --chart-5: oklch(0.769 0.188 70.08);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.87 0 0);
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.145 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.145 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.985 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.396 0.141 25.723);
+    --destructive-foreground: oklch(0.637 0.237 25.331);
+    --border: oklch(0.269 0 0);
+    --input: oklch(0.269 0 0);
+    --ring: oklch(0.439 0 0);
+    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.985 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(0.269 0 0);
+    --sidebar-ring: oklch(0.439 0 0);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* ================================================================ */
+/* Acumatica UI Theme Variables                                      */
+/* ================================================================ */
+
+:root {
+    --acu-primary: #2563EB;
+    --acu-primary-hover: #1D4ED8;
+    --acu-sidebar: #1E293B;
+    --acu-sidebar-hover: #334155;
+    --acu-surface: #F8FAFC;
+    --acu-surface-card: #FFFFFF;
+    --acu-border: #E2E8F0;
+    --acu-border-strong: #CBD5E1;
+    --acu-text: #1E293B;
+    --acu-text-muted: #64748B;
+    --acu-text-light: #94A3B8;
+
+    --acu-success: #10B981;
+    --acu-warning: #F59E0B;
+    --acu-danger: #EF4444;
+    --acu-info: #06B6D4;
+
+    --acu-fieldset-blue: #3B82F6;
+    --acu-fieldset-green: #10B981;
+    --acu-fieldset-purple: #8B5CF6;
+    --acu-fieldset-amber: #F59E0B;
+    --acu-fieldset-cyan: #06B6D4;
+    --acu-fieldset-gray: #6B7280;
+
+    --acu-sidebar-width: 260px;
+    --acu-sidebar-collapsed: 64px;
+    --acu-topbar-height: 56px;
+    --acu-content-max-width: 1400px;
+}
+
+/* ================================================================ */
+/* Premium Auth Layout                                                */
+/* ================================================================ */
+
+:root {
+    --auth-bg-from: #0a0e27;
+    --auth-bg-to: #131a3d;
+    --auth-glow-color: rgba(37, 99, 235, 0.15);
+    --auth-glow-color-strong: rgba(37, 99, 235, 0.25);
+    --auth-accent: #2563EB;
+    --auth-accent-hover: color-mix(in oklch, var(--auth-accent) 80%, white);
+}
+
+/* ================================================================ */
+/* Fieldset Styles                                                    */
+/* ================================================================ */
+
+.acu-fieldset {
+    background: var(--acu-surface-card);
+    border: 1px solid var(--acu-border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+.acu-fieldset:hover {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.acu-fieldset-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    border-left: 3px solid var(--fieldset-color, var(--acu-fieldset-blue));
+    background: linear-gradient(to right, color-mix(in srgb, var(--fieldset-color, var(--acu-fieldset-blue)) 5%, transparent), transparent);
+}
+.acu-fieldset-header:hover {
+    background: linear-gradient(to right, color-mix(in srgb, var(--fieldset-color, var(--acu-fieldset-blue)) 8%, transparent), transparent);
+}
+.acu-fieldset-title {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 600; font-size: 0.875rem; color: var(--acu-text);
+}
+.acu-fieldset-title i { color: var(--fieldset-color, var(--acu-fieldset-blue)); }
+.acu-fieldset-body { padding: 16px; }
+
+/* ================================================================ */
+/* Field Grid                                                         */
+/* ================================================================ */
+
+.acu-field-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px;
+}
+@media (max-width: 768px) {
+    .acu-field-grid > * { grid-column: span 12 !important; }
+}
+
+/* ================================================================ */
+/* Status Badges                                                      */
+/* ================================================================ */
+
+.acu-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 10px; border-radius: 9999px;
+    font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.025em;
+}
+.acu-status--active    { background: #D1FAE5; color: #065F46; }
+.acu-status--inactive  { background: #F1F5F9; color: #475569; }
+.acu-status--suspended { background: #FEE2E2; color: #991B1B; }
+.acu-status--pending   { background: #FEF3C7; color: #92400E; }
+.acu-status--completed { background: #DBEAFE; color: #1E40AF; }
+.acu-status--error     { background: #FEE2E2; color: #991B1B; }
+
+/* ================================================================ */
+/* Config Mode Overlay                                                */
+/* ================================================================ */
+
+.acu-config-mode .acu-fieldset { outline: 2px dashed var(--acu-primary); outline-offset: 2px; }
+.acu-config-mode .acu-field-wrapper {
+    position: relative; cursor: grab;
+    border: 1px dashed var(--acu-border-strong); border-radius: 4px; padding: 4px;
+}
+.acu-config-mode .acu-field-wrapper:hover {
+    background: color-mix(in srgb, var(--acu-primary) 5%, transparent);
+    border-color: var(--acu-primary);
+}
+
+/* ================================================================ */
+/* DataTable Overrides                                                */
+/* ================================================================ */
+
+.acu-grid .p-datatable .p-datatable-thead > tr > th {
+    background: var(--acu-surface); font-weight: 600; font-size: 0.8125rem;
+    text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--acu-text-muted); border-bottom: 2px solid var(--acu-border);
+}
+.acu-grid .p-datatable .p-datatable-tbody > tr { transition: background-color 0.15s ease; }
+.acu-grid .p-datatable .p-datatable-tbody > tr:hover {
+    background-color: color-mix(in srgb, var(--acu-primary) 4%, white);
+}
+.acu-grid .p-datatable .p-datatable-tbody > tr.error-row { background-color: #FEF2F2; }
+
+/* ================================================================ */
+/* Sidebar                                                            */
+/* ================================================================ */
+
+.acu-sidebar {
+    width: var(--acu-sidebar-width); background: var(--acu-sidebar);
+    color: #E2E8F0; transition: width 0.3s ease; overflow: hidden;
+}
+.acu-sidebar.collapsed { width: var(--acu-sidebar-collapsed); }
+.acu-sidebar-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; color: #CBD5E1; font-size: 0.875rem;
+    text-decoration: none; transition: all 0.15s ease;
+    border-left: 3px solid transparent;
+}
+.acu-sidebar-link:hover { background: var(--acu-sidebar-hover); color: #F8FAFC; }
+.acu-sidebar-link.active {
+    background: rgba(37, 99, 235, 0.15); color: #93C5FD;
+    border-left-color: var(--acu-primary);
+}
