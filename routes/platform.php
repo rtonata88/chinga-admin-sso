@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\GameController;
+use App\Http\Controllers\Platform\PlatformRoleManagementController;
 use App\Http\Controllers\Platform\RevenueController;
 use App\Http\Controllers\Platform\TenantController;
 use App\Http\Controllers\Platform\TenantGameController;
@@ -29,6 +30,7 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('pla
     Route::get('games', fn () => Inertia::render('platform/games/index'))->name('platform.games');
     Route::get('games/{uuid}', fn (string $uuid) => Inertia::render('platform/games/show', ['uuid' => $uuid]))->name('platform.games.show');
     Route::get('revenue', fn () => Inertia::render('platform/revenue/index'))->name('platform.revenue');
+    Route::get('users', fn () => Inertia::render('platform/users/index'))->name('platform.users');
 });
 
 // Platform admin API routes
@@ -74,4 +76,11 @@ Route::middleware(['auth', EnsurePlatformAdmin::class])->prefix('api/v1/platform
     // Revenue reports
     Route::get('revenue', [RevenueController::class, 'index'])->name('revenue.index');
     Route::get('revenue/summary', [RevenueController::class, 'summary'])->name('revenue.summary');
+
+    // User & Role Management
+    Route::get('roles', [PlatformRoleManagementController::class, 'listRoles'])->name('roles.index');
+    Route::get('users', [PlatformRoleManagementController::class, 'listUsers'])->name('users.index');
+    Route::get('users/{uuid}/roles', [PlatformRoleManagementController::class, 'getUserRoles'])->name('users.roles.index');
+    Route::post('users/{uuid}/roles', [PlatformRoleManagementController::class, 'assignRole'])->name('users.roles.store');
+    Route::delete('users/{uuid}/roles/{role}', [PlatformRoleManagementController::class, 'removeRole'])->name('users.roles.destroy');
 });
