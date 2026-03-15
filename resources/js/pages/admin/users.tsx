@@ -4,11 +4,14 @@ import UserLayout from '@/layouts/user-layout';
 import type { StatusVariant } from '@/types/acumatica';
 import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
+import { Checkbox } from 'primereact/checkbox';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
+import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
-import { useEffect, useState } from 'react';
+import { Toast } from 'primereact/toast';
+import { useEffect, useRef, useState } from 'react';
 
 interface User {
     uuid: string;
@@ -40,6 +43,12 @@ interface Stats {
         enhanced: number;
         full: number;
     };
+}
+
+interface RoleOption {
+    name: string;
+    display_name: string;
+    description: string;
 }
 
 function mapUserStatusToVariant(status: string): StatusVariant {
@@ -110,6 +119,15 @@ export default function Users() {
     const [kycFilter, setKycFilter] = useState('');
     const [page, setPage] = useState(1);
 
+    const toast = useRef<Toast>(null);
+    const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+    const [roleDialogUser, setRoleDialogUser] = useState<User | null>(null);
+    const [availableRoles, setAvailableRoles] = useState<RoleOption[]>([]);
+    const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+    const [originalRoles, setOriginalRoles] = useState<string[]>([]);
+    const [roleLoading, setRoleLoading] = useState(false);
+    const [roleSaving, setRoleSaving] = useState(false);
+
     const fetchUsers = async () => {
         setLoading(true);
         try {
@@ -154,6 +172,86 @@ export default function Users() {
         fetchUsers();
         fetchStats();
     }, [page, statusFilter, kycFilter]);
+
+    const getCsrfToken = () => {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    };
+
+    const openRoleDialog = async (user: User) => {
+        setRoleDialogUser(user);
+        setRoleDialogOpen(true);
+        setRoleLoading(true);
+
+        try {
+            const [rolesRes, userRolesRes] = await Promise.all([
+                fetch('/api/v1/admin/roles', { headers: { Accept: 'application/json' } }),
+                fetch(`/api/v1/admin/users/${user.uuid}/roles`, { headers: { Accept: 'application/json' } }),
+            ]);
+
+            const rolesData = await rolesRes.json();
+            const userRolesData = await userRolesRes.json();
+
+            if (rolesData.success) setAvailableRoles(rolesData.data);
+            if (userRolesData.success) {
+                const names = userRolesData.data.map((r: RoleOption) => r.name);
+                setSelectedRoles(names);
+                setOriginalRoles(names);
+            }
+        } catch (error) {
+            console.error('Failed to fetch roles:', error);
+        } finally {
+            setRoleLoading(false);
+        }
+    };
+
+    const saveRoles = async () => {
+        if (!roleDialogUser) return;
+        setRoleSaving(true);
+
+        try {
+            const toAdd = selectedRoles.filter((r) => !originalRoles.includes(r));
+            const toRemove = originalRoles.filter((r) => !selectedRoles.includes(r));
+
+            const headers = {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+            };
+
+            for (const role of toAdd) {
+                const res = await fetch(`/api/v1/admin/users/${roleDialogUser.uuid}/roles`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ role }),
+                });
+                if (!res.ok) {
+                    const data = await res.json();
+                    toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || `Failed to assign ${role}` });
+                    return;
+                }
+            }
+
+            for (const role of toRemove) {
+                const res = await fetch(`/api/v1/admin/users/${roleDialogUser.uuid}/roles/${role}`, {
+                    method: 'DELETE',
+                    headers,
+                });
+                if (!res.ok) {
+                    const data = await res.json();
+                    toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || `Failed to remove ${role}` });
+                    return;
+                }
+            }
+
+            toast.current?.show({ severity: 'success', summary: 'Success', detail: 'Roles updated successfully.' });
+            setRoleDialogOpen(false);
+            fetchUsers();
+        } catch (error) {
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update roles.' });
+        } finally {
+            setRoleSaving(false);
+        }
+    };
 
     const handleSearch = () => {
         setPage(1);
@@ -202,18 +300,29 @@ export default function Users() {
     );
 
     const actionsTemplate = (row: User) => (
-        <Button
-            icon="pi pi-eye"
-            text
-            severity="secondary"
-            size="small"
-            tooltip="View user"
-        />
+        <div className="flex gap-1">
+            <Button
+                icon="pi pi-shield"
+                text
+                severity="secondary"
+                size="small"
+                tooltip="Manage roles"
+                onClick={() => openRoleDialog(row)}
+            />
+            <Button
+                icon="pi pi-eye"
+                text
+                severity="secondary"
+                size="small"
+                tooltip="View user"
+            />
+        </div>
     );
 
     return (
         <UserLayout title="User Management">
             <Head title="User Management" />
+            <Toast ref={toast} />
 
             <div className="space-y-6">
                 <PageHeader title="User Management" subtitle="Manage platform users and their accounts">
@@ -371,6 +480,65 @@ export default function Users() {
                     </div>
                 </div>
             </div>
+
+            <Dialog
+                header={`Manage Roles \u2014 ${roleDialogUser?.name || ''}`}
+                visible={roleDialogOpen}
+                style={{ width: '28rem' }}
+                onHide={() => setRoleDialogOpen(false)}
+                modal
+                draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            label="Cancel"
+                            icon="pi pi-times"
+                            severity="secondary"
+                            outlined
+                            onClick={() => setRoleDialogOpen(false)}
+                        />
+                        <Button
+                            label={roleSaving ? 'Saving...' : 'Save'}
+                            icon="pi pi-check"
+                            onClick={saveRoles}
+                            disabled={roleSaving || roleLoading}
+                            loading={roleSaving}
+                        />
+                    </div>
+                }
+            >
+                {roleLoading ? (
+                    <div className="flex justify-center py-6">
+                        <i className="pi pi-spin pi-spinner text-2xl" />
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {availableRoles.length === 0 ? (
+                            <p className="text-sm text-[var(--acu-text-muted)]">No roles available to assign.</p>
+                        ) : (
+                            availableRoles.map((role) => (
+                                <div key={role.name} className="flex items-start gap-3 p-2 rounded hover:bg-[var(--acu-surface-hover)]">
+                                    <Checkbox
+                                        inputId={role.name}
+                                        checked={selectedRoles.includes(role.name)}
+                                        onChange={(e) => {
+                                            if (e.checked) {
+                                                setSelectedRoles([...selectedRoles, role.name]);
+                                            } else {
+                                                setSelectedRoles(selectedRoles.filter((r) => r !== role.name));
+                                            }
+                                        }}
+                                    />
+                                    <label htmlFor={role.name} className="cursor-pointer">
+                                        <div className="text-sm font-medium text-[var(--acu-text)]">{role.display_name}</div>
+                                        <div className="text-xs text-[var(--acu-text-light)]">{role.description}</div>
+                                    </label>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
+            </Dialog>
         </UserLayout>
     );
 }
