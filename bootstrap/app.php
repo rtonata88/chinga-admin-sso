@@ -31,6 +31,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // Platform admin routes
             Route::middleware('web')
                 ->group(base_path('routes/platform.php'));
+
+            // Game session API routes
+            require base_path('routes/game.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
