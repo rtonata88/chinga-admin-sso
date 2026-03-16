@@ -14,7 +14,7 @@ class VoucherTransaction extends Model
     protected $fillable = [
         'uuid',
         'voucher_code_id',
-        'session_id',
+        'game_session_id',
         'type',
         'amount',
         'balance_before',
@@ -88,9 +88,9 @@ class VoucherTransaction extends Model
         return $this->belongsTo(VoucherCode::class);
     }
 
-    public function session(): BelongsTo
+    public function gameSession(): BelongsTo
     {
-        return $this->belongsTo(VoucherSession::class, 'session_id');
+        return $this->belongsTo(GameSession::class, 'game_session_id');
     }
 
     public function performedBy(): BelongsTo

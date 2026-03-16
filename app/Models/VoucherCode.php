@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 
 class VoucherCode extends Model
@@ -189,12 +190,12 @@ class VoucherCode extends Model
 
     public function currentSession(): BelongsTo
     {
-        return $this->belongsTo(VoucherSession::class, 'current_session_id');
+        return $this->belongsTo(GameSession::class, 'current_session_id');
     }
 
-    public function sessions(): HasMany
+    public function gameSessions(): MorphMany
     {
-        return $this->hasMany(VoucherSession::class);
+        return $this->morphMany(GameSession::class, 'source');
     }
 
     public function transactions(): HasMany

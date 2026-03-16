@@ -124,11 +124,11 @@ class VenueTerminal extends Model
     }
 
     /**
-     * Sessions on this terminal.
+     * Game sessions on this terminal.
      */
-    public function sessions(): HasMany
+    public function gameSessions(): HasMany
     {
-        return $this->hasMany(VoucherSession::class, 'terminal_id');
+        return $this->hasMany(GameSession::class, 'terminal_id');
     }
 
     /**
