@@ -5,18 +5,12 @@ import type { StatusVariant } from '@/types/acumatica';
 import { Head, Link } from '@inertiajs/react';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
-import { Button } from 'primereact/button';
 
 interface UserStats {
     total: number;
     today: number;
     this_week: number;
     active: number;
-}
-
-interface KycStats {
-    pending: number;
-    approved_today: number;
 }
 
 interface VenueStats {
@@ -36,7 +30,6 @@ interface SecurityStats {
 
 interface Stats {
     users: UserStats;
-    kyc: KycStats;
     venues: VenueStats;
     vouchers: VoucherStats;
     security: SecurityStats;
@@ -47,38 +40,20 @@ interface RecentUser {
     name: string;
     email: string;
     status: string;
-    kyc_level: number;
-    created_at: string;
-}
-
-interface PendingKyc {
-    uuid: string;
-    document_type: string;
-    user: {
-        uuid: string;
-        name: string;
-        email: string;
-    };
     created_at: string;
 }
 
 interface DashboardProps {
     stats: Stats;
     recent_users: RecentUser[];
-    pending_kyc: PendingKyc[];
 }
 
 function formatCurrency(amount: number): string {
     return `NAD ${amount.toLocaleString()}`;
 }
 
-function getKycLevelName(level: number): string {
-    return ['Unverified', 'Basic', 'Enhanced', 'Full'][level] || 'Unknown';
-}
-
 const defaultStats: Stats = {
     users: { total: 0, today: 0, this_week: 0, active: 0 },
-    kyc: { pending: 0, approved_today: 0 },
     venues: { total: 0, active: 0 },
     vouchers: { active: 0, total_balance: 0 },
     security: { failed_logins_today: 0, locked_accounts: 0 },
@@ -117,7 +92,6 @@ function StatCard({ icon, iconColor, title, value, subtitle }: StatCardProps) {
 export default function Dashboard({
     stats: propStats,
     recent_users = [],
-    pending_kyc = [],
 }: Partial<DashboardProps>) {
     const stats = propStats ?? defaultStats;
 
@@ -129,20 +103,13 @@ export default function Dashboard({
                 <PageHeader title="Dashboard" subtitle="Overview of platform activity" />
 
                 {/* Stats Cards */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <StatCard
                         icon="pi pi-users"
                         iconColor="#3B82F6"
                         title="Total Users"
                         value={(stats.users?.total ?? 0).toLocaleString()}
                         subtitle={`+${stats.users?.today ?? 0} today, +${stats.users?.this_week ?? 0} this week`}
-                    />
-                    <StatCard
-                        icon="pi pi-shield"
-                        iconColor="#F59E0B"
-                        title="Pending KYC"
-                        value={stats.kyc?.pending ?? 0}
-                        subtitle={`${stats.kyc?.approved_today ?? 0} approved today`}
                     />
                     <StatCard
                         icon="pi pi-map-marker"
@@ -219,65 +186,10 @@ export default function Dashboard({
                                         <StatusBadge status={(row.status || 'pending') as StatusVariant} />
                                     )}
                                 />
-                                <Column
-                                    field="kyc_level"
-                                    header="KYC"
-                                    body={(row) => (
-                                        <span className="text-xs font-medium">{getKycLevelName(row.kyc_level)}</span>
-                                    )}
-                                />
                             </DataTable>
                         </div>
                     </div>
 
-                    {/* Pending KYC */}
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-amber)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-file" />
-                                <span>Pending KYC Review</span>
-                                <span className="text-xs font-normal text-[var(--acu-text-light)] ml-1">
-                                    ({pending_kyc.length})
-                                </span>
-                            </div>
-                            <Link href="/admin/kyc" className="text-xs font-semibold text-[var(--acu-primary)] hover:underline flex items-center gap-1">
-                                Review all <i className="pi pi-arrow-right text-xs" />
-                            </Link>
-                        </div>
-                        <div className="acu-fieldset-body p-0">
-                            <DataTable
-                                value={pending_kyc}
-                                size="small"
-                                emptyMessage="No pending documents"
-                                showGridlines={false}
-                                rows={5}
-                            >
-                                <Column
-                                    field="document_type"
-                                    header="Document"
-                                    body={(row) => (
-                                        <span className="capitalize">{row.document_type?.replace(/_/g, ' ')}</span>
-                                    )}
-                                />
-                                <Column
-                                    header="User"
-                                    body={(row) => (
-                                        <div>
-                                            <div className="font-medium text-sm">{row.user?.name}</div>
-                                            <div className="text-xs text-[var(--acu-text-light)]">{row.user?.email}</div>
-                                        </div>
-                                    )}
-                                />
-                                <Column
-                                    field="created_at"
-                                    header="Submitted"
-                                    body={(row) => (
-                                        <span className="text-sm">{row.created_at ? new Date(row.created_at).toLocaleDateString() : '\u2014'}</span>
-                                    )}
-                                />
-                            </DataTable>
-                        </div>
-                    </div>
                 </div>
             </div>
         </UserLayout>
