@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\KycReviewController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
@@ -26,8 +25,6 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('registrations', [ReportController::class, 'registrations'])->name('registrations');
         Route::get('logins', [ReportController::class, 'logins'])->name('logins');
-        Route::get('kyc', [ReportController::class, 'kyc'])->name('kyc');
-        Route::get('responsible-gambling', [ReportController::class, 'responsibleGambling'])->name('responsible-gambling');
         Route::get('venues', [ReportController::class, 'venues'])->name('venues');
     });
 
@@ -50,16 +47,6 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
         Route::get('{uuid}/roles', [RoleManagementController::class, 'getUserRoles'])->name('roles.show');
         Route::post('{uuid}/roles', [RoleManagementController::class, 'assignRole'])->name('roles.store');
         Route::delete('{uuid}/roles/{role}', [RoleManagementController::class, 'removeRole'])->name('roles.destroy');
-    });
-
-    // KYC Review
-    Route::prefix('kyc')->name('kyc.')->group(function () {
-        Route::get('/', [KycReviewController::class, 'index'])->name('index');
-        Route::get('stats', [KycReviewController::class, 'stats'])->name('stats');
-        Route::get('{uuid}', [KycReviewController::class, 'show'])->name('show');
-        Route::post('{uuid}/approve', [KycReviewController::class, 'approve'])->name('approve');
-        Route::post('{uuid}/reject', [KycReviewController::class, 'reject'])->name('reject');
-        Route::post('users/{uuid}/set-level', [KycReviewController::class, 'setLevel'])->name('set-level');
     });
 
     // Venue Management

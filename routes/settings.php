@@ -1,10 +1,7 @@
 <?php
 
-use App\Http\Controllers\Auth\SmsMfaController;
-use App\Http\Controllers\Settings\KycController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
-use App\Http\Controllers\Settings\ResponsibleGamblingController;
 use App\Http\Controllers\Settings\SecurityLogController;
 use App\Http\Controllers\Settings\SessionController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
@@ -31,15 +28,6 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/two-factor', [TwoFactorAuthenticationController::class, 'show'])
         ->name('two-factor.show');
 
-    // SMS MFA
-    Route::prefix('settings/security/sms-mfa')->group(function () {
-        Route::get('/', [SmsMfaController::class, 'show'])->name('sms-mfa.show');
-        Route::post('/enable', [SmsMfaController::class, 'enable'])->name('sms-mfa.enable');
-        Route::post('/verify', [SmsMfaController::class, 'verify'])->name('sms-mfa.verify');
-        Route::delete('/', [SmsMfaController::class, 'disable'])->name('sms-mfa.disable');
-        Route::post('/preferred', [SmsMfaController::class, 'setPreferred'])->name('sms-mfa.preferred');
-    });
-
     // Sessions
     Route::get('settings/sessions', [SessionController::class, 'index'])->name('sessions.index');
     Route::delete('settings/sessions/{id}', [SessionController::class, 'destroy'])->name('sessions.destroy');
@@ -48,10 +36,4 @@ Route::middleware('auth')->group(function () {
     // Security Audit Log
     Route::get('settings/security/log', [SecurityLogController::class, 'index'])->name('security-log.index');
 
-    // KYC Verification
-    Route::get('settings/kyc', [KycController::class, 'index'])->name('kyc.index');
-
-    // Responsible Gambling
-    Route::get('settings/responsible-gambling', [ResponsibleGamblingController::class, 'index'])
-        ->name('responsible-gambling.index');
 });
