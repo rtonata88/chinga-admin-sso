@@ -591,6 +591,133 @@ Since no games are connected yet and the system is not in production:
 
 ---
 
+## Phase 5: Frontend Changes
+
+### Pages to Remove
+
+| Page | Path | Reason |
+|---|---|---|
+| `settings/kyc.tsx` | `/settings/kyc` | KYC system removed |
+| `settings/responsible-gambling.tsx` | `/settings/responsible-gambling` | Responsible gambling removed |
+| `admin/kyc.tsx` | `/admin/kyc` | KYC review removed |
+
+### Navigation Changes
+
+**User Layout sidebar** (`user-layout.tsx`):
+
+Remove from Settings group:
+- "Identity (KYC)" → `/settings/kyc`
+- "Responsible Gaming" → `/settings/responsible-gambling`
+
+Remove from Administration group:
+- "KYC Review" → `/admin/kyc`
+
+Add to Administration group:
+- "Wallets" → `/admin/wallets` (new)
+
+### Dashboard Changes (`dashboard.tsx`)
+
+The user dashboard currently displays several elements tied to removed features. Update as follows:
+
+**Stats cards:**
+- Keep: Account Status, Active Sessions
+- Remove: KYC Level card (references kyc_level)
+- Simplify: Security % card — base score on email verified + 2FA enabled only (remove phone_verified and kyc_verified from calculation)
+
+**Remove sections:**
+- "Security Alerts" section (login_alerts from device detection / login notifications — both removed)
+- "Identity Documents" section (KYC documents list)
+
+**Update sections:**
+- "Account Verification Checklist" — remove phone verification and KYC items. Keep: email verification, 2FA setup
+- "Quick Actions" — remove "Verify Identity" and "Responsible Gaming" links. Keep: "Edit Profile", "Security Settings". Add: "My Wallet" (links to a wallet balance/history view if needed later)
+
+**Remove from page props:**
+- `kyc_documents` — no longer needed
+- `login_alerts` — no longer needed
+- Simplify `account` prop — remove `kyc_level`, `phone_verified` fields
+
+### Admin Dashboard Changes (`admin/dashboard.tsx`)
+
+**Stats cards:**
+- Keep: Total Users, Active Venues, Voucher Balance
+- Remove: Pending KYC card
+- Add: Total Wallet Balance card (sum of all active wallet balances for tenant)
+
+**Remove sections:**
+- "Pending KYC Review" table
+
+**Update sections:**
+- "Security Alerts" — keep, but only show failed_logins_today and locked_accounts (no device detection references)
+- "Recent Registrations" table — remove KYC level column
+
+### Platform Dashboard Changes (`platform/dashboard.tsx`)
+
+No major changes needed. Stats (tenants, players, venues, revenue) are all kept.
+
+### Admin Users Page Changes (`admin/users.tsx`)
+
+- Remove KYC level breakdown from stats
+- Remove KYC level column from DataTable
+- Keep: status filter, role management dialog
+
+### Platform Users Page Changes (`platform/users/index.tsx`)
+
+- Remove KYC level breakdown from stats
+- Remove KYC level display from user rows (currently shown as chips)
+
+### Registration Page Changes (`auth/register.tsx`)
+
+- Keep phone number field as optional contact info (no verification flow)
+- Keep date of birth field (useful for age verification even without KYC)
+- Keep country code select
+- No structural changes needed
+
+### Settings Security Log Changes (`settings/security/audit-log.tsx`)
+
+- Remove event type icons/handling for: `new_device`, `new_location`, `phone_changed`
+- Keep: login, login_failed, logout, password_changed, password_reset, email_changed, mfa_enabled, mfa_disabled, account_locked, account_unlocked, session_revoked
+
+### New Page: Wallet Management (`admin/wallets.tsx`)
+
+Tenant admin page for managing user wallets.
+
+**Data:**
+- `wallets[]` — list of wallets with user info, balance, status, last activity
+- `stats` — total wallets, total balance, active wallets, frozen wallets
+- `pagination`
+
+**Layout:**
+- Stats cards: Total Wallets, Total Balance, Active, Frozen
+- Search by user name/email
+- Filter by status (active, frozen, closed)
+- DataTable columns: User (name + email), Balance, Currency, Status, Total Deposited, Total Withdrawn, Last Activity, Actions
+
+**Actions per wallet:**
+- View details (expand or dialog showing recent transactions)
+- Deposit credits (dialog: amount input, reference/note field, confirm button)
+- Withdraw credits (dialog: amount input, reference/note field, confirm button)
+- Freeze/Activate toggle
+
+**API calls:**
+- `GET /api/v1/admin/wallets` — list with search/filter/pagination
+- `GET /api/v1/admin/wallets/{uuid}` — details + recent transactions
+- `POST /api/v1/admin/wallets/{uuid}/deposit` — load credits
+- `POST /api/v1/admin/wallets/{uuid}/withdraw` — cash out
+- `POST /api/v1/admin/wallets/{uuid}/freeze` — freeze wallet
+- `POST /api/v1/admin/wallets/{uuid}/activate` — unfreeze
+
+### TypeScript Type Changes
+
+Update shared types (likely in `resources/js/types/`):
+
+- Remove from User type: `kyc_level`, `kyc_verified_at`, `phone_verified_at` (keep `phone` as contact field)
+- Remove types: `KycDocument`, `ResponsibleGamblingSetting`, `SelfExclusion`, `LoginNotification`, `LoginAlert`
+- Add types: `Wallet`, `WalletTransaction`
+- Remove form configuration types (`FieldConfig`, `FieldsetConfig`, `FormConfig`, `GridColumn` from acumatica types) if no longer used
+
+---
+
 ## Out of Scope
 
 - Payment gateway integration (future — staff loads credits for now)
