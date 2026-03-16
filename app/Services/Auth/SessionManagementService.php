@@ -9,18 +9,12 @@ use Illuminate\Support\Collection;
 
 class SessionManagementService
 {
-    public function __construct(
-        protected DeviceDetectionService $deviceDetectionService
-    ) {}
-
     /**
      * Create or update a session for the user.
      */
     public function createSession(User $user, Request $request): UserSession
     {
         $sessionId = session()->getId();
-        $deviceInfo = $this->deviceDetectionService->parseUserAgent($request->userAgent());
-        $locationInfo = $this->deviceDetectionService->getLocationFromIp($request->ip());
 
         $session = UserSession::updateOrCreate(
             [
@@ -30,11 +24,6 @@ class SessionManagementService
             [
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
-                'device_type' => $deviceInfo['device_type'],
-                'browser' => $deviceInfo['browser'],
-                'platform' => $deviceInfo['platform'],
-                'country_code' => $locationInfo['country_code'],
-                'city' => $locationInfo['city'],
                 'last_active_at' => now(),
                 'expires_at' => now()->addMinutes(config('session.lifetime', 120)),
             ]

@@ -171,41 +171,6 @@ class SecurityAuditService
     }
 
     /**
-     * Log new device login.
-     */
-    public function logNewDevice(User $user, array $deviceInfo): SecurityAuditLog
-    {
-        return $this->log(SecurityAuditLog::TYPE_NEW_DEVICE, $user, null, [
-            'metadata' => $deviceInfo,
-            'severity' => 'warning',
-        ]);
-    }
-
-    /**
-     * Log new location login.
-     */
-    public function logNewLocation(User $user, array $locationInfo): SecurityAuditLog
-    {
-        return $this->log(SecurityAuditLog::TYPE_NEW_LOCATION, $user, null, [
-            'metadata' => $locationInfo,
-            'country_code' => $locationInfo['country_code'] ?? null,
-            'city' => $locationInfo['city'] ?? null,
-            'severity' => 'warning',
-        ]);
-    }
-
-    /**
-     * Log self-exclusion.
-     */
-    public function logSelfExclusion(User $user, string $duration): SecurityAuditLog
-    {
-        return $this->log(SecurityAuditLog::TYPE_SELF_EXCLUSION, $user, null, [
-            'metadata' => ['duration' => $duration],
-            'severity' => 'info',
-        ]);
-    }
-
-    /**
      * Log admin action.
      */
     public function logAdminAction(
