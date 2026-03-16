@@ -135,9 +135,9 @@ class VoucherCode extends Model
         return $this->balance > 0;
     }
 
-    public function hasSufficientBalance(float $amount): bool
+    public function hasSufficientBalance(string $amount): bool
     {
-        return $this->balance >= $amount;
+        return bccomp($this->balance, $amount, 2) >= 0;
     }
 
     /**

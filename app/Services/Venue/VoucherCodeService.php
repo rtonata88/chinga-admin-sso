@@ -2,11 +2,11 @@
 
 namespace App\Services\Venue;
 
+use App\Models\GameSession;
 use App\Models\Venue;
 use App\Models\VenueStaff;
 use App\Models\VenueTerminal;
 use App\Models\VoucherCode;
-use App\Models\VoucherSession;
 use App\Models\VoucherTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -29,31 +29,32 @@ class VoucherCodeService
     public function createCode(
         Venue $venue,
         VenueStaff $createdBy,
-        ?float $initialBalance = null,
+        ?string $initialBalance = null,
         ?string $pin = null,
         ?int $expiryHours = null
     ): VoucherCode {
         $code = $this->generateUniqueCode($venue);
+        $initialBalance = $initialBalance ?? '0.00';
 
         $voucherCode = VoucherCode::create([
             'venue_id' => $venue->id,
             'code' => $code,
             'pin' => $pin ? bcrypt($pin) : null,
-            'balance' => $initialBalance ?? 0,
+            'balance' => $initialBalance,
             'currency' => $venue->currency,
-            'status' => $initialBalance > 0 ? 'active' : 'created',
+            'status' => bccomp($initialBalance, '0', 2) > 0 ? 'active' : 'created',
             'created_by_staff_id' => $createdBy->id,
-            'total_loaded' => $initialBalance ?? 0,
+            'total_loaded' => $initialBalance,
             'expires_at' => $this->calculateExpiry($venue, $expiryHours),
         ]);
 
         // Record initial load transaction if balance provided
-        if ($initialBalance > 0) {
+        if (bccomp($initialBalance, '0', 2) > 0) {
             $this->recordTransaction(
                 $voucherCode,
                 'load',
                 $initialBalance,
-                0,
+                '0.00',
                 $initialBalance,
                 'Initial balance',
                 $createdBy
@@ -120,29 +121,31 @@ class VoucherCodeService
      */
     public function loadCredits(
         VoucherCode $voucherCode,
-        float $amount,
+        string $amount,
         VenueStaff $performedBy,
         ?string $description = null
     ): VoucherTransaction {
-        if ($amount <= 0) {
+        if (bccomp($amount, '0', 2) <= 0) {
             throw new \InvalidArgumentException('Amount must be positive.');
         }
 
         // Check venue max balance limit
         $venue = $voucherCode->venue;
-        $maxBalance = $venue->getMaxCodeBalance();
+        $maxBalance = (string) $venue->getMaxCodeBalance();
 
-        if ($voucherCode->balance + $amount > $maxBalance) {
+        if (bccomp(bcadd($voucherCode->balance, $amount, 2), $maxBalance, 2) > 0) {
             throw new \RuntimeException("Loading would exceed maximum balance of {$maxBalance}.");
         }
 
         return DB::transaction(function () use ($voucherCode, $amount, $performedBy, $description) {
+            $voucherCode = VoucherCode::lockForUpdate()->find($voucherCode->id);
+
             $balanceBefore = $voucherCode->balance;
-            $balanceAfter = $balanceBefore + $amount;
+            $balanceAfter = bcadd($balanceBefore, $amount, 2);
 
             $voucherCode->update([
                 'balance' => $balanceAfter,
-                'total_loaded' => $voucherCode->total_loaded + $amount,
+                'total_loaded' => bcadd($voucherCode->total_loaded, $amount, 2),
                 'status' => 'active',
                 'last_activity_at' => now(),
             ]);
@@ -165,27 +168,29 @@ class VoucherCodeService
     public function cashout(
         VoucherCode $voucherCode,
         VenueStaff $performedBy,
-        ?float $amount = null,
+        ?string $amount = null,
         ?string $description = null
     ): VoucherTransaction {
         $amount = $amount ?? $voucherCode->balance;
 
-        if ($amount <= 0) {
+        if (bccomp($amount, '0', 2) <= 0) {
             throw new \InvalidArgumentException('Cashout amount must be positive.');
         }
 
-        if ($amount > $voucherCode->balance) {
+        if (bccomp($amount, $voucherCode->balance, 2) > 0) {
             throw new \RuntimeException('Insufficient balance for cashout.');
         }
 
         return DB::transaction(function () use ($voucherCode, $amount, $performedBy, $description) {
+            $voucherCode = VoucherCode::lockForUpdate()->find($voucherCode->id);
+
             $balanceBefore = $voucherCode->balance;
-            $balanceAfter = $balanceBefore - $amount;
+            $balanceAfter = bcsub($balanceBefore, $amount, 2);
 
             $voucherCode->update([
                 'balance' => $balanceAfter,
-                'total_cashed_out' => $voucherCode->total_cashed_out + $amount,
-                'status' => $balanceAfter == 0 ? 'cashed_out' : 'active',
+                'total_cashed_out' => bcadd($voucherCode->total_cashed_out, $amount, 2),
+                'status' => bccomp($balanceAfter, '0', 2) === 0 ? 'cashed_out' : 'active',
                 'last_activity_at' => now(),
             ]);
 
@@ -197,7 +202,7 @@ class VoucherCodeService
             return $this->recordTransaction(
                 $voucherCode,
                 'cashout',
-                -$amount,
+                '-' . $amount,
                 $balanceBefore,
                 $balanceAfter,
                 $description ?? 'Cash out',
@@ -207,16 +212,15 @@ class VoucherCodeService
     }
 
     /**
-     * Debit credits (for gameplay - loss/bet).
+     * Debit credits (for gameplay - bet).
      */
     public function debit(
         VoucherCode $voucherCode,
-        float $amount,
-        ?string $reference = null,
-        ?VenueTerminal $terminal = null,
-        ?array $metadata = null
+        string $amount,
+        GameSession $session,
+        ?string $reference = null
     ): VoucherTransaction {
-        if ($amount <= 0) {
+        if (bccomp($amount, '0', 2) <= 0) {
             throw new \InvalidArgumentException('Amount must be positive.');
         }
 
@@ -224,28 +228,45 @@ class VoucherCodeService
             throw new \RuntimeException('Insufficient balance.');
         }
 
-        return DB::transaction(function () use ($voucherCode, $amount, $reference, $terminal, $metadata) {
+        return DB::transaction(function () use ($voucherCode, $amount, $session, $reference) {
+            // Idempotency check
+            if ($reference) {
+                $existing = VoucherTransaction::where('game_session_id', $session->id)
+                    ->where('reference', $reference)
+                    ->where('type', 'bet')
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
+            $voucherCode = VoucherCode::lockForUpdate()->find($voucherCode->id);
+
+            if (!$voucherCode->hasSufficientBalance($amount)) {
+                throw new \RuntimeException('Insufficient balance.');
+            }
+
             $balanceBefore = $voucherCode->balance;
-            $balanceAfter = $balanceBefore - $amount;
+            $balanceAfter = bcsub($balanceBefore, $amount, 2);
 
             $voucherCode->update([
                 'balance' => $balanceAfter,
-                'total_lost' => $voucherCode->total_lost + $amount,
+                'total_lost' => bcadd($voucherCode->total_lost, $amount, 2),
                 'last_activity_at' => now(),
             ]);
 
             return $this->recordTransaction(
                 $voucherCode,
-                'loss',
-                -$amount,
+                'bet',
+                '-' . $amount,
                 $balanceBefore,
                 $balanceAfter,
                 'Game bet/wager',
                 null,
-                $terminal,
-                $voucherCode->current_session_id,
-                $reference,
-                $metadata
+                null,
+                $session->id,
+                $reference
             );
         });
     }
@@ -255,22 +276,35 @@ class VoucherCodeService
      */
     public function credit(
         VoucherCode $voucherCode,
-        float $amount,
-        ?string $reference = null,
-        ?VenueTerminal $terminal = null,
-        ?array $metadata = null
+        string $amount,
+        GameSession $session,
+        ?string $reference = null
     ): VoucherTransaction {
-        if ($amount <= 0) {
+        if (bccomp($amount, '0', 2) <= 0) {
             throw new \InvalidArgumentException('Amount must be positive.');
         }
 
-        return DB::transaction(function () use ($voucherCode, $amount, $reference, $terminal, $metadata) {
+        return DB::transaction(function () use ($voucherCode, $amount, $session, $reference) {
+            // Idempotency check
+            if ($reference) {
+                $existing = VoucherTransaction::where('game_session_id', $session->id)
+                    ->where('reference', $reference)
+                    ->where('type', 'win')
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
+            $voucherCode = VoucherCode::lockForUpdate()->find($voucherCode->id);
+
             $balanceBefore = $voucherCode->balance;
-            $balanceAfter = $balanceBefore + $amount;
+            $balanceAfter = bcadd($balanceBefore, $amount, 2);
 
             $voucherCode->update([
                 'balance' => $balanceAfter,
-                'total_won' => $voucherCode->total_won + $amount,
+                'total_won' => bcadd($voucherCode->total_won, $amount, 2),
                 'last_activity_at' => now(),
             ]);
 
@@ -282,57 +316,11 @@ class VoucherCodeService
                 $balanceAfter,
                 'Game winnings',
                 null,
-                $terminal,
-                $voucherCode->current_session_id,
-                $reference,
-                $metadata
+                null,
+                $session->id,
+                $reference
             );
         });
-    }
-
-    /**
-     * Start a gaming session.
-     */
-    public function startSession(
-        VoucherCode $voucherCode,
-        ?VenueTerminal $terminal = null,
-        ?string $ipAddress = null,
-        ?int $gameClientId = null
-    ): VoucherSession {
-        if (!$voucherCode->canBeUsed()) {
-            throw new \RuntimeException('Voucher code cannot be used.');
-        }
-
-        if ($voucherCode->isInUse()) {
-            throw new \RuntimeException('Voucher code is already in use.');
-        }
-
-        return DB::transaction(function () use ($voucherCode, $terminal, $ipAddress, $gameClientId) {
-            $session = VoucherSession::create([
-                'voucher_code_id' => $voucherCode->id,
-                'terminal_id' => $terminal?->id,
-                'game_client_id' => $gameClientId,
-                'ip_address' => $ipAddress,
-                'balance_start' => $voucherCode->balance,
-            ]);
-
-            $voucherCode->update([
-                'status' => 'in_use',
-                'current_terminal_id' => $terminal?->id,
-                'current_session_id' => $session->id,
-                'last_activity_at' => now(),
-            ]);
-
-            return $session;
-        });
-    }
-
-    /**
-     * End a gaming session.
-     */
-    public function endSession(VoucherSession $session, string $reason = 'logout'): void
-    {
-        $session->end($reason);
     }
 
     /**
@@ -369,10 +357,10 @@ class VoucherCodeService
     public function transfer(
         VoucherCode $fromCode,
         VoucherCode $toCode,
-        float $amount,
+        string $amount,
         VenueStaff $performedBy
     ): array {
-        if ($amount <= 0) {
+        if (bccomp($amount, '0', 2) <= 0) {
             throw new \InvalidArgumentException('Amount must be positive.');
         }
 
@@ -385,9 +373,12 @@ class VoucherCodeService
         }
 
         return DB::transaction(function () use ($fromCode, $toCode, $amount, $performedBy) {
+            $fromCode = VoucherCode::lockForUpdate()->find($fromCode->id);
+            $toCode = VoucherCode::lockForUpdate()->find($toCode->id);
+
             // Debit from source
             $fromBalanceBefore = $fromCode->balance;
-            $fromBalanceAfter = $fromBalanceBefore - $amount;
+            $fromBalanceAfter = bcsub($fromBalanceBefore, $amount, 2);
 
             $fromCode->update([
                 'balance' => $fromBalanceAfter,
@@ -397,7 +388,7 @@ class VoucherCodeService
             $outTransaction = $this->recordTransaction(
                 $fromCode,
                 'transfer_out',
-                -$amount,
+                '-' . $amount,
                 $fromBalanceBefore,
                 $fromBalanceAfter,
                 "Transfer to {$toCode->masked_code}",
@@ -406,7 +397,7 @@ class VoucherCodeService
 
             // Credit to destination
             $toBalanceBefore = $toCode->balance;
-            $toBalanceAfter = $toBalanceBefore + $amount;
+            $toBalanceAfter = bcadd($toBalanceBefore, $amount, 2);
 
             $toCode->update([
                 'balance' => $toBalanceAfter,
@@ -434,19 +425,18 @@ class VoucherCodeService
     private function recordTransaction(
         VoucherCode $voucherCode,
         string $type,
-        float $amount,
-        float $balanceBefore,
-        float $balanceAfter,
+        string $amount,
+        string $balanceBefore,
+        string $balanceAfter,
         ?string $description = null,
         ?VenueStaff $performedBy = null,
         ?VenueTerminal $terminal = null,
-        ?int $sessionId = null,
+        ?int $gameSessionId = null,
         ?string $reference = null,
-        ?array $metadata = null
     ): VoucherTransaction {
         return VoucherTransaction::create([
             'voucher_code_id' => $voucherCode->id,
-            'session_id' => $sessionId,
+            'game_session_id' => $gameSessionId,
             'type' => $type,
             'amount' => $amount,
             'balance_before' => $balanceBefore,
@@ -455,7 +445,6 @@ class VoucherCodeService
             'description' => $description,
             'performed_by_staff_id' => $performedBy?->id,
             'terminal_id' => $terminal?->id,
-            'metadata' => $metadata,
         ]);
     }
 
