@@ -19,7 +19,6 @@ interface User {
     email: string;
     username: string | null;
     status: string;
-    kyc_level: number;
     email_verified_at: string | null;
     created_at: string;
     last_login_at: string | null;
@@ -37,12 +36,6 @@ interface Stats {
     active_users: number;
     suspended_users: number;
     banned_users: number;
-    kyc_levels: {
-        unverified: number;
-        basic: number;
-        enhanced: number;
-        full: number;
-    };
 }
 
 interface RoleOption {
@@ -59,10 +52,6 @@ function mapUserStatusToVariant(status: string): StatusVariant {
         self_excluded: 'inactive',
     };
     return map[status] || 'inactive';
-}
-
-function getKycLevelName(level: number): string {
-    return ['Unverified', 'Basic', 'Enhanced', 'Full'][level] || 'Unknown';
 }
 
 interface StatCardProps {
@@ -101,14 +90,6 @@ const statusOptions = [
     { label: 'Self-Excluded', value: 'self_excluded' },
 ];
 
-const kycOptions = [
-    { label: 'All Levels', value: '' },
-    { label: 'Unverified', value: '0' },
-    { label: 'Basic', value: '1' },
-    { label: 'Enhanced', value: '2' },
-    { label: 'Full', value: '3' },
-];
-
 export default function Users() {
     const [users, setUsers] = useState<User[]>([]);
     const [meta, setMeta] = useState<Meta | null>(null);
@@ -116,7 +97,6 @@ export default function Users() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
-    const [kycFilter, setKycFilter] = useState('');
     const [page, setPage] = useState(1);
 
     const toast = useRef<Toast>(null);
@@ -134,7 +114,6 @@ export default function Users() {
             const params = new URLSearchParams();
             if (search) params.append('search', search);
             if (statusFilter) params.append('status', statusFilter);
-            if (kycFilter) params.append('kyc_level', kycFilter);
             params.append('page', page.toString());
 
             const response = await fetch(`/api/v1/admin/users?${params}`, {
@@ -171,7 +150,7 @@ export default function Users() {
     useEffect(() => {
         fetchUsers();
         fetchStats();
-    }, [page, statusFilter, kycFilter]);
+    }, [page, statusFilter]);
 
     const getCsrfToken = () => {
         return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -267,12 +246,6 @@ export default function Users() {
 
     const statusTemplate = (row: User) => (
         <StatusBadge status={mapUserStatusToVariant(row.status)} label={row.status} />
-    );
-
-    const kycTemplate = (row: User) => (
-        <span className="text-xs font-medium text-[var(--acu-text)]">
-            {getKycLevelName(row.kyc_level)}
-        </span>
     );
 
     const verifiedTemplate = (row: User) => (
@@ -406,16 +379,6 @@ export default function Users() {
                                 placeholder="Status"
                                 className="w-40"
                             />
-                            <Dropdown
-                                value={kycFilter}
-                                onChange={(e) => {
-                                    setKycFilter(e.value);
-                                    setPage(1);
-                                }}
-                                options={kycOptions}
-                                placeholder="KYC Level"
-                                className="w-40"
-                            />
                         </div>
                     </div>
                 </div>
@@ -443,7 +406,6 @@ export default function Users() {
                         >
                             <Column header="User" body={userTemplate} />
                             <Column header="Status" body={statusTemplate} />
-                            <Column header="KYC Level" body={kycTemplate} />
                             <Column header="Verified" body={verifiedTemplate} style={{ textAlign: 'center' }} />
                             <Column header="Registered" body={registeredTemplate} />
                             <Column header="Last Login" body={lastLoginTemplate} />
