@@ -67,8 +67,6 @@ function getSeverityBadge(severity: string) {
 function getEventIcon(eventType: string) {
     switch (eventType) {
         case 'login':
-        case 'new_device':
-        case 'new_location':
             return <CheckCircle className="h-5 w-5 text-green-500" />;
         case 'login_failed':
         case 'account_locked':
@@ -81,7 +79,6 @@ function getEventIcon(eventType: string) {
         case 'password_changed':
         case 'password_reset':
         case 'email_changed':
-        case 'phone_changed':
             return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
         default:
             return <Info className="h-5 w-5 text-blue-500" />;
