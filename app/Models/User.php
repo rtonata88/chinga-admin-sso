@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -175,6 +176,34 @@ class User extends Authenticatable implements MustVerifyEmail
     public function securityAuditLogs(): HasMany
     {
         return $this->hasMany(SecurityAuditLog::class);
+    }
+
+    /**
+     * Wallet relationship.
+     */
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
+    /**
+     * Get the user's wallet or create one if it doesn't exist.
+     */
+    public function getOrCreateWallet(?string $currency = null): Wallet
+    {
+        $wallet = $this->wallet;
+        if ($wallet) {
+            return $wallet;
+        }
+
+        $tenant = app('current_tenant');
+        $currency = $currency ?? $tenant?->currency ?? 'NAD';
+
+        return $this->wallet()->create([
+            'tenant_id' => $this->tenant_id,
+            'currency' => $currency,
+            'status' => 'active',
+        ]);
     }
 
     // isAdmin() and isSuperAdmin() are provided by the HasRoles trait
