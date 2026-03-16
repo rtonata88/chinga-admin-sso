@@ -60,7 +60,7 @@ class VoucherTransaction extends Model
      */
     public function isDebit(): bool
     {
-        return in_array($this->type, ['loss', 'cashout', 'transfer_out']) || $this->amount < 0;
+        return in_array($this->type, ['bet', 'cashout', 'transfer_out']) || $this->amount < 0;
     }
 
     /**
@@ -71,7 +71,7 @@ class VoucherTransaction extends Model
         return match ($this->type) {
             'load' => 'Credit Load',
             'win' => 'Winnings',
-            'loss' => 'Bet/Wager',
+            'bet' => 'Bet/Wager',
             'cashout' => 'Cash Out',
             'adjustment' => 'Adjustment',
             'transfer_in' => 'Transfer In',
