@@ -105,16 +105,6 @@ class Tenant extends Model
         return $this->hasMany(SecurityAuditLog::class);
     }
 
-    public function kycDocuments(): HasMany
-    {
-        return $this->hasMany(KycDocument::class);
-    }
-
-    public function selfExclusions(): HasMany
-    {
-        return $this->hasMany(SelfExclusion::class);
-    }
-
     public function revenueRecords(): HasMany
     {
         return $this->hasMany(TenantRevenueRecord::class);

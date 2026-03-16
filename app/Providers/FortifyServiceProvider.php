@@ -6,8 +6,6 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Models\User;
 use App\Services\Auth\AccountLockoutService;
-use App\Services\Auth\DeviceDetectionService;
-use App\Services\Auth\LoginNotificationService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -143,14 +141,6 @@ class FortifyServiceProvider extends ServiceProvider
 
             // Check if account is active
             if (!$user->isActive()) {
-                if ($user->isSelfExcluded()) {
-                    throw ValidationException::withMessages([
-                        Fortify::username() => [
-                            'Your account is currently self-excluded. Please contact support if you wish to reactivate.',
-                        ],
-                    ]);
-                }
-
                 throw ValidationException::withMessages([
                     Fortify::username() => [
                         'Your account has been suspended. Please contact support.',
@@ -172,33 +162,8 @@ class FortifyServiceProvider extends ServiceProvider
             // Successful authentication - record it
             $lockoutService->recordSuccessfulLogin($user, $request->ip(), $request->userAgent());
 
-            // Detect device and record login notification
-            $this->processLoginNotification($user, $request);
-
             return $user;
         });
     }
 
-    /**
-     * Process login notification for device/location detection.
-     */
-    private function processLoginNotification(User $user, Request $request): void
-    {
-        try {
-            $deviceService = app(DeviceDetectionService::class);
-            $notificationService = app(LoginNotificationService::class);
-
-            $loginNotification = $deviceService->analyzeLogin($user, $request);
-
-            if ($loginNotification->is_new_device || $loginNotification->is_new_location) {
-                // Queue the notification to be sent
-                dispatch(function () use ($notificationService, $loginNotification) {
-                    $notificationService->processLoginNotification($loginNotification);
-                })->afterResponse();
-            }
-        } catch (\Exception $e) {
-            // Log but don't fail the login
-            logger()->error('Failed to process login notification: ' . $e->getMessage());
-        }
-    }
 }
