@@ -18,8 +18,6 @@ const settingsGroup: SidebarNavGroup = {
         { label: 'Two-Factor Auth', icon: 'pi pi-lock', href: '/settings/two-factor' },
         { label: 'Sessions', icon: 'pi pi-desktop', href: '/settings/sessions' },
         { label: 'Security Log', icon: 'pi pi-shield', href: '/settings/security/log' },
-        { label: 'Identity (KYC)', icon: 'pi pi-id-card', href: '/settings/kyc' },
-        { label: 'Responsible Gaming', icon: 'pi pi-heart', href: '/settings/responsible-gambling' },
         { label: 'Appearance', icon: 'pi pi-palette', href: '/settings/appearance' },
     ],
 };
@@ -29,7 +27,7 @@ const adminGroup: SidebarNavGroup = {
     items: [
         { label: 'Admin Dashboard', icon: 'pi pi-th-large', href: '/admin' },
         { label: 'Users', icon: 'pi pi-users', href: '/admin/users' },
-        { label: 'KYC Review', icon: 'pi pi-verified', href: '/admin/kyc' },
+        { label: 'Wallets', icon: 'pi pi-credit-card', href: '/admin/wallets' },
         { label: 'Voucher Codes', icon: 'pi pi-ticket', href: '/admin/voucher-codes' },
         { label: 'Reports', icon: 'pi pi-chart-bar', href: '/admin/reports' },
         { label: 'Audit Logs', icon: 'pi pi-list', href: '/admin/audit-logs' },
