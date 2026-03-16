@@ -92,4 +92,12 @@ class DashboardController extends Controller
     {
         return Inertia::render('admin/audit-logs');
     }
+
+    /**
+     * Display wallet management page.
+     */
+    public function wallets(): Response
+    {
+        return Inertia::render('admin/wallets');
+    }
 }

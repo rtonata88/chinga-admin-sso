@@ -22,6 +22,7 @@ Route::middleware(['auth', 'verified', EnsureTenantAdmin::class])->prefix('admin
     Route::get('voucher-codes', [DashboardController::class, 'voucherCodes'])->name('admin.voucher-codes');
     Route::get('reports', [DashboardController::class, 'reports'])->name('admin.reports');
     Route::get('audit-logs', [DashboardController::class, 'auditLogs'])->name('admin.audit-logs');
+    Route::get('wallets', [DashboardController::class, 'wallets'])->name('admin.wallets');
 });
 
 require __DIR__.'/settings.php';
