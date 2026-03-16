@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\VenueManagementController;
+use App\Http\Controllers\Admin\WalletManagementController;
 use App\Http\Middleware\EnsureTenantAdmin;
 use App\Http\Middleware\IsSuperAdmin;
 use Illuminate\Support\Facades\Route;
@@ -77,6 +78,14 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
 
     // Voucher code search
     Route::get('voucher-codes', [VenueManagementController::class, 'searchCodes'])->name('voucher-codes.search');
+
+    // Wallet Management
+    Route::get('wallets', [WalletManagementController::class, 'index'])->name('wallets.index');
+    Route::get('wallets/{wallet}', [WalletManagementController::class, 'show'])->name('wallets.show');
+    Route::post('wallets/{wallet}/deposit', [WalletManagementController::class, 'deposit'])->name('wallets.deposit');
+    Route::post('wallets/{wallet}/withdraw', [WalletManagementController::class, 'withdraw'])->name('wallets.withdraw');
+    Route::post('wallets/{wallet}/freeze', [WalletManagementController::class, 'freeze'])->name('wallets.freeze');
+    Route::post('wallets/{wallet}/activate', [WalletManagementController::class, 'activate'])->name('wallets.activate');
 });
 
 // Super Admin only routes
