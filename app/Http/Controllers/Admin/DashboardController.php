@@ -100,4 +100,12 @@ class DashboardController extends Controller
     {
         return Inertia::render('admin/wallets');
     }
+
+    /**
+     * Display wallet transactions page.
+     */
+    public function walletTransactions(): Response
+    {
+        return Inertia::render('admin/wallet-transactions');
+    }
 }

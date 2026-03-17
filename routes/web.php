@@ -23,6 +23,8 @@ Route::middleware(['auth', 'verified', EnsureTenantAdmin::class])->prefix('admin
     Route::get('reports', [DashboardController::class, 'reports'])->name('admin.reports');
     Route::get('audit-logs', [DashboardController::class, 'auditLogs'])->name('admin.audit-logs');
     Route::get('wallets', [DashboardController::class, 'wallets'])->name('admin.wallets');
+    Route::get('wallet-transactions', [DashboardController::class, 'walletTransactions'])->name('admin.wallet-transactions');
+    Route::get('revenue', fn () => Inertia::render('admin/revenue'))->name('admin.revenue');
 });
 
 require __DIR__.'/settings.php';

@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\VenueManagementController;
 use App\Http\Controllers\Admin\WalletManagementController;
+use App\Http\Controllers\Admin\WalletTransactionController;
 use App\Http\Middleware\EnsureTenantAdmin;
 use App\Http\Middleware\IsSuperAdmin;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +31,10 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
     });
 
     Route::get('audit-logs', [ReportController::class, 'auditLogs'])->name('audit-logs');
+
+    // Revenue
+    Route::get('revenue', [ReportController::class, 'revenue'])->name('revenue');
+    Route::get('revenue/summary', [ReportController::class, 'revenueSummary'])->name('revenue.summary');
 
     // Assignable Roles
     Route::get('roles', [RoleManagementController::class, 'listRoles'])->name('roles.index');
@@ -86,6 +91,9 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
     Route::post('wallets/{wallet}/withdraw', [WalletManagementController::class, 'withdraw'])->name('wallets.withdraw');
     Route::post('wallets/{wallet}/freeze', [WalletManagementController::class, 'freeze'])->name('wallets.freeze');
     Route::post('wallets/{wallet}/activate', [WalletManagementController::class, 'activate'])->name('wallets.activate');
+
+    // Wallet Transactions
+    Route::get('wallet-transactions', [WalletTransactionController::class, 'index'])->name('wallet-transactions.index');
 });
 
 // Super Admin only routes
