@@ -10,17 +10,6 @@ const accountGroup: SidebarNavGroup = {
     ],
 };
 
-const settingsGroup: SidebarNavGroup = {
-    title: 'Settings',
-    items: [
-        { label: 'Profile', icon: 'pi pi-user', href: '/settings/profile' },
-        { label: 'Password', icon: 'pi pi-key', href: '/settings/password' },
-        { label: 'Two-Factor Auth', icon: 'pi pi-lock', href: '/settings/two-factor' },
-        { label: 'Sessions', icon: 'pi pi-desktop', href: '/settings/sessions' },
-        { label: 'Security Log', icon: 'pi pi-shield', href: '/settings/security/log' },
-        { label: 'Appearance', icon: 'pi pi-palette', href: '/settings/appearance' },
-    ],
-};
 
 const adminGroup: SidebarNavGroup = {
     title: 'Administration',
@@ -28,7 +17,9 @@ const adminGroup: SidebarNavGroup = {
         { label: 'Admin Dashboard', icon: 'pi pi-th-large', href: '/admin' },
         { label: 'Users', icon: 'pi pi-users', href: '/admin/users' },
         { label: 'Wallets', icon: 'pi pi-credit-card', href: '/admin/wallets' },
+        { label: 'Wallet Transactions', icon: 'pi pi-arrow-right-arrow-left', href: '/admin/wallet-transactions' },
         { label: 'Voucher Codes', icon: 'pi pi-ticket', href: '/admin/voucher-codes' },
+        { label: 'Revenue', icon: 'pi pi-dollar', href: '/admin/revenue' },
         { label: 'Reports', icon: 'pi pi-chart-bar', href: '/admin/reports' },
         { label: 'Audit Logs', icon: 'pi pi-list', href: '/admin/audit-logs' },
     ],
@@ -63,7 +54,7 @@ export default function UserLayout({ children, title }: PropsWithChildren<Props>
     const isAdmin = isPlatformAdmin || isTenantAdmin;
 
     const navigation = useMemo(() => {
-        const groups: SidebarNavGroup[] = [accountGroup, settingsGroup];
+        const groups: SidebarNavGroup[] = [accountGroup];
 
         if (isAdmin) {
             groups.push(adminGroup);
