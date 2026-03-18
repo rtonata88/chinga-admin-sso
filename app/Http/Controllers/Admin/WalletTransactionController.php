@@ -20,6 +20,7 @@ class WalletTransactionController extends Controller
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
         $walletUuid = $request->input('wallet');
+        $gameFilter = $request->input('game');
         $perPage = (int) $request->input('per_page', 25);
 
         // Multi-tenancy: scope queries to current tenant
@@ -34,6 +35,8 @@ class WalletTransactionController extends Controller
                 ->join('wallets', 'wallet_transactions.wallet_id', '=', 'wallets.id')
                 ->join('users', 'wallets.user_id', '=', 'users.id')
                 ->leftJoin('users as performer', 'wallet_transactions.performed_by', '=', 'performer.id')
+                ->leftJoin('game_sessions', 'wallet_transactions.game_session_id', '=', 'game_sessions.id')
+                ->leftJoin('games', 'game_sessions.game_id', '=', 'games.id')
                 ->select([
                     'wallet_transactions.uuid',
                     DB::raw("'wallet' as source_type"),
@@ -50,6 +53,7 @@ class WalletTransactionController extends Controller
                     'performer.name as performed_by_name',
                     'wallets.currency',
                     'wallet_transactions.created_at',
+                    'games.name as game_name',
                 ]);
 
             // Tenant scoping
@@ -99,6 +103,10 @@ class WalletTransactionController extends Controller
             if ($dateTo && $walletQuery) {
                 $walletQuery->where('wallet_transactions.created_at', '<=', $dateTo . ' 23:59:59');
             }
+
+            if ($gameFilter && $walletQuery) {
+                $walletQuery->where('game_sessions.game_id', $gameFilter);
+            }
         }
 
         // Voucher transactions query
@@ -107,6 +115,8 @@ class WalletTransactionController extends Controller
                 ->join('voucher_codes', 'voucher_transactions.voucher_code_id', '=', 'voucher_codes.id')
                 ->join('venues', 'voucher_codes.venue_id', '=', 'venues.id')
                 ->leftJoin('venue_staff', 'voucher_transactions.performed_by_staff_id', '=', 'venue_staff.id')
+                ->leftJoin('game_sessions', 'voucher_transactions.game_session_id', '=', 'game_sessions.id')
+                ->leftJoin('games', 'game_sessions.game_id', '=', 'games.id')
                 ->select([
                     'voucher_transactions.uuid',
                     DB::raw("'voucher' as source_type"),
@@ -123,6 +133,7 @@ class WalletTransactionController extends Controller
                     'venue_staff.display_name as performed_by_name',
                     'voucher_codes.currency',
                     'voucher_transactions.created_at',
+                    'games.name as game_name',
                 ]);
 
             // Tenant scoping
@@ -153,6 +164,10 @@ class WalletTransactionController extends Controller
             if ($dateTo && $voucherQuery) {
                 $voucherQuery->where('voucher_transactions.created_at', '<=', $dateTo . ' 23:59:59');
             }
+
+            if ($gameFilter && $voucherQuery) {
+                $voucherQuery->where('game_sessions.game_id', $gameFilter);
+            }
         }
 
         // Build union or single query
@@ -176,7 +191,12 @@ class WalletTransactionController extends Controller
         }
 
         // Compute stats from the same filters
-        $stats = $this->computeStats($source, $search, $type, $dateFrom, $dateTo, $walletUuid, $tenantId);
+        $stats = $this->computeStats($source, $search, $type, $dateFrom, $dateTo, $walletUuid, $tenantId, $gameFilter);
+
+        $games = DB::table('games')
+            ->select('games.id', 'games.name')
+            ->orderBy('games.name')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -188,6 +208,7 @@ class WalletTransactionController extends Controller
                 'total' => $results->total(),
             ],
             'stats' => $stats,
+            'games' => $games,
         ]);
     }
 
@@ -198,7 +219,8 @@ class WalletTransactionController extends Controller
         ?string $dateFrom,
         ?string $dateTo,
         ?string $walletUuid,
-        ?int $tenantId
+        ?int $tenantId,
+        ?string $gameFilter = null
     ): array {
         $stats = $this->emptyStats();
 
@@ -206,6 +228,11 @@ class WalletTransactionController extends Controller
             $q = DB::table('wallet_transactions')
                 ->join('wallets', 'wallet_transactions.wallet_id', '=', 'wallets.id')
                 ->join('users', 'wallets.user_id', '=', 'users.id');
+
+            if ($gameFilter) {
+                $q->join('game_sessions', 'wallet_transactions.game_session_id', '=', 'game_sessions.id')
+                  ->where('game_sessions.game_id', $gameFilter);
+            }
 
             if ($tenantId) {
                 $q->where('wallets.tenant_id', $tenantId);
@@ -249,6 +276,11 @@ class WalletTransactionController extends Controller
         if ($source !== 'wallet' && !$walletUuid) {
             $q = DB::table('voucher_transactions')
                 ->join('voucher_codes', 'voucher_transactions.voucher_code_id', '=', 'voucher_codes.id');
+
+            if ($gameFilter) {
+                $q->join('game_sessions', 'voucher_transactions.game_session_id', '=', 'game_sessions.id')
+                  ->where('game_sessions.game_id', $gameFilter);
+            }
 
             if ($tenantId) {
                 $q->where('voucher_codes.tenant_id', $tenantId);
