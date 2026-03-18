@@ -25,10 +25,31 @@ interface Session {
     last_active_at: string | null;
 }
 
+interface WalletTransaction {
+    type: string;
+    amount: number;
+    balance_after: number;
+    description: string | null;
+    game_name: string | null;
+    created_at: string;
+}
+
+interface WalletData {
+    balance: number;
+    currency: string;
+    status: string;
+    total_deposited: number;
+    total_withdrawn: number;
+    total_won: number;
+    total_lost: number;
+    recent_transactions: WalletTransaction[];
+}
+
 interface DashboardProps {
     account: Account;
     sessions: Session[];
     active_session_count: number;
+    wallet: WalletData | null;
 }
 
 function getDeviceIcon(deviceType: string): string {
@@ -66,10 +87,23 @@ const defaultAccount: Account = {
     last_login_at: null,
 };
 
+function formatCurrency(amount: number, currency: string = 'NAD'): string {
+    return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function getTransactionSign(type: string): string {
+    return ['deposit', 'win', 'load'].includes(type) ? '+' : '-';
+}
+
+function getTransactionColor(type: string): string {
+    return ['deposit', 'win', 'load'].includes(type) ? '#10B981' : '#EF4444';
+}
+
 export default function Dashboard({
     account = defaultAccount,
     sessions = [],
     active_session_count = 0,
+    wallet = null,
 }: Partial<DashboardProps>) {
     const verificationChecks = [
         { label: 'Email verified', done: account.email_verified, icon: 'pi pi-envelope' },
@@ -109,23 +143,27 @@ export default function Dashboard({
                         </div>
                     </div>
 
-                    {/* Security Score */}
+                    {/* Wallet Balance */}
                     <div className="acu-fieldset">
                         <div className="p-4">
                             <div className="flex items-center justify-between mb-3">
                                 <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">
-                                    Security
+                                    Wallet Balance
                                 </span>
                                 <div
                                     className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                    style={{ backgroundColor: '#3B82F615', color: '#3B82F6' }}
+                                    style={{ backgroundColor: '#C9A84C15', color: '#C9A84C' }}
                                 >
-                                    <i className="pi pi-shield text-sm" />
+                                    <i className="pi pi-wallet text-sm" />
                                 </div>
                             </div>
-                            <div className="text-2xl font-bold text-[var(--acu-text)]">{completionPercent}%</div>
+                            <div className="text-2xl font-bold text-[var(--acu-text)]">
+                                {wallet ? formatCurrency(wallet.balance, wallet.currency) : 'No wallet'}
+                            </div>
                             <p className="text-xs text-[var(--acu-text-light)] mt-1">
-                                {completedChecks} of {verificationChecks.length} checks passed
+                                {wallet
+                                    ? `${formatCurrency(wallet.total_deposited, wallet.currency)} deposited`
+                                    : 'Contact support to set up your wallet'}
                             </p>
                         </div>
                     </div>
@@ -154,61 +192,101 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-2">
-                    {/* Verification Checklist */}
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-check-square" />
-                                <span>Account Verification</span>
-                            </div>
-                            <span className="text-xs font-semibold text-[var(--acu-text-light)]">
-                                {completedChecks}/{verificationChecks.length}
+                {/* Account setup banner — only show if incomplete */}
+                {completedChecks < verificationChecks.length && (
+                    <div
+                        className="rounded-xl overflow-hidden"
+                        style={{
+                            background: 'rgba(59, 130, 246, 0.04)',
+                            border: '1px solid rgba(59, 130, 246, 0.15)',
+                        }}
+                    >
+                        <div className="flex items-center gap-3 px-5 py-3">
+                            <i className="pi pi-info-circle text-sm" style={{ color: '#3B82F6' }} />
+                            <span className="text-sm font-medium" style={{ color: 'var(--acu-text)' }}>
+                                Complete your account setup ({completedChecks}/{verificationChecks.length})
                             </span>
-                        </div>
-                        <div className="acu-fieldset-body">
-                            {/* Progress bar */}
-                            <div className="w-full bg-[var(--acu-bg-alt)] rounded-full h-2 mb-4">
-                                <div
-                                    className="h-2 rounded-full transition-all duration-500"
-                                    style={{
-                                        width: `${completionPercent}%`,
-                                        backgroundColor: completionPercent === 100 ? '#10B981' : '#3B82F6',
-                                    }}
-                                />
-                            </div>
-
-                            <div className="space-y-3">
-                                {verificationChecks.map((check) => (
-                                    <div key={check.label} className="flex items-center gap-3">
-                                        <div
-                                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                                            style={{
-                                                backgroundColor: check.done ? '#10B98120' : '#6B728020',
-                                                color: check.done ? '#10B981' : '#9CA3AF',
-                                            }}
-                                        >
-                                            <i className={check.done ? 'pi pi-check text-xs' : `${check.icon} text-xs`} />
-                                        </div>
-                                        <span
-                                            className="text-sm font-medium"
-                                            style={{ color: check.done ? 'var(--acu-text)' : 'var(--acu-text-light)' }}
-                                        >
-                                            {check.label}
-                                        </span>
-                                        {check.done ? (
-                                            <span className="ml-auto text-xs text-green-600 font-medium">Completed</span>
-                                        ) : (
-                                            <Link
-                                                href="/settings"
-                                                className="ml-auto text-xs font-semibold text-[var(--acu-primary)] hover:underline"
-                                            >
-                                                Set up
-                                            </Link>
-                                        )}
-                                    </div>
+                            <div className="ml-auto flex items-center gap-3">
+                                {verificationChecks.filter(c => !c.done).map((check) => (
+                                    <Link
+                                        key={check.label}
+                                        href="/settings"
+                                        className="text-xs font-semibold flex items-center gap-1"
+                                        style={{ color: '#3B82F6' }}
+                                    >
+                                        <i className={`${check.icon} text-xs`} />
+                                        Enable {check.label.toLowerCase()}
+                                        <i className="pi pi-arrow-right text-[10px]" />
+                                    </Link>
                                 ))}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                    {/* Recent Transactions */}
+                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
+                        <div className="acu-fieldset-header">
+                            <div className="acu-fieldset-title">
+                                <i className="pi pi-history" />
+                                <span>Recent Transactions</span>
+                            </div>
+                            {wallet && (
+                                <span className="text-xs font-semibold text-[var(--acu-text-light)]">
+                                    Balance: {formatCurrency(wallet.balance, wallet.currency)}
+                                </span>
+                            )}
+                        </div>
+                        <div className="acu-fieldset-body">
+                            {!wallet ? (
+                                <p className="text-sm text-[var(--acu-text-light)] text-center py-4">No wallet set up yet</p>
+                            ) : wallet.recent_transactions.length === 0 ? (
+                                <p className="text-sm text-[var(--acu-text-light)] text-center py-4">No transactions yet</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {wallet.recent_transactions.map((tx, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex items-center gap-3 p-3 rounded-lg bg-[var(--acu-bg-alt)]"
+                                        >
+                                            <div
+                                                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                                style={{
+                                                    backgroundColor: `${getTransactionColor(tx.type)}15`,
+                                                    color: getTransactionColor(tx.type),
+                                                }}
+                                            >
+                                                <i className={`pi pi-${['deposit', 'win', 'load'].includes(tx.type) ? 'arrow-down-left' : 'arrow-up-right'} text-sm`} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-[var(--acu-text)] capitalize">
+                                                    {tx.type}
+                                                    {tx.game_name && (
+                                                        <span className="font-normal text-xs text-[var(--acu-text-light)] ml-1.5">
+                                                            {tx.game_name}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-[var(--acu-text-light)]">
+                                                    {tx.description || formatRelativeTime(tx.created_at)}
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <div
+                                                    className="text-sm font-semibold"
+                                                    style={{ color: getTransactionColor(tx.type) }}
+                                                >
+                                                    {getTransactionSign(tx.type)}{formatCurrency(Math.abs(tx.amount), wallet.currency)}
+                                                </div>
+                                                <div className="text-xs text-[var(--acu-text-light)]">
+                                                    {formatCurrency(tx.balance_after, wallet.currency)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
