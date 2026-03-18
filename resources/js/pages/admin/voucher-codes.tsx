@@ -225,6 +225,80 @@ export default function VoucherCodes() {
         URL.revokeObjectURL(url);
     };
 
+    interface PrintableVoucher {
+        code: string;
+        balance: number;
+        currency: string;
+        venueName: string;
+        pin?: string;
+        expiresAt?: string | null;
+        createdAt: string;
+    }
+
+    const printVoucherReceipts = (vouchers: PrintableVoucher[]) => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const doc = printWindow.document;
+        doc.title = 'Voucher Receipts';
+
+        const style = doc.createElement('style');
+        style.textContent = [
+            '@page { margin: 10mm; }',
+            'body { font-family: "Courier New", monospace; margin: 0; padding: 0; }',
+            '.receipt { width: 80mm; padding: 5mm 0; page-break-after: always; }',
+            '.receipt:last-child { page-break-after: auto; }',
+            '.divider { font-size: 12px; text-align: center; margin: 4px 0; }',
+            '.venue { font-size: 14px; font-weight: bold; text-align: center; margin: 8px 0; }',
+            '.section { margin: 8px 0; padding: 0 4px; }',
+            '.label { font-size: 11px; color: #666; }',
+            '.code { font-size: 16px; font-weight: bold; letter-spacing: 2px; margin-top: 2px; }',
+            '.value { font-size: 13px; font-weight: bold; margin-top: 2px; }',
+        ].join('\n');
+        doc.head.appendChild(style);
+
+        const createTextDiv = (className: string, text: string): HTMLDivElement => {
+            const div = doc.createElement('div');
+            div.className = className;
+            div.textContent = text;
+            return div;
+        };
+
+        const createSection = (label: string, value: string, valueClass: string = 'value'): HTMLDivElement => {
+            const section = doc.createElement('div');
+            section.className = 'section';
+            section.appendChild(createTextDiv('label', label));
+            section.appendChild(createTextDiv(valueClass, value));
+            return section;
+        };
+
+        for (const v of vouchers) {
+            const receipt = doc.createElement('div');
+            receipt.className = 'receipt';
+
+            const formatBalance = `${v.currency} ${v.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+            receipt.appendChild(createTextDiv('divider', '================================'));
+            receipt.appendChild(createTextDiv('venue', v.venueName));
+            receipt.appendChild(createTextDiv('divider', '================================'));
+            receipt.appendChild(createSection('Voucher Code:', v.code, 'code'));
+            receipt.appendChild(createSection('Balance:', formatBalance));
+            if (v.pin) {
+                receipt.appendChild(createSection('PIN:', v.pin));
+            }
+            if (v.expiresAt) {
+                receipt.appendChild(createSection('Expires:', new Date(v.expiresAt).toLocaleDateString()));
+            }
+            receipt.appendChild(createSection('Created:', new Date(v.createdAt).toLocaleDateString()));
+            receipt.appendChild(createTextDiv('divider', '================================'));
+
+            doc.body.appendChild(receipt);
+        }
+
+        doc.close();
+        setTimeout(() => printWindow.print(), 200);
+    };
+
     // Dropdown options
     const venueOptions = [
         { label: 'All venues', value: '' },
@@ -243,17 +317,28 @@ export default function VoucherCodes() {
 
     // Column body templates
     const codeTemplate = (rowData: VoucherCode) => (
-        <code className="rounded bg-[var(--acu-surface-ground)] px-2 py-1 text-sm font-mono text-[var(--acu-text)]">
+        <code style={{
+            background: 'var(--acu-surface-elevated)',
+            color: 'var(--acu-primary)',
+            border: '1px solid var(--acu-border)',
+            borderRadius: '6px',
+            padding: '3px 10px',
+            fontSize: '0.8125rem',
+            fontFamily: 'monospace',
+            letterSpacing: '0.04em',
+        }}>
             {rowData.code}
         </code>
     );
 
     const venueTemplate = (rowData: VoucherCode) => (
-        <span className="text-sm text-[var(--acu-text)]">{rowData.venue.name}</span>
+        <span style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>
+            {rowData.venue.name}
+        </span>
     );
 
     const balanceTemplate = (rowData: VoucherCode) => (
-        <span className="font-medium text-sm text-[var(--acu-text)]">
+        <span style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: 500 }}>
             {formatCurrency(rowData.balance, rowData.currency)}
         </span>
     );
@@ -263,19 +348,38 @@ export default function VoucherCodes() {
     );
 
     const loadedCashedTemplate = (rowData: VoucherCode) => (
-        <span className="text-sm text-[var(--acu-text-light)]">
+        <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>
             {formatCurrency(rowData.total_loaded, rowData.currency)} / {formatCurrency(rowData.total_cashed_out, rowData.currency)}
         </span>
     );
 
     const createdTemplate = (rowData: VoucherCode) => (
-        <span className="text-sm text-[var(--acu-text-light)]">
+        <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>
             {new Date(rowData.created_at).toLocaleDateString()}
         </span>
     );
 
     const actionsTemplate = (rowData: VoucherCode) => (
-        <>
+        <div className="flex gap-1">
+            <Button
+                icon="pi pi-print"
+                text
+                severity="info"
+                size="small"
+                tooltip="Print receipt"
+                onClick={() =>
+                    printVoucherReceipts([
+                        {
+                            code: rowData.code,
+                            balance: rowData.balance,
+                            currency: rowData.currency,
+                            venueName: rowData.venue.name,
+                            expiresAt: rowData.expires_at,
+                            createdAt: rowData.created_at,
+                        },
+                    ])
+                }
+            />
             {rowData.status === 'active' && (
                 <Button
                     icon="pi pi-times-circle"
@@ -286,7 +390,7 @@ export default function VoucherCodes() {
                     onClick={() => handleVoidCode(rowData.venue.uuid, rowData.uuid)}
                 />
             )}
-        </>
+        </div>
     );
 
     const closeGenerateDialog = () => {
@@ -323,7 +427,7 @@ export default function VoucherCodes() {
         <UserLayout title="Voucher Codes">
             <Head title="Voucher Codes" />
 
-            <div className="space-y-6">
+            <div className="space-y-8">
                 <PageHeader title="Voucher Codes" subtitle="Generate and manage voucher codes">
                     <Button
                         label="Refresh"
@@ -343,51 +447,49 @@ export default function VoucherCodes() {
                 </PageHeader>
 
                 {/* Filters */}
-                <div className="acu-fieldset">
-                    <div className="acu-fieldset-body">
-                        <div className="flex flex-wrap gap-4">
-                            <div className="flex gap-2">
-                                <span className="p-input-icon-left">
-                                    <i className="pi pi-search" />
-                                    <InputText
-                                        placeholder="Search by code..."
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                        style={{ width: '16rem' }}
-                                    />
-                                </span>
-                                <Button
-                                    icon="pi pi-search"
-                                    onClick={handleSearch}
-                                    tooltip="Search"
+                <div className="rounded-xl p-4" style={{ background: 'var(--acu-surface-card)', border: '1px solid var(--acu-border)' }}>
+                    <div className="flex flex-wrap gap-5">
+                        <div className="flex gap-2">
+                            <span className="p-input-icon-left">
+                                <i className="pi pi-search" />
+                                <InputText
+                                    placeholder="Search by code..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                    style={{ width: '16rem' }}
                                 />
-                            </div>
-                            <Dropdown
-                                value={venueFilter}
-                                options={venueOptions}
-                                onChange={(e) => setVenueFilter(e.value)}
-                                placeholder="All venues"
-                                style={{ width: '12rem' }}
-                            />
-                            <Dropdown
-                                value={statusFilter}
-                                options={statusOptions}
-                                onChange={(e) => setStatusFilter(e.value)}
-                                placeholder="All statuses"
-                                style={{ width: '10rem' }}
+                            </span>
+                            <Button
+                                icon="pi pi-search"
+                                onClick={handleSearch}
+                                tooltip="Search"
                             />
                         </div>
+                        <Dropdown
+                            value={venueFilter}
+                            options={venueOptions}
+                            onChange={(e) => setVenueFilter(e.value)}
+                            placeholder="All venues"
+                            style={{ width: '12rem' }}
+                        />
+                        <Dropdown
+                            value={statusFilter}
+                            options={statusOptions}
+                            onChange={(e) => setStatusFilter(e.value)}
+                            placeholder="All statuses"
+                            style={{ width: '10rem' }}
+                        />
                     </div>
                 </div>
 
                 {/* Codes Table */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
+                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
                     <div className="acu-fieldset-header">
                         <div className="acu-fieldset-title">
                             <i className="pi pi-credit-card" />
-                            <span>Voucher Codes</span>
-                            <span className="text-xs font-normal text-[var(--acu-text-light)] ml-1">
+                            <span style={{ fontFamily: 'var(--font-display)' }}>Voucher Codes</span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--acu-text-light)', marginLeft: '0.25rem' }}>
                                 ({meta?.total ? `${meta.total} total` : 'Loading...'})
                             </span>
                         </div>
@@ -407,13 +509,13 @@ export default function VoucherCodes() {
                             <Column header="Status" body={statusTemplate} />
                             <Column header="Loaded / Cashed Out" body={loadedCashedTemplate} />
                             <Column header="Created" body={createdTemplate} />
-                            <Column header="Actions" body={actionsTemplate} style={{ width: '5rem' }} />
+                            <Column header="Actions" body={actionsTemplate} style={{ width: '7rem' }} />
                         </DataTable>
 
                         {/* Pagination */}
                         {meta && meta.last_page > 1 && (
-                            <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--acu-border)]">
-                                <p className="text-sm text-[var(--acu-text-light)]">
+                            <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--acu-border)' }}>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>
                                     Page {meta.current_page} of {meta.last_page}
                                 </p>
                                 <div className="flex gap-2">
@@ -453,43 +555,70 @@ export default function VoucherCodes() {
                 modal
                 draggable={false}
             >
-                <p className="text-sm text-[var(--acu-text-muted)] mb-4">
+                <p style={{ fontSize: '0.875rem', color: 'var(--acu-text-muted)', marginBottom: '1rem', fontFamily: 'var(--font-body)' }}>
                     Create new voucher codes for a venue
                 </p>
 
                 {generatedCodes.length > 0 ? (
                     <div className="space-y-4">
-                        <div className="rounded border border-[var(--acu-border)] p-4">
-                            <p className="mb-2 font-medium text-[var(--acu-text)]">
+                        <div className="rounded-lg p-4" style={{ background: 'var(--acu-surface-elevated)', border: '1px solid var(--acu-border)' }}>
+                            <p className="mb-2" style={{ fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
                                 Generated {generatedCodes.length} codes:
                             </p>
                             <div className="max-h-48 overflow-auto space-y-1">
                                 {generatedCodes.map((c, i) => (
                                     <div
                                         key={i}
-                                        className="flex justify-between text-sm"
+                                        className="flex justify-between"
+                                        style={{ fontSize: '0.875rem' }}
                                     >
-                                        <code className="font-mono text-[var(--acu-text)]">
+                                        <code style={{
+                                            fontFamily: 'monospace',
+                                            color: 'var(--acu-primary)',
+                                            letterSpacing: '0.04em',
+                                        }}>
                                             {c.code}
                                         </code>
-                                        <span className="text-[var(--acu-text-light)]">
+                                        <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>
                                             {formatCurrency(c.balance)}
                                         </span>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        <Button
-                            label="Export as CSV"
-                            icon="pi pi-download"
-                            onClick={exportCodes}
-                            className="w-full"
-                        />
+                        <div className="flex gap-2">
+                            <Button
+                                label="Export as CSV"
+                                icon="pi pi-download"
+                                onClick={exportCodes}
+                                className="flex-1"
+                            />
+                            <Button
+                                label="Print All"
+                                icon="pi pi-print"
+                                severity="secondary"
+                                onClick={() => {
+                                    const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
+                                    printVoucherReceipts(
+                                        generatedCodes.map((c) => ({
+                                            code: c.code,
+                                            balance: c.balance,
+                                            currency: 'NAD',
+                                            venueName,
+                                            createdAt: new Date().toISOString(),
+                                        })),
+                                    );
+                                }}
+                                className="flex-1"
+                            />
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-4">
                         <div className="flex flex-col gap-1">
-                            <label className="text-sm font-medium text-[var(--acu-text)]">Venue</label>
+                            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
+                                Venue
+                            </label>
                             <Dropdown
                                 value={selectedVenue}
                                 options={generateVenueOptions}
@@ -500,7 +629,9 @@ export default function VoucherCodes() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col gap-1">
-                                <label className="text-sm font-medium text-[var(--acu-text)]">Number of Codes</label>
+                                <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
+                                    Number of Codes
+                                </label>
                                 <InputText
                                     type="number"
                                     min={1}
@@ -511,7 +642,9 @@ export default function VoucherCodes() {
                                 />
                             </div>
                             <div className="flex flex-col gap-1">
-                                <label className="text-sm font-medium text-[var(--acu-text)]">Initial Balance (NAD)</label>
+                                <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
+                                    Initial Balance (NAD)
+                                </label>
                                 <InputText
                                     type="number"
                                     min={0}
@@ -523,7 +656,9 @@ export default function VoucherCodes() {
                             </div>
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label className="text-sm font-medium text-[var(--acu-text)]">Code Prefix (optional)</label>
+                            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
+                                Code Prefix (optional)
+                            </label>
                             <InputText
                                 placeholder="e.g., VIP"
                                 maxLength={10}
@@ -537,7 +672,7 @@ export default function VoucherCodes() {
                                 }
                                 className="w-full"
                             />
-                            <p className="text-xs text-[var(--acu-text-light)]">
+                            <p style={{ fontSize: '0.75rem', color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>
                                 Codes will be formatted as: PREFIX-XXXX-XXXX-XXXX
                             </p>
                         </div>
