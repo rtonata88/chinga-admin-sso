@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\UserSession;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -49,10 +51,41 @@ class UserDashboardController extends Controller
             })
             ->count();
 
+        // Wallet data
+        $wallet = $user->wallet;
+        $walletData = null;
+        if ($wallet) {
+            $recentTransactions = $wallet->transactions()
+                ->with('gameSession.game')
+                ->orderBy('created_at', 'desc')
+                ->limit(5)
+                ->get()
+                ->map(fn ($t) => [
+                    'type' => $t->type,
+                    'amount' => (float) $t->amount,
+                    'balance_after' => (float) $t->balance_after,
+                    'description' => $t->description,
+                    'game_name' => $t->gameSession?->game?->name,
+                    'created_at' => $t->created_at->toIso8601String(),
+                ]);
+
+            $walletData = [
+                'balance' => (float) $wallet->balance,
+                'currency' => $wallet->currency ?? 'NAD',
+                'status' => $wallet->status,
+                'total_deposited' => (float) $wallet->total_deposited,
+                'total_withdrawn' => (float) $wallet->total_withdrawn,
+                'total_won' => (float) $wallet->total_won,
+                'total_lost' => (float) $wallet->total_lost,
+                'recent_transactions' => $recentTransactions,
+            ];
+        }
+
         return Inertia::render('dashboard', [
             'account' => $account,
             'sessions' => $sessions,
             'active_session_count' => $activeSessionCount,
+            'wallet' => $walletData,
         ]);
     }
 }
