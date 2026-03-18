@@ -7,7 +7,10 @@ import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
-import { useEffect, useState } from 'react';
+import { Checkbox } from 'primereact/checkbox';
+import { InputSwitch } from 'primereact/inputswitch';
+import { Toast } from 'primereact/toast';
+import { useEffect, useRef, useState } from 'react';
 
 interface Tenant {
     uuid: string;
@@ -28,8 +31,24 @@ interface Tenant {
     users_count: number;
     venues_count: number;
     voucher_codes_count: number;
-    enabled_games: Array<{ uuid: string; name: string; type: string }>;
     created_at: string;
+}
+
+interface AssignedGame {
+    uuid: string;
+    name: string;
+    slug: string;
+    type: string;
+    status: string;
+    pivot: { enabled: boolean; custom_settings: any };
+}
+
+interface AvailableGame {
+    uuid: string;
+    name: string;
+    slug: string;
+    type: string;
+    status: string;
 }
 
 interface Venue {
@@ -74,6 +93,15 @@ export default function TenantShow() {
         email: '',
     });
 
+    const toast = useRef<Toast>(null);
+    const [assignedGames, setAssignedGames] = useState<AssignedGame[]>([]);
+    const [gamesLoading, setGamesLoading] = useState(true);
+    const [manageGamesOpen, setManageGamesOpen] = useState(false);
+    const [allGames, setAllGames] = useState<{ assigned: AssignedGame[]; available: AvailableGame[] }>({ assigned: [], available: [] });
+    const [selectedGameUuids, setSelectedGameUuids] = useState<string[]>([]);
+    const [dialogLoading, setDialogLoading] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+
     const { uuid } = usePage<{ uuid: string }>().props;
 
     const fetchVenues = async () => {
@@ -94,6 +122,97 @@ export default function TenantShow() {
         }
     };
 
+    const fetchAssignedGames = async () => {
+        setGamesLoading(true);
+        try {
+            const response = await fetch(`/api/v1/platform/tenants/${uuid}/games`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            const data = await response.json();
+            setAssignedGames(data.assigned || []);
+        } catch (error) {
+            console.error('Failed to fetch games:', error);
+        } finally {
+            setGamesLoading(false);
+        }
+    };
+
+    const openManageGamesDialog = async () => {
+        setManageGamesOpen(true);
+        setDialogLoading(true);
+        try {
+            const response = await fetch(`/api/v1/platform/tenants/${uuid}/games`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            const data = await response.json();
+            setAllGames({ assigned: data.assigned || [], available: data.available || [] });
+            setSelectedGameUuids((data.assigned || []).map((g: AssignedGame) => g.uuid));
+        } catch (error) {
+            console.error('Failed to fetch games:', error);
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to load games.' });
+        } finally {
+            setDialogLoading(false);
+        }
+    };
+
+    const handleSyncGames = async () => {
+        setSyncing(true);
+        try {
+            const response = await fetch(`/api/v1/platform/tenants/${uuid}/games`, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                },
+                body: JSON.stringify({
+                    games: selectedGameUuids.map((gameUuid) => {
+                        const existing = allGames.assigned.find((g) => g.uuid === gameUuid);
+                        return { uuid: gameUuid, enabled: existing ? existing.pivot.enabled : true };
+                    }),
+                }),
+            });
+            if (response.ok) {
+                setManageGamesOpen(false);
+                fetchAssignedGames();
+                toast.current?.show({ severity: 'success', summary: 'Success', detail: 'Game assignments updated.' });
+            } else {
+                const data = await response.json();
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to update games.' });
+            }
+        } catch (error) {
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update games.' });
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    const handleToggleEnabled = async (game: AssignedGame) => {
+        const newEnabled = !game.pivot.enabled;
+        try {
+            const response = await fetch(`/api/v1/platform/tenants/${uuid}/games/${game.uuid}`, {
+                method: 'PUT',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                },
+                body: JSON.stringify({ enabled: newEnabled }),
+            });
+            if (response.ok) {
+                setAssignedGames((prev) =>
+                    prev.map((g) => g.uuid === game.uuid ? { ...g, pivot: { ...g.pivot, enabled: newEnabled } } : g)
+                );
+            } else {
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to toggle game.' });
+            }
+        } catch (error) {
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to toggle game.' });
+        }
+    };
+
     useEffect(() => {
         fetch(`/api/v1/platform/tenants/${uuid}`)
             .then((res) => res.json())
@@ -102,6 +221,7 @@ export default function TenantShow() {
                 setLoading(false);
             });
         fetchVenues();
+        fetchAssignedGames();
     }, [uuid]);
 
     const getCsrfToken = () => {
@@ -218,6 +338,7 @@ export default function TenantShow() {
     return (
         <UserLayout title={tenant.name}>
             <Head title={tenant.name} />
+            <Toast ref={toast} />
 
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -285,23 +406,59 @@ export default function TenantShow() {
                     </div>
                 </div>
 
-                <div className="acu-fieldset">
+                {/* Assigned Games */}
+                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
                     <div className="acu-fieldset-header">
-                        <span className="acu-fieldset-title">Assigned Games</span>
+                        <div className="acu-fieldset-title">
+                            <i className="pi pi-th-large" />
+                            <span>Assigned Games</span>
+                            <span className="text-xs font-normal text-[var(--acu-text-light)] ml-1">
+                                ({assignedGames.length})
+                            </span>
+                        </div>
+                        <Button
+                            label="Manage Games"
+                            icon="pi pi-cog"
+                            size="small"
+                            onClick={openManageGamesDialog}
+                        />
                     </div>
-                    <div className="acu-fieldset-body">
-                        {tenant.enabled_games && tenant.enabled_games.length > 0 ? (
-                            <ul className="space-y-1">
-                                {tenant.enabled_games.map((game) => (
-                                    <li key={game.uuid} className="flex justify-between">
-                                        <span>{game.name}</span>
-                                        <span className="text-sm text-muted-foreground">{game.type}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div className="text-sm text-muted-foreground">No games assigned</div>
-                        )}
+                    <div className="acu-fieldset-body p-0">
+                        <DataTable
+                            value={assignedGames}
+                            loading={gamesLoading}
+                            size="small"
+                            showGridlines={false}
+                            emptyMessage="No games assigned — click Manage Games to add some"
+                            dataKey="uuid"
+                        >
+                            <Column
+                                header="Game"
+                                body={(row: AssignedGame) => (
+                                    <div>
+                                        <div className="font-medium text-sm text-[var(--acu-text)]">{row.name}</div>
+                                        <div className="text-xs text-[var(--acu-text-light)]">{row.type}</div>
+                                    </div>
+                                )}
+                            />
+                            <Column
+                                header="Status"
+                                body={(row: AssignedGame) => (
+                                    <StatusBadge status={row.status === 'active' ? 'active' : 'inactive'} label={row.status} />
+                                )}
+                                style={{ width: '7rem' }}
+                            />
+                            <Column
+                                header="Enabled"
+                                body={(row: AssignedGame) => (
+                                    <InputSwitch
+                                        checked={row.pivot.enabled}
+                                        onChange={() => handleToggleEnabled(row)}
+                                    />
+                                )}
+                                style={{ width: '6rem' }}
+                            />
+                        </DataTable>
                     </div>
                 </div>
 
@@ -484,6 +641,70 @@ export default function TenantShow() {
                         </div>
                     </div>
                 </div>
+            </Dialog>
+            {/* Manage Games Dialog */}
+            <Dialog
+                header="Manage Game Assignments"
+                visible={manageGamesOpen}
+                style={{ width: '32rem' }}
+                onHide={() => setManageGamesOpen(false)}
+                modal
+                draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            label="Cancel"
+                            icon="pi pi-times"
+                            severity="secondary"
+                            outlined
+                            onClick={() => setManageGamesOpen(false)}
+                        />
+                        <Button
+                            label={syncing ? 'Saving...' : 'Save Assignments'}
+                            icon="pi pi-check"
+                            onClick={handleSyncGames}
+                            disabled={syncing}
+                            loading={syncing}
+                        />
+                    </div>
+                }
+            >
+                {dialogLoading ? (
+                    <div className="flex justify-center py-6">
+                        <i className="pi pi-spin pi-spinner text-2xl" style={{ color: 'var(--acu-primary)' }} />
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <p className="text-sm text-[var(--acu-text-light)] mb-3">
+                            Select games to make available for {tenant.name}. Unchecked games will be removed.
+                        </p>
+                        {[...allGames.assigned, ...allGames.available].map((game) => (
+                            <div
+                                key={game.uuid}
+                                className="flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-[var(--acu-surface-hover)]"
+                            >
+                                <Checkbox
+                                    inputId={`game-${game.uuid}`}
+                                    checked={selectedGameUuids.includes(game.uuid)}
+                                    onChange={(e) => {
+                                        if (e.checked) {
+                                            setSelectedGameUuids([...selectedGameUuids, game.uuid]);
+                                        } else {
+                                            setSelectedGameUuids(selectedGameUuids.filter((u) => u !== game.uuid));
+                                        }
+                                    }}
+                                />
+                                <label htmlFor={`game-${game.uuid}`} className="cursor-pointer flex-1">
+                                    <div className="text-sm font-medium text-[var(--acu-text)]">{game.name}</div>
+                                    <div className="text-xs text-[var(--acu-text-light)]">{game.type} — {game.slug}</div>
+                                </label>
+                            </div>
+                        ))}
+                        {allGames.assigned.length === 0 && allGames.available.length === 0 && (
+                            <p className="text-sm text-[var(--acu-text-light)] text-center py-4">No games available in the platform.</p>
+                        )}
+                    </div>
+                )}
             </Dialog>
         </UserLayout>
     );
