@@ -28,6 +28,7 @@ interface Transaction {
     description: string | null;
     performed_by_name: string | null;
     currency: string;
+    game_name: string | null;
     created_at: string;
 }
 
@@ -133,6 +134,8 @@ export default function WalletTransactions() {
     const [dateFrom, setDateFrom] = useState<Date | null>(null);
     const [dateTo, setDateTo] = useState<Date | null>(null);
     const [page, setPage] = useState(1);
+    const [gameFilter, setGameFilter] = useState<number | ''>('');
+    const [gameOptions, setGameOptions] = useState<{ label: string; value: number | '' }[]>([]);
 
     // Check for wallet query param (from Wallets page "View Transactions" link)
     const [walletUuid] = useState(() => {
@@ -150,6 +153,7 @@ export default function WalletTransactions() {
             if (dateFrom) params.append('date_from', dateFrom.toISOString().split('T')[0]);
             if (dateTo) params.append('date_to', dateTo.toISOString().split('T')[0]);
             if (walletUuid) params.append('wallet', walletUuid);
+            if (gameFilter !== '') params.append('game', gameFilter.toString());
             params.append('page', page.toString());
 
             const response = await fetch(`/api/v1/admin/wallet-transactions?${params}`, {
@@ -160,6 +164,12 @@ export default function WalletTransactions() {
                 setTransactions(data.data);
                 setMeta(data.meta);
                 if (data.stats) setStats(data.stats);
+                if (data.games) {
+                    setGameOptions([
+                        { label: 'All Games', value: '' },
+                        ...data.games.map((g: { id: number; name: string }) => ({ label: g.name, value: g.id })),
+                    ]);
+                }
             }
         } catch (error) {
             console.error('Failed to fetch transactions:', error);
@@ -171,7 +181,7 @@ export default function WalletTransactions() {
 
     useEffect(() => {
         fetchTransactions();
-    }, [page, sourceFilter, typeFilter, dateFrom, dateTo]);
+    }, [page, sourceFilter, typeFilter, gameFilter, dateFrom, dateTo]);
 
     const handleSearch = () => {
         setPage(1);
@@ -182,6 +192,7 @@ export default function WalletTransactions() {
         setSearch('');
         setTypeFilter([]);
         setSourceFilter('all');
+        setGameFilter('');
         setDateFrom(null);
         setDateTo(null);
         setPage(1);
@@ -213,6 +224,10 @@ export default function WalletTransactions() {
 
     const typeTemplate = (row: Transaction) => (
         <StatusBadge status={getTypeBadgeVariant(row.type)} label={formatTypeLabel(row.type)} />
+    );
+
+    const gameTemplate = (row: Transaction) => (
+        <span className="text-sm text-[var(--acu-text)]">{row.game_name || '—'}</span>
     );
 
     const amountTemplate = (row: Transaction) => {
@@ -343,6 +358,16 @@ export default function WalletTransactions() {
                                 placeholder="Source"
                                 className="w-40"
                             />
+                            <Dropdown
+                                value={gameFilter}
+                                onChange={(e) => {
+                                    setGameFilter(e.value);
+                                    setPage(1);
+                                }}
+                                options={gameOptions}
+                                placeholder="Game"
+                                className="w-48"
+                            />
                             <Calendar
                                 value={dateFrom}
                                 onChange={(e) => {
@@ -392,6 +417,7 @@ export default function WalletTransactions() {
                             <Column header="Date" body={dateTemplate} style={{ width: '10rem' }} />
                             <Column header="Player / Source" body={playerTemplate} />
                             <Column header="Type" body={typeTemplate} style={{ width: '8rem' }} />
+                            <Column header="Game" body={gameTemplate} style={{ width: '9rem' }} />
                             <Column header="Amount" body={amountTemplate} style={{ width: '10rem' }} />
                             <Column header="Balance" body={balanceTemplate} style={{ width: '14rem' }} />
                             <Column header="Reference" body={referenceTemplate} style={{ width: '8rem' }} />
