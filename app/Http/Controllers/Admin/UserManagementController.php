@@ -266,8 +266,7 @@ class UserManagementController extends Controller
 
         $this->auditService->logAdminAction($request->user(), $user, 'admin.user.suspend', [
             'reason' => $validated['reason'] ?? null,
-
-        );
+        ]);
 
         return response()->json([
             'success' => true,
@@ -297,7 +296,7 @@ class UserManagementController extends Controller
 
         $this->auditService->logAdminAction($request->user(), $user, 'admin.user.ban', [
             'reason' => $validated['reason'] ?? null,
-        );
+        ]);
 
         return response()->json([
             'success' => true,
@@ -317,8 +316,7 @@ class UserManagementController extends Controller
 
         $this->auditService->logAdminAction($request->user(), $user, 'admin.user.activate', [
             'old_status' => $oldStatus,
-            performedBy: $request->user()
-        );
+        ]);
 
         return response()->json([
             'success' => true,
