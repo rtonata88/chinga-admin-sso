@@ -149,12 +149,9 @@ class UserManagementController extends Controller
         // Assign role
         $user->assignRole($validated['role'], $tenant?->id);
 
-        $this->auditService->log(
-            user: $user,
-            action: 'admin.user.create',
-            description: "Admin created user {$user->email} with role {$validated['role']}",
-            performedBy: $request->user()
-        );
+        $this->auditService->logAdminAction($request->user(), $user, 'admin.user.create', [
+            'role' => $validated['role'],
+        ]);
 
         return response()->json([
             'success' => true,
@@ -235,14 +232,10 @@ class UserManagementController extends Controller
         $oldValues = $user->only(array_keys($validated));
         $user->update($validated);
 
-        $this->auditService->log(
-            user: $user,
-            action: 'admin.user.update',
-            description: "Admin updated user {$user->email}",
-            oldValues: $oldValues,
-            newValues: $validated,
-            performedBy: $request->user()
-        );
+        $this->auditService->logAdminAction($request->user(), $user, 'admin.user.update', [
+            'old_values' => $oldValues,
+            'new_values' => $validated,
+        ]);
 
         return response()->json([
             'success' => true,
@@ -271,12 +264,9 @@ class UserManagementController extends Controller
 
         $user->update(['status' => 'suspended']);
 
-        $this->auditService->log(
-            user: $user,
-            action: 'admin.user.suspend',
-            description: "Admin suspended user {$user->email}",
-            newValues: ['reason' => $validated['reason'] ?? null],
-            performedBy: $request->user()
+        $this->auditService->logAdminAction($request->user(), $user, 'admin.user.suspend', [
+            'reason' => $validated['reason'] ?? null,
+
         );
 
         return response()->json([
@@ -305,12 +295,8 @@ class UserManagementController extends Controller
 
         $user->update(['status' => 'banned']);
 
-        $this->auditService->log(
-            user: $user,
-            action: 'admin.user.ban',
-            description: "Admin banned user {$user->email}",
-            newValues: ['reason' => $validated['reason'] ?? null],
-            performedBy: $request->user()
+        $this->auditService->logAdminAction($request->user(), $user, 'admin.user.ban', [
+            'reason' => $validated['reason'] ?? null,
         );
 
         return response()->json([
@@ -329,12 +315,8 @@ class UserManagementController extends Controller
         $oldStatus = $user->status;
         $user->update(['status' => 'active']);
 
-        $this->auditService->log(
-            user: $user,
-            action: 'admin.user.activate',
-            description: "Admin activated user {$user->email}",
-            oldValues: ['status' => $oldStatus],
-            newValues: ['status' => 'active'],
+        $this->auditService->logAdminAction($request->user(), $user, 'admin.user.activate', [
+            'old_status' => $oldStatus,
             performedBy: $request->user()
         );
 
@@ -362,12 +344,7 @@ class UserManagementController extends Controller
         // Reset failed attempts and unlock
         $user->unlockAccount();
 
-        $this->auditService->log(
-            user: $user,
-            action: 'admin.user.reset_password',
-            description: "Admin reset password for user {$user->email}",
-            performedBy: $request->user()
-        );
+        $this->auditService->logAdminAction($request->user(), $user, 'admin.user.reset_password');
 
         $response = [
             'success' => true,
@@ -391,12 +368,7 @@ class UserManagementController extends Controller
 
         $user->unlockAccount();
 
-        $this->auditService->log(
-            user: $user,
-            action: 'admin.user.unlock',
-            description: "Admin unlocked user {$user->email}",
-            performedBy: $request->user()
-        );
+        $this->auditService->logAdminAction($request->user(), $user, 'admin.user.unlock');
 
         return response()->json([
             'success' => true,
