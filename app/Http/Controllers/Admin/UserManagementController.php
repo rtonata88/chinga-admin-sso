@@ -18,6 +18,20 @@ class UserManagementController extends Controller
     ) {}
 
     /**
+     * Find a user by UUID, bypassing tenant scope for platform admins.
+     */
+    private function findUser(Request $request, string $uuid): User
+    {
+        $query = User::where('uuid', $uuid);
+
+        if ($request->user()?->isPlatformAdmin()) {
+            $query->withoutGlobalScope(\App\Models\Scopes\TenantScope::class);
+        }
+
+        return $query->firstOrFail();
+    }
+
+    /**
      * List all users with filters.
      */
     public function index(Request $request): JsonResponse
@@ -156,11 +170,10 @@ class UserManagementController extends Controller
     /**
      * Get user details.
      */
-    public function show(string $uuid): JsonResponse
+    public function show(Request $request, string $uuid): JsonResponse
     {
-        $user = User::where('uuid', $uuid)
-            ->with(['kycDocuments', 'selfExclusions', 'responsibleGamblingSettings'])
-            ->firstOrFail();
+        $user = $this->findUser($request, $uuid);
+        $user->load(['kycDocuments', 'selfExclusions', 'responsibleGamblingSettings']);
 
         return response()->json([
             'success' => true,
@@ -225,7 +238,7 @@ class UserManagementController extends Controller
      */
     public function update(Request $request, string $uuid): JsonResponse
     {
-        $user = User::where('uuid', $uuid)->firstOrFail();
+        $user = $this->findUser($request, $uuid);
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -263,7 +276,7 @@ class UserManagementController extends Controller
      */
     public function suspend(Request $request, string $uuid): JsonResponse
     {
-        $user = User::where('uuid', $uuid)->firstOrFail();
+        $user = $this->findUser($request, $uuid);
 
         if ($user->id === $request->user()->id) {
             return response()->json([
@@ -297,7 +310,7 @@ class UserManagementController extends Controller
      */
     public function ban(Request $request, string $uuid): JsonResponse
     {
-        $user = User::where('uuid', $uuid)->firstOrFail();
+        $user = $this->findUser($request, $uuid);
 
         if ($user->id === $request->user()->id) {
             return response()->json([
@@ -331,7 +344,7 @@ class UserManagementController extends Controller
      */
     public function activate(Request $request, string $uuid): JsonResponse
     {
-        $user = User::where('uuid', $uuid)->firstOrFail();
+        $user = $this->findUser($request, $uuid);
 
         $oldStatus = $user->status;
         $user->update(['status' => 'active']);
@@ -356,7 +369,7 @@ class UserManagementController extends Controller
      */
     public function resetPassword(Request $request, string $uuid): JsonResponse
     {
-        $user = User::where('uuid', $uuid)->firstOrFail();
+        $user = $this->findUser($request, $uuid);
 
         $validated = $request->validate([
             'send_email' => ['boolean'],
@@ -394,7 +407,7 @@ class UserManagementController extends Controller
      */
     public function unlock(Request $request, string $uuid): JsonResponse
     {
-        $user = User::where('uuid', $uuid)->firstOrFail();
+        $user = $this->findUser($request, $uuid);
 
         $user->unlockAccount();
 
