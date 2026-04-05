@@ -25,6 +25,7 @@ class VoucherCode extends Model
         'status',
         'created_by_staff_id',
         'created_by_admin_id',
+        'user_id',
         'current_terminal_id',
         'current_session_id',
         'total_loaded',
@@ -181,6 +182,11 @@ class VoucherCode extends Model
     public function createdByAdmin(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_admin_id');
+    }
+
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function currentTerminal(): BelongsTo

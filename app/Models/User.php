@@ -40,6 +40,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'timezone',
         'language',
         'status',
+        'user_type',
         'failed_login_attempts',
         'locked_until',
         'last_login_at',
@@ -204,6 +205,14 @@ class User extends Authenticatable implements MustVerifyEmail
             'currency' => $currency,
             'status' => 'active',
         ]);
+    }
+
+    /**
+     * Check if this is a voucher-linked user account.
+     */
+    public function isVoucherUser(): bool
+    {
+        return $this->user_type === 'voucher';
     }
 
     // isAdmin() and isSuperAdmin() are provided by the HasRoles trait
