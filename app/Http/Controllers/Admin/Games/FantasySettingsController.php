@@ -30,7 +30,7 @@ class FantasySettingsController extends Controller
                 'custom_settings' => $tenant->pivot->custom_settings ?? [],
             ]);
 
-        return Inertia::render('platform/fantasy/settings', [
+        return Inertia::render('fantasy/settings', [
             'game' => [
                 'uuid' => $game->uuid,
                 'name' => $game->name,

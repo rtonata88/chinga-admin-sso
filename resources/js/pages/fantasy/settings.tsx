@@ -196,7 +196,7 @@ export default function Settings({ game, tenants }: Props) {
 
     const handleSaveGlobal = () => {
         setSavingGlobal(true);
-        router.put('/platform/fantasy/settings/global', globalSettings as unknown as Record<string, string>, {
+        router.put('/fantasy/settings/global', globalSettings as unknown as Record<string, string>, {
             onSuccess: () => setSavingGlobal(false),
             onError: () => setSavingGlobal(false),
         });
@@ -226,7 +226,7 @@ export default function Settings({ game, tenants }: Props) {
             enabled: state.enabled,
             custom_settings: state.settings,
         };
-        router.put(`/platform/fantasy/settings/tenant/${tenantUuid}`, payload as unknown as Record<string, string>, {
+        router.put(`/fantasy/settings/tenant/${tenantUuid}`, payload as unknown as Record<string, string>, {
             onSuccess: () => setSavingTenant(null),
             onError: () => setSavingTenant(null),
         });

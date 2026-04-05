@@ -35,20 +35,21 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('pla
     Route::get('revenue', fn () => Inertia::render('platform/revenue/index'))->name('platform.revenue');
     Route::get('users', fn () => Inertia::render('platform/users/index'))->name('platform.users');
 
-    // Chinga Fantasy game management
-    Route::prefix('fantasy')->group(function () {
-        Route::get('teams', [FantasyTeamController::class, 'index'])->name('platform.fantasy.teams');
-        Route::post('teams', [FantasyTeamController::class, 'store'])->name('platform.fantasy.teams.store');
-        Route::put('teams/{team}', [FantasyTeamController::class, 'update'])->name('platform.fantasy.teams.update');
-        Route::delete('teams/{team}', [FantasyTeamController::class, 'destroy'])->name('platform.fantasy.teams.destroy');
-        Route::post('teams/bulk-toggle', [FantasyTeamController::class, 'bulkToggle'])->name('platform.fantasy.teams.bulk-toggle');
+});
 
-        Route::get('settings', [FantasySettingsController::class, 'index'])->name('platform.fantasy.settings');
-        Route::put('settings/global', [FantasySettingsController::class, 'updateGlobalSettings'])->name('platform.fantasy.settings.global');
-        Route::put('settings/tenant/{tenantUuid}', [FantasySettingsController::class, 'updateTenantSettings'])->name('platform.fantasy.settings.tenant');
+// Chinga Fantasy game management
+Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('fantasy')->group(function () {
+    Route::get('teams', [FantasyTeamController::class, 'index'])->name('fantasy.teams');
+    Route::post('teams', [FantasyTeamController::class, 'store'])->name('fantasy.teams.store');
+    Route::put('teams/{team}', [FantasyTeamController::class, 'update'])->name('fantasy.teams.update');
+    Route::delete('teams/{team}', [FantasyTeamController::class, 'destroy'])->name('fantasy.teams.destroy');
+    Route::post('teams/bulk-toggle', [FantasyTeamController::class, 'bulkToggle'])->name('fantasy.teams.bulk-toggle');
 
-        Route::get('rounds', [FantasyRoundController::class, 'index'])->name('platform.fantasy.rounds');
-    });
+    Route::get('settings', [FantasySettingsController::class, 'index'])->name('fantasy.settings');
+    Route::put('settings/global', [FantasySettingsController::class, 'updateGlobalSettings'])->name('fantasy.settings.global');
+    Route::put('settings/tenant/{tenantUuid}', [FantasySettingsController::class, 'updateTenantSettings'])->name('fantasy.settings.tenant');
+
+    Route::get('rounds', [FantasyRoundController::class, 'index'])->name('fantasy.rounds');
 });
 
 // Platform admin API routes
