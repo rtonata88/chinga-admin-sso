@@ -31,6 +31,10 @@ class OpenIDConnectService
             $claims = array_merge($claims, $this->getPhoneClaims($user));
         }
 
+        if (in_array('wallet', $scopes)) {
+            $claims = array_merge($claims, $this->getWalletClaims($user));
+        }
+
         if (in_array('kyc', $scopes)) {
             $claims = array_merge($claims, $this->getKycClaims($user));
         }
@@ -73,6 +77,20 @@ class OpenIDConnectService
         return [
             'phone_number' => $user->phone,
             'phone_number_verified' => $user->phone_verified_at !== null,
+        ];
+    }
+
+    /**
+     * Get wallet claims.
+     */
+    protected function getWalletClaims(User $user): array
+    {
+        $wallet = $user->wallet;
+
+        return [
+            'wallet_balance' => $wallet?->balance ?? '0.00',
+            'wallet_currency' => $wallet?->currency ?? 'NAD',
+            'wallet_status' => $wallet?->status ?? null,
         ];
     }
 
