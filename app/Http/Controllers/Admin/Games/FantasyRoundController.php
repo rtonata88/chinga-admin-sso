@@ -10,6 +10,8 @@ class FantasyRoundController extends Controller
 {
     public function index(Request $request)
     {
-        return Inertia::render('admin/games/fantasy/rounds');
+        return Inertia::render('admin/games/fantasy/rounds', [
+            'rounds' => [],
+        ]);
     }
 }
