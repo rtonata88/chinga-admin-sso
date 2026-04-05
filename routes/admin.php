@@ -42,6 +42,7 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
     // User Management
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/', [UserManagementController::class, 'index'])->name('index');
+        Route::post('/', [UserManagementController::class, 'store'])->name('store');
         Route::get('stats', [UserManagementController::class, 'stats'])->name('stats');
         Route::get('{uuid}', [UserManagementController::class, 'show'])->name('show');
         Route::put('{uuid}', [UserManagementController::class, 'update'])->name('update');

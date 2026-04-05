@@ -44,6 +44,11 @@ class UserManagementController extends Controller
             $query->where('kyc_level', $request->input('kyc_level'));
         }
 
+        // Filter by user type
+        if ($userType = $request->input('user_type')) {
+            $query->where('user_type', $userType);
+        }
+
         // Filter by email verified
         if ($request->has('email_verified')) {
             if ($request->boolean('email_verified')) {
@@ -67,11 +72,26 @@ class UserManagementController extends Controller
         $sortDir = $request->input('sort_dir', 'desc');
         $query->orderBy($sortBy, $sortDir);
 
+        $query->with('roles');
+
         $users = $query->paginate($request->input('per_page', 25));
+
+        $mappedUsers = collect($users->items())->map(fn ($user) => [
+            'uuid' => $user->uuid,
+            'name' => $user->name,
+            'email' => $user->email,
+            'username' => $user->username,
+            'status' => $user->status,
+            'user_type' => $user->user_type ?? 'direct',
+            'roles' => $user->roles->pluck('name')->values()->all(),
+            'email_verified_at' => $user->email_verified_at?->toIso8601String(),
+            'created_at' => $user->created_at->toIso8601String(),
+            'last_login_at' => $user->last_login_at?->toIso8601String(),
+        ]);
 
         return response()->json([
             'success' => true,
-            'data' => $users->items(),
+            'data' => $mappedUsers,
             'meta' => [
                 'current_page' => $users->currentPage(),
                 'last_page' => $users->lastPage(),
@@ -79,6 +99,58 @@ class UserManagementController extends Controller
                 'total' => $users->total(),
             ],
         ]);
+    }
+
+    /**
+     * Create a new user.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $tenant = app('current_tenant');
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'username' => ['nullable', 'string', 'min:3', 'max:50'],
+            'password' => ['required', 'string', 'min:8'],
+            'role' => ['required', 'string', 'in:player,tenant_manager,tenant_admin'],
+        ]);
+
+        // Check email unique within tenant
+        if (User::where('email', $validated['email'])->where('tenant_id', $tenant?->id)->exists()) {
+            return response()->json(['message' => 'Email already exists.'], 422);
+        }
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'username' => $validated['username'] ?? null,
+            'password' => Hash::make($validated['password']),
+            'tenant_id' => $tenant?->id,
+            'status' => 'active',
+            'user_type' => 'direct',
+            'email_verified_at' => now(),
+        ]);
+
+        // Assign role
+        $user->assignRole($validated['role'], $tenant?->id);
+
+        $this->auditService->log(
+            user: $user,
+            action: 'admin.user.create',
+            description: "Admin created user {$user->email} with role {$validated['role']}",
+            performedBy: $request->user()
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User created successfully.',
+            'data' => [
+                'uuid' => $user->uuid,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+        ], 201);
     }
 
     /**

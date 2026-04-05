@@ -10,6 +10,7 @@ import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
+import { Tag } from 'primereact/tag';
 import { Toast } from 'primereact/toast';
 import { useEffect, useRef, useState } from 'react';
 
@@ -19,6 +20,8 @@ interface User {
     email: string;
     username: string | null;
     status: string;
+    user_type: string | null;
+    roles: string[];
     email_verified_at: string | null;
     created_at: string;
     last_login_at: string | null;
@@ -123,7 +126,11 @@ export default function Users() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [userTypeFilter, setUserTypeFilter] = useState('');
     const [page, setPage] = useState(1);
+    const [createOpen, setCreateOpen] = useState(false);
+    const [createForm, setCreateForm] = useState({ name: '', email: '', username: '', password: '', role: 'player' });
+    const [creating, setCreating] = useState(false);
 
     const toast = useRef<Toast>(null);
     const [roleDialogOpen, setRoleDialogOpen] = useState(false);
@@ -140,6 +147,7 @@ export default function Users() {
             const params = new URLSearchParams();
             if (search) params.append('search', search);
             if (statusFilter) params.append('status', statusFilter);
+            if (userTypeFilter) params.append('user_type', userTypeFilter);
             params.append('page', page.toString());
 
             const response = await fetch(`/api/v1/admin/users?${params}`, {
@@ -174,7 +182,7 @@ export default function Users() {
     useEffect(() => {
         fetchUsers();
         fetchStats();
-    }, [page, statusFilter]);
+    }, [page, statusFilter, userTypeFilter]);
 
     const getCsrfToken = () => {
         return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -256,6 +264,36 @@ export default function Users() {
         }
     };
 
+    const handleCreateUser = async () => {
+        if (!createForm.name || !createForm.email || !createForm.password) return;
+        setCreating(true);
+        try {
+            const response = await fetch('/api/v1/admin/users', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(createForm),
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.current?.show({ severity: 'success', summary: 'Created', detail: `User ${createForm.email} created.`, life: 3000 });
+                setCreateOpen(false);
+                setCreateForm({ name: '', email: '', username: '', password: '', role: 'player' });
+                fetchUsers();
+            } else {
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message, life: 5000 });
+            }
+        } catch (error) {
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to create user.', life: 5000 });
+        } finally {
+            setCreating(false);
+        }
+    };
+
     const handleSearch = () => {
         setPage(1);
         fetchUsers();
@@ -334,6 +372,7 @@ export default function Users() {
                             fetchStats();
                         }}
                     />
+                    <Button label="Create User" icon="pi pi-user-plus" onClick={() => setCreateOpen(true)} />
                 </PageHeader>
 
                 {/* Stats */}
@@ -375,6 +414,17 @@ export default function Users() {
                             placeholder="Status"
                             className="w-40"
                         />
+                        <Dropdown
+                            value={userTypeFilter}
+                            options={[
+                                { label: 'All Types', value: '' },
+                                { label: 'Players', value: 'direct' },
+                                { label: 'Voucher Users', value: 'voucher' },
+                            ]}
+                            onChange={(e) => { setUserTypeFilter(e.value); setPage(1); }}
+                            placeholder="All Types"
+                            className="w-full md:w-48"
+                        />
                     </div>
                 </div>
 
@@ -399,6 +449,28 @@ export default function Users() {
                         >
                             <Column header="User" body={userTemplate} />
                             <Column header="Status" body={statusTemplate} />
+                            <Column
+                                header="Role"
+                                body={(row: User) => (
+                                    <div className="flex gap-1 flex-wrap">
+                                        {(row.roles || []).map((r) => (
+                                            <Tag key={r} value={r.replace('_', ' ')} severity={
+                                                r.includes('admin') ? 'danger' : r === 'tenant_manager' ? 'warning' : 'info'
+                                            } style={{ fontSize: '0.7rem' }} />
+                                        ))}
+                                    </div>
+                                )}
+                            />
+                            <Column
+                                header="Type"
+                                body={(row: User) => (
+                                    <Tag
+                                        value={row.user_type === 'voucher' ? 'Voucher' : 'Direct'}
+                                        severity={row.user_type === 'voucher' ? 'warning' : 'info'}
+                                        style={{ fontSize: '0.7rem' }}
+                                    />
+                                )}
+                            />
                             <Column header="Verified" body={verifiedTemplate} style={{ textAlign: 'center' }} />
                             <Column header="Registered" body={registeredTemplate} />
                             <Column header="Last Login" body={lastLoginTemplate} />
@@ -502,6 +574,53 @@ export default function Users() {
                         )}
                     </div>
                 )}
+            </Dialog>
+
+            <Dialog
+                header="Create User"
+                visible={createOpen}
+                style={{ width: '28rem' }}
+                onHide={() => setCreateOpen(false)}
+                modal
+                draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button label="Cancel" severity="secondary" outlined onClick={() => setCreateOpen(false)} />
+                        <Button label={creating ? 'Creating...' : 'Create'} onClick={handleCreateUser} disabled={creating} loading={creating} />
+                    </div>
+                }
+            >
+                <div className="space-y-4">
+                    <div className="flex flex-col gap-1">
+                        <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Name *</label>
+                        <InputText value={createForm.name} onChange={(e) => setCreateForm({...createForm, name: e.target.value})} className="w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Email *</label>
+                        <InputText type="email" value={createForm.email} onChange={(e) => setCreateForm({...createForm, email: e.target.value})} className="w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Username</label>
+                        <InputText value={createForm.username} onChange={(e) => setCreateForm({...createForm, username: e.target.value})} className="w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Password *</label>
+                        <InputText type="password" value={createForm.password} onChange={(e) => setCreateForm({...createForm, password: e.target.value})} className="w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Role *</label>
+                        <Dropdown
+                            value={createForm.role}
+                            options={[
+                                { label: 'Player', value: 'player' },
+                                { label: 'Tenant Manager', value: 'tenant_manager' },
+                                { label: 'Tenant Admin', value: 'tenant_admin' },
+                            ]}
+                            onChange={(e) => setCreateForm({...createForm, role: e.value})}
+                            className="w-full"
+                        />
+                    </div>
+                </div>
             </Dialog>
         </UserLayout>
     );
