@@ -27,7 +27,7 @@ class FantasyTeamController extends Controller
 
         $teams = $query->orderBy('name')->paginate(25);
 
-        return Inertia::render('platform/games/fantasy/teams', [
+        return Inertia::render('platform/fantasy/teams', [
             'teams' => $teams,
             'filters' => $request->only(['search', 'active']),
         ]);

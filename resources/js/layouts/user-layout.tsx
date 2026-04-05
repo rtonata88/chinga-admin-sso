@@ -39,9 +39,9 @@ const platformGroup: SidebarNavGroup = {
 const fantasyGroup: SidebarNavGroup = {
     title: 'Chinga Fantasy',
     items: [
-        { label: 'Teams', icon: 'pi pi-th-large', href: '/platform/games/fantasy/teams' },
-        { label: 'Rounds', icon: 'pi pi-chart-bar', href: '/platform/games/fantasy/rounds' },
-        { label: 'Settings', icon: 'pi pi-cog', href: '/platform/games/fantasy/settings' },
+        { label: 'Teams', icon: 'pi pi-th-large', href: '/platform/fantasy/teams' },
+        { label: 'Rounds', icon: 'pi pi-chart-bar', href: '/platform/fantasy/rounds' },
+        { label: 'Settings', icon: 'pi pi-cog', href: '/platform/fantasy/settings' },
     ],
 };
 
