@@ -209,26 +209,6 @@ class UserManagementController extends Controller
                 'sms_mfa_enabled' => $user->sms_mfa_enabled,
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
-                'kyc_documents' => $user->kycDocuments->map(fn ($doc) => [
-                    'uuid' => $doc->uuid,
-                    'document_type' => $doc->document_type,
-                    'document_type_label' => $doc->document_type_label,
-                    'status' => $doc->status,
-                    'rejection_reason' => $doc->rejection_reason,
-                    'created_at' => $doc->created_at->toIso8601String(),
-                ]),
-                'self_exclusions' => $user->selfExclusions->map(fn ($exc) => [
-                    'id' => $exc->id,
-                    'type' => $exc->type,
-                    'is_active' => $exc->isActive(),
-                    'starts_at' => $exc->starts_at->toIso8601String(),
-                    'ends_at' => $exc->ends_at?->toIso8601String(),
-                ]),
-                'responsible_gambling' => $user->responsibleGamblingSettings ? [
-                    'daily_deposit_limit' => $user->responsibleGamblingSettings->daily_deposit_limit,
-                    'weekly_deposit_limit' => $user->responsibleGamblingSettings->weekly_deposit_limit,
-                    'monthly_deposit_limit' => $user->responsibleGamblingSettings->monthly_deposit_limit,
-                ] : null,
             ],
         ]);
     }
