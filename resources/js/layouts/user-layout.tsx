@@ -25,6 +25,15 @@ const adminGroup: SidebarNavGroup = {
     ],
 };
 
+const gamesGroup: SidebarNavGroup = {
+    title: 'Games',
+    items: [
+        { label: 'Teams', icon: 'pi pi-th-large', href: '/admin/games/fantasy/teams' },
+        { label: 'Rounds', icon: 'pi pi-chart-bar', href: '/admin/games/fantasy/rounds' },
+        { label: 'Settings', icon: 'pi pi-cog', href: '/admin/games/fantasy/settings' },
+    ],
+};
+
 const platformGroup: SidebarNavGroup = {
     title: 'Platform',
     items: [
@@ -58,6 +67,7 @@ export default function UserLayout({ children, title }: PropsWithChildren<Props>
 
         if (isAdmin) {
             groups.push(adminGroup);
+            groups.push(gamesGroup);
         }
 
         if (isPlatformAdmin) {
