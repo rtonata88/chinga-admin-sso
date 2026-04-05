@@ -173,9 +173,21 @@ export default function VoucherCodes() {
             if (data.success) {
                 setGeneratedCode(data.data);
                 fetchCodes();
+
+                // Auto-open print receipt
+                const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
+                printVoucherReceipts([{
+                    code: data.data.code,
+                    balance: data.data.balance,
+                    currency: data.data.currency || 'NAD',
+                    tenantName: null,
+                    venueName,
+                    pin: pin || undefined,
+                    createdAt: new Date().toISOString(),
+                }]);
             }
         } catch (error) {
-            console.error('Failed to generate code:', error);
+            console.error('Failed to create voucher:', error);
         } finally {
             setGenerating(false);
         }
