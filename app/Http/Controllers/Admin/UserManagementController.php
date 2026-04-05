@@ -105,6 +105,7 @@ class UserManagementController extends Controller
                 'country_code' => $user->country_code,
                 'timezone' => $user->timezone,
                 'language' => $user->language,
+                'user_type' => $user->user_type ?? 'direct',
                 'status' => $user->status,
                 'kyc_level' => $user->kyc_level,
                 'kyc_level_name' => $user->kyc_level_name,

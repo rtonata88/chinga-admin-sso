@@ -2,7 +2,7 @@ import PageHeader from '@/components/acumatica/Common/PageHeader';
 import StatusBadge from '@/components/acumatica/Common/StatusBadge';
 import UserLayout from '@/layouts/user-layout';
 import type { StatusVariant } from '@/types/acumatica';
-import { Head, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Checkbox } from 'primereact/checkbox';
 import { Column } from 'primereact/column';
@@ -56,27 +56,53 @@ function mapUserStatusToVariant(status: string): StatusVariant {
 
 interface StatCardProps {
     icon: string;
-    iconColor: string;
+    accentColor: string;
     title: string;
     value: string | number;
 }
 
-function StatCard({ icon, iconColor, title, value }: StatCardProps) {
+function StatCard({ icon, accentColor, title, value }: StatCardProps) {
     return (
-        <div className="acu-fieldset">
-            <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">
+        <div
+            className="relative overflow-hidden rounded-xl p-5 transition-all duration-300"
+            style={{
+                background: 'var(--acu-surface-card)',
+                border: '1px solid var(--acu-border)',
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${accentColor}30`;
+                e.currentTarget.style.boxShadow = `0 8px 32px ${accentColor}15`;
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--acu-border)';
+                e.currentTarget.style.boxShadow = 'none';
+            }}
+        >
+            <div
+                className="absolute inset-0 opacity-[0.03]"
+                style={{ background: `radial-gradient(circle at top right, ${accentColor}, transparent 70%)` }}
+            />
+            <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                    <span
+                        className="text-[10px] font-semibold uppercase tracking-[0.1em]"
+                        style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}
+                    >
                         {title}
                     </span>
                     <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: `${iconColor}15`, color: iconColor }}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center"
+                        style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}20` }}
                     >
-                        <i className={`${icon} text-sm`} />
+                        <i className={`${icon} text-sm`} style={{ color: accentColor }} />
                     </div>
                 </div>
-                <div className="text-2xl font-bold text-[var(--acu-text)]">{value}</div>
+                <div
+                    className="text-[1.75rem] font-bold leading-none"
+                    style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}
+                >
+                    {value}
+                </div>
             </div>
         </div>
     );
@@ -117,9 +143,7 @@ export default function Users() {
             params.append('page', page.toString());
 
             const response = await fetch(`/api/v1/admin/users?${params}`, {
-                headers: {
-                    Accept: 'application/json',
-                },
+                headers: { Accept: 'application/json' },
             });
             const data = await response.json();
             if (data.success) {
@@ -239,8 +263,8 @@ export default function Users() {
 
     const userTemplate = (row: User) => (
         <div>
-            <div className="font-medium text-sm text-[var(--acu-text)]">{row.name}</div>
-            <div className="text-xs text-[var(--acu-text-light)]">{row.email}</div>
+            <div className="font-medium text-sm" style={{ color: 'var(--acu-text)' }}>{row.name}</div>
+            <div className="text-xs" style={{ color: 'var(--acu-text-light)' }}>{row.email}</div>
         </div>
     );
 
@@ -249,23 +273,23 @@ export default function Users() {
     );
 
     const verifiedTemplate = (row: User) => (
-        <span className="text-sm text-[var(--acu-text)]">
+        <span className="text-sm">
             {row.email_verified_at ? (
-                <i className="pi pi-check-circle text-green-600" />
+                <i className="pi pi-check-circle" style={{ color: 'var(--acu-success)' }} />
             ) : (
-                <i className="pi pi-times-circle text-[var(--acu-text-light)]" />
+                <i className="pi pi-times-circle" style={{ color: 'var(--acu-text-light)' }} />
             )}
         </span>
     );
 
     const registeredTemplate = (row: User) => (
-        <span className="text-sm text-[var(--acu-text)]">
+        <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
             {new Date(row.created_at).toLocaleDateString()}
         </span>
     );
 
     const lastLoginTemplate = (row: User) => (
-        <span className="text-sm text-[var(--acu-text)]">
+        <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
             {row.last_login_at
                 ? new Date(row.last_login_at).toLocaleDateString()
                 : '\u2014'}
@@ -288,6 +312,7 @@ export default function Users() {
                 severity="secondary"
                 size="small"
                 tooltip="View user"
+                onClick={() => window.location.href = `/admin/users/${row.uuid}`}
             />
         </div>
     );
@@ -297,7 +322,7 @@ export default function Users() {
             <Head title="User Management" />
             <Toast ref={toast} />
 
-            <div className="space-y-6">
+            <div className="space-y-8">
                 <PageHeader title="User Management" subtitle="Manage platform users and their accounts">
                     <Button
                         label="Refresh"
@@ -313,86 +338,54 @@ export default function Users() {
 
                 {/* Stats */}
                 {stats && (
-                    <div className="grid gap-4 md:grid-cols-4">
-                        <StatCard
-                            icon="pi pi-users"
-                            iconColor="#3B82F6"
-                            title="Total Users"
-                            value={stats.total_users.toLocaleString()}
-                        />
-                        <StatCard
-                            icon="pi pi-check-circle"
-                            iconColor="#10B981"
-                            title="Active"
-                            value={stats.active_users.toLocaleString()}
-                        />
-                        <StatCard
-                            icon="pi pi-pause-circle"
-                            iconColor="#F59E0B"
-                            title="Suspended"
-                            value={stats.suspended_users}
-                        />
-                        <StatCard
-                            icon="pi pi-ban"
-                            iconColor="#EF4444"
-                            title="Banned"
-                            value={stats.banned_users}
-                        />
+                    <div className="grid gap-5 md:grid-cols-4">
+                        <StatCard icon="pi pi-users" accentColor="#58A6FF" title="Total Users" value={stats.total_users.toLocaleString()} />
+                        <StatCard icon="pi pi-check-circle" accentColor="#3FB950" title="Active" value={stats.active_users.toLocaleString()} />
+                        <StatCard icon="pi pi-pause-circle" accentColor="#D29922" title="Suspended" value={stats.suspended_users} />
+                        <StatCard icon="pi pi-ban" accentColor="#F85149" title="Banned" value={stats.banned_users} />
                     </div>
                 )}
 
                 {/* Filters */}
-                <div className="acu-fieldset">
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-filter" />
-                            <span>Filters</span>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset-body">
-                        <div className="flex flex-wrap gap-3 items-end">
-                            <div className="flex flex-1 gap-2">
-                                <span className="p-input-icon-left flex-1" style={{ maxWidth: '24rem' }}>
-                                    <i className="pi pi-search" />
-                                    <InputText
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                        placeholder="Search by name, email, username..."
-                                        className="w-full"
-                                    />
-                                </span>
-                                <Button
-                                    label="Search"
-                                    icon="pi pi-search"
-                                    size="small"
-                                    onClick={handleSearch}
+                <div
+                    className="rounded-xl p-4"
+                    style={{
+                        background: 'var(--acu-surface-card)',
+                        border: '1px solid var(--acu-border)',
+                    }}
+                >
+                    <div className="flex flex-wrap gap-3 items-end">
+                        <div className="flex flex-1 gap-2">
+                            <span className="p-input-icon-left flex-1" style={{ maxWidth: '24rem' }}>
+                                <i className="pi pi-search" />
+                                <InputText
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                    placeholder="Search by name, email, username..."
+                                    className="w-full"
                                 />
-                            </div>
-                            <Dropdown
-                                value={statusFilter}
-                                onChange={(e) => {
-                                    setStatusFilter(e.value);
-                                    setPage(1);
-                                }}
-                                options={statusOptions}
-                                placeholder="Status"
-                                className="w-40"
-                            />
+                            </span>
+                            <Button label="Search" icon="pi pi-search" size="small" onClick={handleSearch} />
                         </div>
+                        <Dropdown
+                            value={statusFilter}
+                            onChange={(e) => { setStatusFilter(e.value); setPage(1); }}
+                            options={statusOptions}
+                            placeholder="Status"
+                            className="w-40"
+                        />
                     </div>
                 </div>
 
                 {/* Users Table */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
+                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
                     <div className="acu-fieldset-header">
                         <div className="acu-fieldset-title">
                             <i className="pi pi-users" />
                             <span>Users</span>
-                            <span className="text-xs font-normal text-[var(--acu-text-light)] ml-1">
-                                {meta?.total
-                                    ? `(${users.length} of ${meta.total})`
-                                    : ''}
+                            <span className="text-xs font-normal ml-1" style={{ color: 'var(--acu-text-light)' }}>
+                                {meta?.total ? `(${users.length} of ${meta.total})` : ''}
                             </span>
                         </div>
                     </div>
@@ -414,8 +407,11 @@ export default function Users() {
 
                         {/* Pagination */}
                         {meta && meta.last_page > 1 && (
-                            <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--acu-border)]">
-                                <span className="text-xs text-[var(--acu-text-light)]">
+                            <div
+                                className="flex items-center justify-between px-5 py-3"
+                                style={{ borderTop: '1px solid var(--acu-border)' }}
+                            >
+                                <span className="text-xs" style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>
                                     Page {meta.current_page} of {meta.last_page}
                                 </span>
                                 <div className="flex gap-2">
@@ -471,15 +467,21 @@ export default function Users() {
             >
                 {roleLoading ? (
                     <div className="flex justify-center py-6">
-                        <i className="pi pi-spin pi-spinner text-2xl" />
+                        <i className="pi pi-spin pi-spinner text-2xl" style={{ color: 'var(--acu-primary)' }} />
                     </div>
                 ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                         {availableRoles.length === 0 ? (
-                            <p className="text-sm text-[var(--acu-text-muted)]">No roles available to assign.</p>
+                            <p className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>No roles available to assign.</p>
                         ) : (
                             availableRoles.map((role) => (
-                                <div key={role.name} className="flex items-start gap-3 p-2 rounded hover:bg-[var(--acu-surface-hover)]">
+                                <div
+                                    key={role.name}
+                                    className="flex items-start gap-3 p-3 rounded-lg transition-colors"
+                                    style={{ cursor: 'pointer' }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--acu-surface-hover)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                >
                                     <Checkbox
                                         inputId={role.name}
                                         checked={selectedRoles.includes(role.name)}
@@ -492,8 +494,8 @@ export default function Users() {
                                         }}
                                     />
                                     <label htmlFor={role.name} className="cursor-pointer">
-                                        <div className="text-sm font-medium text-[var(--acu-text)]">{role.display_name}</div>
-                                        <div className="text-xs text-[var(--acu-text-light)]">{role.description}</div>
+                                        <div className="text-sm font-medium" style={{ color: 'var(--acu-text)' }}>{role.display_name}</div>
+                                        <div className="text-xs" style={{ color: 'var(--acu-text-light)' }}>{role.description}</div>
                                     </label>
                                 </div>
                             ))
