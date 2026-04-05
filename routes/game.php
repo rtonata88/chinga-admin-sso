@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\GameSessionController;
+use App\Http\Controllers\Api\VoucherWebSessionController;
 use App\Http\Middleware\AuthenticateGameSession;
 use App\Http\Middleware\AuthenticateTerminal;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,13 @@ Route::middleware(['api', 'auth:api'])->prefix('api/v1/game/session/start')->gro
 // Terminal session start (requires terminal API key)
 Route::middleware(['api', AuthenticateTerminal::class])->prefix('api/v1/game/session/start')->group(function () {
     Route::post('/terminal', [GameSessionController::class, 'startTerminalSession'])->name('api.game.session.start.terminal');
+});
+
+// Web voucher session start (no terminal key required, tenant-scoped)
+Route::middleware(['api'])->prefix('api/v1/game/session/start')->group(function () {
+    Route::post('/voucher-web', [VoucherWebSessionController::class, 'start'])
+        ->middleware('throttle:20,1')
+        ->name('api.game.session.start.voucher-web');
 });
 
 // Game session routes (require active game session token)

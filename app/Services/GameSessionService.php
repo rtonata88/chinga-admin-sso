@@ -90,6 +90,55 @@ class GameSessionService
     }
 
     /**
+     * Start a web voucher session (no terminal required).
+     * Voucher is scoped by tenant instead of terminal/venue.
+     */
+    public function startWebVoucherSession(
+        VoucherCode $code,
+        Game $game,
+        ?string $pin = null,
+        ?string $ipAddress = null
+    ): GameSession {
+        $this->validateGameForTenant($game, $code->tenant_id);
+
+        if (!$code->canBeUsed()) {
+            throw new \RuntimeException('Voucher code cannot be used.');
+        }
+
+        if ($code->hasPin()) {
+            if (!$pin) {
+                throw new \RuntimeException('PIN is required for this voucher code.');
+            }
+            if (!$code->verifyPin($pin)) {
+                throw new \RuntimeException('Invalid PIN.');
+            }
+        }
+
+        $this->ensureNoActiveSession($code);
+
+        return DB::transaction(function () use ($code, $game, $ipAddress) {
+            $session = GameSession::create([
+                'tenant_id' => $code->tenant_id,
+                'game_id' => $game->id,
+                'source_type' => VoucherCode::class,
+                'source_id' => $code->id,
+                'terminal_id' => null,
+                'ip_address' => $ipAddress,
+                'balance_start' => $code->balance,
+            ]);
+
+            $code->update([
+                'status' => 'in_use',
+                'current_terminal_id' => null,
+                'current_session_id' => $session->id,
+                'last_activity_at' => now(),
+            ]);
+
+            return $session;
+        });
+    }
+
+    /**
      * End an active game session.
      */
     public function endSession(string $sessionToken, string $reason): GameSession
