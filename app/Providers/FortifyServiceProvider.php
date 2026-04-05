@@ -112,10 +112,15 @@ class FortifyServiceProvider extends ServiceProvider
             $tenantId = app('current_tenant')?->id;
 
             $input = $request->input(Fortify::username());
-            $user = User::withoutGlobalScopes()
-                ->where('tenant_id', $tenantId)
-                ->where(fn ($q) => $q->where('email', $input)->orWhere('username', $input))
-                ->first();
+            $query = User::withoutGlobalScopes()
+                ->where(fn ($q) => $q->where('email', $input)->orWhere('username', $input));
+
+            // If tenant context exists, scope to that tenant. Otherwise search all.
+            if ($tenantId) {
+                $query->where('tenant_id', $tenantId);
+            }
+
+            $user = $query->first();
 
             if (!$user) {
                 $lockoutService->recordFailedAttempt(
