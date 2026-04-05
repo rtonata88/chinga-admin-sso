@@ -53,15 +53,15 @@ class VoucherWebSessionController extends Controller
             }
         }
 
-        // Check voucher is usable
-        if (!$code->canBeUsed()) {
-            return response()->json(['message' => 'Voucher code cannot be used.'], 422);
-        }
-
         // Get the linked voucher user
         $user = $code->user;
         if (!$user) {
             return response()->json(['message' => 'No user linked to this voucher. Please contact support.'], 422);
+        }
+
+        // Reject only if voucher is deactivated or expired (not cashed_out — that just means balance was transferred to wallet)
+        if (in_array($code->status, ['deactivated', 'expired'])) {
+            return response()->json(['message' => 'Voucher code has been deactivated or expired.'], 422);
         }
 
         try {
