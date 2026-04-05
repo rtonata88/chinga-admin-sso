@@ -173,7 +173,7 @@ class UserManagementController extends Controller
     public function show(Request $request, string $uuid): JsonResponse
     {
         $user = $this->findUser($request, $uuid);
-        $user->load(['kycDocuments', 'selfExclusions', 'responsibleGamblingSettings']);
+        $user->load(['roles']);
 
         return response()->json([
             'success' => true,
