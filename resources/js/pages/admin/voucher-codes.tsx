@@ -23,6 +23,7 @@ interface VoucherCode {
         uuid: string;
         name: string;
     };
+    tenant_name: string | null;
     balance: number;
     currency: string;
     status: string;
@@ -80,13 +81,12 @@ export default function VoucherCodes() {
     // Generate dialog
     const [generateOpen, setGenerateOpen] = useState(false);
     const [selectedVenue, setSelectedVenue] = useState('');
-    const [generateCount, setGenerateCount] = useState('10');
     const [initialBalance, setInitialBalance] = useState('100');
-    const [prefix, setPrefix] = useState('');
+    const [pin, setPin] = useState('');
     const [generating, setGenerating] = useState(false);
-    const [generatedCodes, setGeneratedCodes] = useState<
-        { code: string; balance: number }[]
-    >([]);
+    const [generatedCode, setGeneratedCode] = useState<
+        { code: string; balance: number; currency: string } | null
+    >(null);
 
     const fetchVenues = async () => {
         try {
@@ -164,19 +164,18 @@ export default function VoucherCodes() {
                     },
                     credentials: 'same-origin',
                     body: JSON.stringify({
-                        count: parseInt(generateCount),
                         initial_balance: parseFloat(initialBalance),
-                        prefix: prefix || undefined,
+                        pin: pin || undefined,
                     }),
                 },
             );
             const data = await response.json();
             if (data.success) {
-                setGeneratedCodes(data.data);
+                setGeneratedCode(data.data);
                 fetchCodes();
             }
         } catch (error) {
-            console.error('Failed to generate codes:', error);
+            console.error('Failed to generate code:', error);
         } finally {
             setGenerating(false);
         }
@@ -208,27 +207,11 @@ export default function VoucherCodes() {
         }
     };
 
-    const exportCodes = () => {
-        if (generatedCodes.length === 0) return;
-
-        const csv = [
-            'Code,Balance',
-            ...generatedCodes.map((c) => `${c.code},${c.balance}`),
-        ].join('\n');
-
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `voucher-codes-${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
     interface PrintableVoucher {
         code: string;
         balance: number;
         currency: string;
+        tenantName: string | null;
         venueName: string;
         pin?: string;
         expiresAt?: string | null;
@@ -279,6 +262,9 @@ export default function VoucherCodes() {
             const formatBalance = `${v.currency} ${v.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
             receipt.appendChild(createTextDiv('divider', '================================'));
+            if (v.tenantName) {
+                receipt.appendChild(createTextDiv('venue', v.tenantName));
+            }
             receipt.appendChild(createTextDiv('venue', v.venueName));
             receipt.appendChild(createTextDiv('divider', '================================'));
             receipt.appendChild(createSection('Voucher Code:', v.code, 'code'));
@@ -373,6 +359,7 @@ export default function VoucherCodes() {
                             code: rowData.code,
                             balance: rowData.balance,
                             currency: rowData.currency,
+                            tenantName: rowData.tenant_name,
                             venueName: rowData.venue.name,
                             expiresAt: rowData.expires_at,
                             createdAt: rowData.created_at,
@@ -395,9 +382,9 @@ export default function VoucherCodes() {
 
     const closeGenerateDialog = () => {
         setGenerateOpen(false);
-        setGeneratedCodes([]);
+        setGeneratedCode(null);
         setSelectedVenue('');
-        setGenerateCount('10');
+        setPin('');
         setInitialBalance('100');
         setPrefix('');
     };
@@ -405,15 +392,15 @@ export default function VoucherCodes() {
     const generateDialogFooter = (
         <div className="flex justify-end gap-2">
             <Button
-                label={generatedCodes.length > 0 ? 'Close' : 'Cancel'}
+                label={generatedCode ? 'Close' : 'Cancel'}
                 icon="pi pi-times"
                 severity="secondary"
                 outlined
                 onClick={closeGenerateDialog}
             />
-            {generatedCodes.length === 0 && (
+            {!generatedCode && (
                 <Button
-                    label={generating ? 'Generating...' : 'Generate'}
+                    label={generating ? 'Creating...' : 'Create'}
                     icon="pi pi-cog"
                     onClick={handleGenerate}
                     disabled={!selectedVenue || generating}
@@ -437,7 +424,7 @@ export default function VoucherCodes() {
                         onClick={fetchCodes}
                     />
                     <Button
-                        label="Generate Codes"
+                        label="Create Voucher"
                         icon="pi pi-plus"
                         onClick={() => {
                             setSelectedVenue(venueFilter);
@@ -547,7 +534,7 @@ export default function VoucherCodes() {
 
             {/* Generate Codes Dialog */}
             <Dialog
-                header="Generate Voucher Codes"
+                header="Create Voucher"
                 visible={generateOpen}
                 style={{ width: '32rem' }}
                 onHide={closeGenerateDialog}
@@ -556,62 +543,45 @@ export default function VoucherCodes() {
                 draggable={false}
             >
                 <p style={{ fontSize: '0.875rem', color: 'var(--acu-text-muted)', marginBottom: '1rem', fontFamily: 'var(--font-body)' }}>
-                    Create new voucher codes for a venue
+                    Create a voucher for a player
                 </p>
 
-                {generatedCodes.length > 0 ? (
+                {generatedCode ? (
                     <div className="space-y-4">
                         <div className="rounded-lg p-4" style={{ background: 'var(--acu-surface-elevated)', border: '1px solid var(--acu-border)' }}>
-                            <p className="mb-2" style={{ fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                Generated {generatedCodes.length} codes:
+                            <p className="mb-3" style={{ fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
+                                Voucher created:
                             </p>
-                            <div className="max-h-48 overflow-auto space-y-1">
-                                {generatedCodes.map((c, i) => (
-                                    <div
-                                        key={i}
-                                        className="flex justify-between"
-                                        style={{ fontSize: '0.875rem' }}
-                                    >
-                                        <code style={{
-                                            fontFamily: 'monospace',
-                                            color: 'var(--acu-primary)',
-                                            letterSpacing: '0.04em',
-                                        }}>
-                                            {c.code}
-                                        </code>
-                                        <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>
-                                            {formatCurrency(c.balance)}
-                                        </span>
-                                    </div>
-                                ))}
+                            <div className="flex justify-between items-center">
+                                <code style={{
+                                    fontFamily: 'monospace',
+                                    color: 'var(--acu-primary)',
+                                    letterSpacing: '0.04em',
+                                    fontSize: '1.2rem',
+                                }}>
+                                    {generatedCode.code}
+                                </code>
+                                <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)', fontSize: '1.1rem' }}>
+                                    {formatCurrency(generatedCode.balance, generatedCode.currency || 'NAD')}
+                                </span>
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            <Button
-                                label="Export as CSV"
-                                icon="pi pi-download"
-                                onClick={exportCodes}
-                                className="flex-1"
-                            />
-                            <Button
-                                label="Print All"
-                                icon="pi pi-print"
-                                severity="secondary"
-                                onClick={() => {
-                                    const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
-                                    printVoucherReceipts(
-                                        generatedCodes.map((c) => ({
-                                            code: c.code,
-                                            balance: c.balance,
-                                            currency: 'NAD',
-                                            venueName,
-                                            createdAt: new Date().toISOString(),
-                                        })),
-                                    );
-                                }}
-                                className="flex-1"
-                            />
-                        </div>
+                        <Button
+                            label="Print Receipt"
+                            icon="pi pi-print"
+                            onClick={() => {
+                                const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
+                                printVoucherReceipts([{
+                                    code: generatedCode.code,
+                                    balance: generatedCode.balance,
+                                    currency: generatedCode.currency || 'NAD',
+                                    tenantName: null,
+                                    venueName,
+                                    createdAt: new Date().toISOString(),
+                                }]);
+                            }}
+                            className="w-full"
+                        />
                     </div>
                 ) : (
                     <div className="space-y-4">
@@ -627,54 +597,31 @@ export default function VoucherCodes() {
                                 className="w-full"
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="flex flex-col gap-1">
-                                <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                    Number of Codes
-                                </label>
-                                <InputText
-                                    type="number"
-                                    min={1}
-                                    max={100}
-                                    value={generateCount}
-                                    onChange={(e) => setGenerateCount(e.target.value)}
-                                    className="w-full"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                    Initial Balance (NAD)
-                                </label>
-                                <InputText
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={initialBalance}
-                                    onChange={(e) => setInitialBalance(e.target.value)}
-                                    className="w-full"
-                                />
-                            </div>
+                        <div className="flex flex-col gap-1">
+                            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
+                                Amount (NAD)
+                            </label>
+                            <InputText
+                                type="number"
+                                min={0.01}
+                                step={0.01}
+                                value={initialBalance}
+                                onChange={(e) => setInitialBalance(e.target.value)}
+                                className="w-full"
+                            />
                         </div>
                         <div className="flex flex-col gap-1">
                             <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                Code Prefix (optional)
+                                PIN (optional, 4 digits)
                             </label>
                             <InputText
-                                placeholder="e.g., VIP"
-                                maxLength={10}
-                                value={prefix}
-                                onChange={(e) =>
-                                    setPrefix(
-                                        e.target.value
-                                            .toUpperCase()
-                                            .replace(/[^A-Z0-9]/g, ''),
-                                    )
-                                }
+                                type="text"
+                                maxLength={4}
+                                placeholder="e.g., 1234"
+                                value={pin}
+                                onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
                                 className="w-full"
                             />
-                            <p style={{ fontSize: '0.75rem', color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>
-                                Codes will be formatted as: PREFIX-XXXX-XXXX-XXXX
-                            </p>
                         </div>
                     </div>
                 )}
