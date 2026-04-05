@@ -402,75 +402,68 @@ class VenueManagementController extends Controller
     }
 
     /**
-     * Generate voucher codes for a venue.
+     * Generate a voucher code for a venue.
+     * Each voucher represents one player approaching the counter with money.
      */
     public function generateCodes(Request $request, string $uuid): JsonResponse
     {
         $venue = Venue::where('uuid', $uuid)->firstOrFail();
 
         $validated = $request->validate([
-            'count' => ['required', 'integer', 'min:1', 'max:100'],
-            'initial_balance' => ['required', 'numeric', 'min:0'],
-            'currency' => ['nullable', 'string', 'size:3'],
+            'initial_balance' => ['required', 'numeric', 'min:0.01'],
+            'pin' => ['nullable', 'string', 'size:4', 'regex:/^[0-9]{4}$/'],
             'expires_at' => ['nullable', 'date', 'after:today'],
-            'prefix' => ['nullable', 'string', 'max:10', 'alpha_num'],
         ]);
 
-        $codes = [];
-        $currency = $validated['currency'] ?? $venue->currency ?? 'NAD';
-        $prefix = $validated['prefix'] ?? strtoupper(substr($venue->slug, 0, 3));
-        $expiresAt = isset($validated['expires_at']) ? \Carbon\Carbon::parse($validated['expires_at']) : null;
-
-        for ($i = 0; $i < $validated['count']; $i++) {
-            // Generate unique code: PREFIX-XXXX-XXXX-XXXX
-            do {
-                $code = $prefix . '-' .
-                    strtoupper(Str::random(4)) . '-' .
-                    strtoupper(Str::random(4)) . '-' .
-                    strtoupper(Str::random(4));
-            } while (VoucherCode::where('code', $code)->exists());
-
-            $voucherCode = VoucherCode::create([
-                'uuid' => Str::uuid(),
-                'venue_id' => $venue->id,
-                'code' => $code,
-                'balance' => $validated['initial_balance'],
-                'currency' => $currency,
-                'total_loaded' => $validated['initial_balance'],
-                'total_cashed_out' => 0,
-                'status' => 'active',
-                'expires_at' => $expiresAt,
-                'created_by_admin_id' => $request->user()->id,
-            ]);
-
-            $codes[] = [
-                'uuid' => $voucherCode->uuid,
-                'code' => $voucherCode->code,
-                'balance' => $voucherCode->balance,
-                'currency' => $voucherCode->currency,
-                'expires_at' => $voucherCode->expires_at?->toIso8601String(),
-            ];
+        $expiryHours = null;
+        if (isset($validated['expires_at'])) {
+            $expiryHours = (int) now()->diffInHours(\Carbon\Carbon::parse($validated['expires_at']));
         }
 
-        $this->auditService->log(
-            'admin.venue.codes.generate',
-            $request->user(),
-            $request->user(),
-            [
-                'new_values' => [
-                    'venue_uuid' => $venue->uuid,
-                    'count' => $validated['count'],
-                    'initial_balance' => $validated['initial_balance'],
-                    'currency' => $currency,
-                ],
-            ]
-        );
+        try {
+            // Use the VoucherCodeService which auto-creates a voucher user + wallet
+            $voucherCodeService = app(\App\Services\Venue\VoucherCodeService::class);
 
-        return response()->json([
-            'success' => true,
-            'message' => "Generated {$validated['count']} voucher codes successfully.",
-            'data' => $codes,
-        ], 201);
+            // We need a VenueStaff to pass as creator — for admin-created codes, use a system stub
+            // Since this is admin-created (not staff-created), pass the admin user's ID
+            $voucherCode = $voucherCodeService->createCodeForAdmin(
+                $venue,
+                $request->user(),
+                $validated['initial_balance'],
+                $validated['pin'] ?? null,
+                $expiryHours
+            );
+
+            $this->auditService->log(
+                'admin.venue.codes.generate',
+                $request->user(),
+                $request->user(),
+                [
+                    'new_values' => [
+                        'venue_uuid' => $venue->uuid,
+                        'code' => $voucherCode->code,
+                        'initial_balance' => $validated['initial_balance'],
+                    ],
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Voucher code created successfully.',
+                'data' => [
+                    'uuid' => $voucherCode->uuid,
+                    'code' => $voucherCode->code,
+                    'balance' => $voucherCode->balance,
+                    'currency' => $voucherCode->currency,
+                    'expires_at' => $voucherCode->expires_at?->toIso8601String(),
+                ],
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
@@ -619,7 +612,7 @@ class VenueManagementController extends Controller
      */
     public function searchCodes(Request $request): JsonResponse
     {
-        $query = VoucherCode::with('venue:id,uuid,name');
+        $query = VoucherCode::with(['venue:id,uuid,name', 'tenant:id,name']);
 
         // Search by code
         if ($code = $request->input('code')) {
@@ -660,6 +653,7 @@ class VenueManagementController extends Controller
                     'uuid' => $c->venue->uuid,
                     'name' => $c->venue->name,
                 ],
+                'tenant_name' => $c->tenant?->name,
                 'balance' => $c->balance,
                 'currency' => $c->currency,
                 'status' => $c->status,

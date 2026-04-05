@@ -93,6 +93,71 @@ class VoucherCodeService
     }
 
     /**
+     * Create a voucher code from the admin panel (no VenueStaff required).
+     */
+    public function createCodeForAdmin(
+        Venue $venue,
+        \App\Models\User $admin,
+        ?string $initialBalance = null,
+        ?string $pin = null,
+        ?int $expiryHours = null
+    ): VoucherCode {
+        $code = $this->generateUniqueCode($venue);
+        $initialBalance = $initialBalance ?? '0.00';
+
+        $voucherCode = VoucherCode::create([
+            'venue_id' => $venue->id,
+            'code' => $code,
+            'pin' => $pin ? bcrypt($pin) : null,
+            'balance' => $initialBalance,
+            'currency' => $venue->currency,
+            'status' => bccomp($initialBalance, '0', 2) > 0 ? 'active' : 'created',
+            'created_by_admin_id' => $admin->id,
+            'total_loaded' => $initialBalance,
+            'expires_at' => $this->calculateExpiry($venue, $expiryHours),
+        ]);
+
+        if (bccomp($initialBalance, '0', 2) > 0) {
+            $this->recordTransaction(
+                $voucherCode,
+                'load',
+                $initialBalance,
+                '0.00',
+                $initialBalance,
+                'Initial balance (admin)',
+                null
+            );
+        }
+
+        // Auto-create voucher user + wallet (same as createCode)
+        $voucherUser = \App\Models\User::create([
+            'name' => "Voucher {$code}",
+            'email' => "voucher-{$code}@voucher.local",
+            'username' => "voucher-{$code}",
+            'password' => \Illuminate\Support\Str::random(32),
+            'user_type' => 'voucher',
+            'tenant_id' => $venue->tenant_id,
+            'status' => 'active',
+        ]);
+
+        $voucherUser->assignRole('player', $venue->tenant_id);
+
+        $wallet = $voucherUser->getOrCreateWallet($venue->currency);
+        if (bccomp($initialBalance, '0', 2) > 0) {
+            app(\App\Services\WalletService::class)->deposit(
+                $wallet,
+                $initialBalance,
+                null,
+                "voucher_initial_{$voucherCode->uuid}"
+            );
+        }
+
+        $voucherCode->update(['user_id' => $voucherUser->id]);
+
+        return $voucherCode;
+    }
+
+    /**
      * Generate a unique code string.
      */
     private function generateUniqueCode(Venue $venue): string
