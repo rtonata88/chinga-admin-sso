@@ -61,6 +61,34 @@ class VoucherCodeService
             );
         }
 
+        // Auto-create a voucher user linked to this code
+        $voucherUser = \App\Models\User::create([
+            'name' => "Voucher {$code}",
+            'email' => "voucher-{$code}@voucher.local",
+            'username' => "voucher-{$code}",
+            'password' => \Illuminate\Support\Str::random(32),
+            'user_type' => 'voucher',
+            'tenant_id' => $venue->tenant_id,
+            'status' => 'active',
+        ]);
+
+        // Assign player role
+        $voucherUser->assignRole('player', $venue->tenant_id);
+
+        // Create wallet and deposit initial balance if > 0
+        $wallet = $voucherUser->getOrCreateWallet($venue->currency);
+        if (bccomp($initialBalance, '0', 2) > 0) {
+            app(\App\Services\WalletService::class)->deposit(
+                $wallet,
+                $initialBalance,
+                null,
+                "voucher_initial_{$voucherCode->uuid}"
+            );
+        }
+
+        // Link user to voucher
+        $voucherCode->update(['user_id' => $voucherUser->id]);
+
         return $voucherCode;
     }
 
