@@ -48,18 +48,32 @@ export default function UserShow({ uuid }: { uuid: string }) {
     const [resetting, setResetting] = useState(false);
     const toast = useRef<Toast>(null);
 
+    const [error, setError] = useState<string | null>(null);
+
     const fetchUser = async () => {
         try {
-            const response = await fetch(`/api/v1/admin/users/${uuid}`, {
+            const url = `/api/v1/admin/users/${uuid}`;
+            console.log('Fetching user from:', url);
+            const response = await fetch(url, {
                 headers: { Accept: 'application/json' },
                 credentials: 'same-origin',
             });
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                setError(`Failed to load user (${response.status})`);
+                return;
+            }
+
             const data = await response.json();
             if (data.success) {
                 setUser(data.data);
+            } else {
+                setError(data.message || 'Failed to load user');
             }
-        } catch (error) {
-            console.error('Failed to fetch user:', error);
+        } catch (err) {
+            console.error('Failed to fetch user:', err);
+            setError('Failed to connect to the server');
         } finally {
             setLoading(false);
         }
@@ -165,7 +179,7 @@ export default function UserShow({ uuid }: { uuid: string }) {
             <UserLayout>
                 <Head title="User Not Found" />
                 <div className="p-8 text-center">
-                    <p style={{ color: 'var(--acu-text-muted)' }}>User not found.</p>
+                    <p style={{ color: 'var(--acu-text-muted)' }}>{error || 'User not found.'}</p>
                     <Button label="Back to Users" icon="pi pi-arrow-left" className="mt-4" onClick={() => router.visit('/admin/users')} />
                 </div>
             </UserLayout>
