@@ -27,7 +27,16 @@ class GameSessionService
 
         $this->validateGameForTenant($game, $user->tenant_id);
         $this->ensureWalletActive($wallet);
-        $this->ensureNoActiveSession($wallet);
+
+        // End any existing active session for this wallet
+        $existingSession = GameSession::where('source_type', Wallet::class)
+            ->where('source_id', $wallet->id)
+            ->whereNull('ended_at')
+            ->first();
+
+        if ($existingSession) {
+            $existingSession->end('forced', $wallet->balance);
+        }
 
         return GameSession::create([
             'tenant_id' => $user->tenant_id,
@@ -114,7 +123,15 @@ class GameSessionService
             }
         }
 
-        $this->ensureNoActiveSession($code);
+        // End any existing active session for this voucher (e.g. from a previous browser session)
+        $existingSession = GameSession::where('source_type', get_class($code))
+            ->where('source_id', $code->id)
+            ->whereNull('ended_at')
+            ->first();
+
+        if ($existingSession) {
+            $existingSession->end('forced', $code->balance);
+        }
 
         return DB::transaction(function () use ($code, $game, $ipAddress) {
             $session = GameSession::create([
