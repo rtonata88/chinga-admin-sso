@@ -47,5 +47,9 @@ Route::prefix('v1')->group(function () {
         Route::get('user', function (\Illuminate\Http\Request $request) {
             return $request->user();
         })->name('api.user');
+
+        // Game server config endpoints
+        Route::get('games/{gameUuid}/teams', [\App\Http\Controllers\Api\GameConfigController::class, 'teams'])->name('api.games.teams');
+        Route::get('games/{gameUuid}/config', [\App\Http\Controllers\Api\GameConfigController::class, 'config'])->name('api.games.config');
     });
 });

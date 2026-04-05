@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'chinga_fantasy' => [
+        'api_url' => env('CHINGA_FANTASY_API_URL', 'http://localhost:3001'),
+    ],
+
 ];
