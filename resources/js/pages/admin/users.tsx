@@ -453,11 +453,25 @@ export default function Users() {
                                 header="Role"
                                 body={(row: User) => (
                                     <div className="flex gap-1 flex-wrap">
-                                        {(row.roles || []).map((r) => (
-                                            <Tag key={r} value={r.replace('_', ' ')} severity={
-                                                r.includes('admin') ? 'danger' : r === 'tenant_manager' ? 'warning' : 'info'
-                                            } style={{ fontSize: '0.7rem' }} />
-                                        ))}
+                                        {(row.roles || []).map((r) => {
+                                            const labels: Record<string, string> = {
+                                                platform_super_admin: 'Super Admin',
+                                                platform_admin: 'Platform Admin',
+                                                tenant_admin: 'Admin',
+                                                tenant_manager: 'Manager',
+                                                player: 'Player',
+                                            };
+                                            const severities: Record<string, 'danger' | 'warning' | 'info' | 'success'> = {
+                                                platform_super_admin: 'danger',
+                                                platform_admin: 'danger',
+                                                tenant_admin: 'warning',
+                                                tenant_manager: 'info',
+                                                player: 'success',
+                                            };
+                                            return (
+                                                <Tag key={r} value={labels[r] || r} severity={severities[r] || 'info'} style={{ fontSize: '0.7rem' }} />
+                                            );
+                                        })}
                                     </div>
                                 )}
                             />
