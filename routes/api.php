@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\RegistrationController;
 use App\Http\Controllers\OAuth\OAuthClientController;
 use App\Http\Controllers\OAuth\OpenIDConnectController;
 use App\Http\Controllers\OAuth\UserInfoController;
@@ -21,6 +22,11 @@ Route::get('.well-known/openid-configuration', [OpenIDConnectController::class, 
 Route::get('.well-known/jwks.json', [OpenIDConnectController::class, 'jwks']);
 
 Route::prefix('v1')->group(function () {
+    // Public endpoints
+    Route::post('register', [RegistrationController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('api.register');
+
     // OAuth2 authenticated routes
     Route::middleware('auth:api')->group(function () {
         // OpenID Connect userinfo endpoint
