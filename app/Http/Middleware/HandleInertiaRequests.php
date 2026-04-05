@@ -39,8 +39,14 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
-        $tenant = app('current_tenant');
         $user = $request->user();
+        $tenant = app('current_tenant');
+
+        // If no tenant was resolved yet but the user has a tenant, resolve it now
+        if (!$tenant && $user && $user->tenant_id) {
+            $tenant = \App\Models\Tenant::find($user->tenant_id);
+            app()->instance('current_tenant', $tenant);
+        }
 
         return [
             ...parent::share($request),
