@@ -7,6 +7,9 @@ use App\Http\Controllers\Platform\RevenueController;
 use App\Http\Controllers\Platform\TenantController;
 use App\Http\Controllers\Platform\TenantGameController;
 use App\Http\Controllers\Platform\TenantVenueController;
+use App\Http\Controllers\Admin\Games\FantasyTeamController;
+use App\Http\Controllers\Admin\Games\FantasySettingsController;
+use App\Http\Controllers\Admin\Games\FantasyRoundController;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -31,6 +34,21 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('pla
     Route::get('games/{uuid}', fn (string $uuid) => Inertia::render('platform/games/show', ['uuid' => $uuid]))->name('platform.games.show');
     Route::get('revenue', fn () => Inertia::render('platform/revenue/index'))->name('platform.revenue');
     Route::get('users', fn () => Inertia::render('platform/users/index'))->name('platform.users');
+
+    // Chinga Fantasy game management
+    Route::prefix('games/fantasy')->group(function () {
+        Route::get('teams', [FantasyTeamController::class, 'index'])->name('platform.games.fantasy.teams');
+        Route::post('teams', [FantasyTeamController::class, 'store'])->name('platform.games.fantasy.teams.store');
+        Route::put('teams/{team}', [FantasyTeamController::class, 'update'])->name('platform.games.fantasy.teams.update');
+        Route::delete('teams/{team}', [FantasyTeamController::class, 'destroy'])->name('platform.games.fantasy.teams.destroy');
+        Route::post('teams/bulk-toggle', [FantasyTeamController::class, 'bulkToggle'])->name('platform.games.fantasy.teams.bulk-toggle');
+
+        Route::get('settings', [FantasySettingsController::class, 'index'])->name('platform.games.fantasy.settings');
+        Route::put('settings/global', [FantasySettingsController::class, 'updateGlobalSettings'])->name('platform.games.fantasy.settings.global');
+        Route::put('settings/tenant/{tenantUuid}', [FantasySettingsController::class, 'updateTenantSettings'])->name('platform.games.fantasy.settings.tenant');
+
+        Route::get('rounds', [FantasyRoundController::class, 'index'])->name('platform.games.fantasy.rounds');
+    });
 });
 
 // Platform admin API routes
@@ -80,6 +98,7 @@ Route::middleware(['auth', EnsurePlatformAdmin::class])->prefix('api/v1/platform
     // User & Role Management
     Route::get('roles', [PlatformRoleManagementController::class, 'listRoles'])->name('roles.index');
     Route::get('users', [PlatformRoleManagementController::class, 'listUsers'])->name('users.index');
+    Route::post('users', [PlatformRoleManagementController::class, 'createUser'])->name('users.store');
     Route::get('users/{uuid}/roles', [PlatformRoleManagementController::class, 'getUserRoles'])->name('users.roles.index');
     Route::post('users/{uuid}/roles', [PlatformRoleManagementController::class, 'assignRole'])->name('users.roles.store');
     Route::delete('users/{uuid}/roles/{role}', [PlatformRoleManagementController::class, 'removeRole'])->name('users.roles.destroy');

@@ -61,7 +61,7 @@ export default function Teams({ teams, filters }: Props) {
     }, [flash]);
 
     const handleSearch = () => {
-        router.get('/admin/games/fantasy/teams', { search: search || undefined }, { preserveState: true });
+        router.get('/platform/games/fantasy/teams', { search: search || undefined }, { preserveState: true });
     };
 
     const openCreateDialog = () => {
@@ -99,12 +99,12 @@ export default function Teams({ teams, filters }: Props) {
         };
 
         if (editingTeam) {
-            router.put(`/admin/games/fantasy/teams/${editingTeam.uuid}`, data, {
+            router.put(`/platform/games/fantasy/teams/${editingTeam.uuid}`, data, {
                 onSuccess: () => { setDialogOpen(false); setSaving(false); },
                 onError: () => setSaving(false),
             });
         } else {
-            router.post('/admin/games/fantasy/teams', data, {
+            router.post('/platform/games/fantasy/teams', data, {
                 onSuccess: () => { setDialogOpen(false); setSaving(false); },
                 onError: () => setSaving(false),
             });
@@ -113,7 +113,7 @@ export default function Teams({ teams, filters }: Props) {
 
     const handleDelete = () => {
         if (!deletingTeam) return;
-        router.delete(`/admin/games/fantasy/teams/${deletingTeam.uuid}`, {
+        router.delete(`/platform/games/fantasy/teams/${deletingTeam.uuid}`, {
             onSuccess: () => setDeleteDialogOpen(false),
         });
     };
@@ -256,7 +256,7 @@ export default function Teams({ teams, filters }: Props) {
                                         outlined
                                         size="small"
                                         disabled={teams.current_page === 1}
-                                        onClick={() => router.get('/admin/games/fantasy/teams', { ...filters, page: teams.current_page - 1 }, { preserveState: true })}
+                                        onClick={() => router.get('/platform/games/fantasy/teams', { ...filters, page: teams.current_page - 1 }, { preserveState: true })}
                                     />
                                     <Button
                                         label="Next"
@@ -265,7 +265,7 @@ export default function Teams({ teams, filters }: Props) {
                                         outlined
                                         size="small"
                                         disabled={teams.current_page === teams.last_page}
-                                        onClick={() => router.get('/admin/games/fantasy/teams', { ...filters, page: teams.current_page + 1 }, { preserveState: true })}
+                                        onClick={() => router.get('/platform/games/fantasy/teams', { ...filters, page: teams.current_page + 1 }, { preserveState: true })}
                                     />
                                 </div>
                             </div>

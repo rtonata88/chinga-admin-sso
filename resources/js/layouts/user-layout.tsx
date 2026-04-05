@@ -25,15 +25,6 @@ const adminGroup: SidebarNavGroup = {
     ],
 };
 
-const gamesGroup: SidebarNavGroup = {
-    title: 'Games',
-    items: [
-        { label: 'Teams', icon: 'pi pi-th-large', href: '/admin/games/fantasy/teams' },
-        { label: 'Rounds', icon: 'pi pi-chart-bar', href: '/admin/games/fantasy/rounds' },
-        { label: 'Settings', icon: 'pi pi-cog', href: '/admin/games/fantasy/settings' },
-    ],
-};
-
 const platformGroup: SidebarNavGroup = {
     title: 'Platform',
     items: [
@@ -42,6 +33,15 @@ const platformGroup: SidebarNavGroup = {
         { label: 'Tenants', icon: 'pi pi-building', href: '/platform/tenants' },
         { label: 'Games', icon: 'pi pi-play', href: '/platform/games' },
         { label: 'Revenue', icon: 'pi pi-dollar', href: '/platform/revenue' },
+    ],
+};
+
+const fantasyGroup: SidebarNavGroup = {
+    title: 'Chinga Fantasy',
+    items: [
+        { label: 'Teams', icon: 'pi pi-th-large', href: '/platform/games/fantasy/teams' },
+        { label: 'Rounds', icon: 'pi pi-chart-bar', href: '/platform/games/fantasy/rounds' },
+        { label: 'Settings', icon: 'pi pi-cog', href: '/platform/games/fantasy/settings' },
     ],
 };
 
@@ -67,11 +67,11 @@ export default function UserLayout({ children, title }: PropsWithChildren<Props>
 
         if (isAdmin) {
             groups.push(adminGroup);
-            groups.push(gamesGroup);
         }
 
         if (isPlatformAdmin) {
             groups.push(platformGroup);
+            groups.push(fantasyGroup);
         }
 
         return groups;
