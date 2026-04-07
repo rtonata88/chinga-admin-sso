@@ -52,7 +52,9 @@ class FantasySettingsController extends Controller
             'round_results_seconds' => ['required', 'integer', 'min:5', 'max:120'],
             'round_dialog_seconds' => ['required', 'integer', 'min:5', 'max:120'],
             'min_jackpot_amount' => ['required', 'numeric', 'min:0'],
+            'max_jackpot_amount' => ['required', 'numeric', 'min:0'],
             'jackpot_percentage' => ['required', 'integer', 'min:0', 'max:100'],
+            'winning_teams_count' => ['required', 'integer', 'min:4', 'max:50'],
         ]);
 
         $game->update(['settings' => $validated]);
@@ -74,7 +76,9 @@ class FantasySettingsController extends Controller
             'custom_settings.round_results_seconds' => ['nullable', 'integer', 'min:5'],
             'custom_settings.round_dialog_seconds' => ['nullable', 'integer', 'min:5'],
             'custom_settings.min_jackpot_amount' => ['nullable', 'numeric', 'min:0'],
+            'custom_settings.max_jackpot_amount' => ['nullable', 'numeric', 'min:0'],
             'custom_settings.jackpot_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'custom_settings.winning_teams_count' => ['nullable', 'integer', 'min:4', 'max:50'],
         ]);
 
         $game->tenants()->updateExistingPivot($tenant->id, [

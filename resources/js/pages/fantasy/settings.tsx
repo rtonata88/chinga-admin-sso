@@ -13,10 +13,12 @@ interface GameSettings {
     min_bet_amount?: number;
     max_bet_amount?: number;
     display_teams?: number;
+    winning_teams_count?: number;
     round_betting_seconds?: number;
     round_results_seconds?: number;
     round_dialog_seconds?: number;
     min_jackpot_amount?: number;
+    max_jackpot_amount?: number;
     jackpot_percentage?: number;
 }
 
@@ -92,6 +94,22 @@ function SettingsForm({
                 />
             </div>
             <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }} htmlFor={fieldId('winning_teams')}>
+                    Winning Teams Count
+                </label>
+                <InputNumber
+                    id={fieldId('winning_teams')}
+                    value={values.winning_teams_count ?? null}
+                    onValueChange={(e) => onChange('winning_teams_count', e.value ?? null)}
+                    min={4}
+                    max={50}
+                    className="w-full"
+                />
+                <small className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
+                    How many teams are drawn as winners each round (affects win probability)
+                </small>
+            </div>
+            <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }} htmlFor={fieldId('betting_seconds')}>
                     Round Betting (seconds)
                 </label>
@@ -145,6 +163,25 @@ function SettingsForm({
                     min={0}
                     className="w-full"
                 />
+            </div>
+            <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }} htmlFor={fieldId('max_jackpot')}>
+                    Max Jackpot Amount (NAD)
+                </label>
+                <InputNumber
+                    id={fieldId('max_jackpot')}
+                    value={values.max_jackpot_amount ?? null}
+                    onValueChange={(e) => onChange('max_jackpot_amount', e.value ?? null)}
+                    mode="currency"
+                    currency="NAD"
+                    locale="en-ZA"
+                    minFractionDigits={2}
+                    min={0}
+                    className="w-full"
+                />
+                <small className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
+                    Jackpot stops growing once this cap is reached
+                </small>
             </div>
             <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }} htmlFor={fieldId('jackpot_pct')}>

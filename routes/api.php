@@ -54,8 +54,36 @@ Route::prefix('v1')->group(function () {
             return $request->user();
         })->name('api.user');
 
-        // Game server config endpoints
-        Route::get('games/{gameUuid}/teams', [\App\Http\Controllers\Api\GameConfigController::class, 'teams'])->name('api.games.teams');
-        Route::get('games/{gameUuid}/config', [\App\Http\Controllers\Api\GameConfigController::class, 'config'])->name('api.games.config');
     });
+
+    // Tenant resolution (public, used by game frontends)
+    Route::post('tenant/resolve', function (\Illuminate\Http\Request $request) {
+        $slug = $request->input('slug') ?? $request->header('X-Tenant-ID');
+
+        if (!$slug) {
+            return response()->json(['message' => 'Tenant slug is required.'], 422);
+        }
+
+        $tenant = \App\Models\Tenant::where('slug', $slug)
+            ->where('status', 'active')
+            ->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found.'], 404);
+        }
+
+        return response()->json([
+            'tenant' => [
+                'uuid' => $tenant->uuid,
+                'name' => $tenant->name,
+                'slug' => $tenant->slug,
+                'currency' => $tenant->currency,
+                'country_code' => $tenant->country_code,
+            ],
+        ]);
+    })->name('api.tenant.resolve');
+
+    // Game server config endpoints (read-only, no auth required)
+    Route::get('games/{gameUuid}/teams', [\App\Http\Controllers\Api\GameConfigController::class, 'teams'])->name('api.games.teams');
+    Route::get('games/{gameUuid}/config', [\App\Http\Controllers\Api\GameConfigController::class, 'config'])->name('api.games.config');
 });

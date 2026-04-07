@@ -14,10 +14,11 @@ export default function AppLayout({ children, title, navigation, footerLink }: P
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
     return (
-        <div className="flex h-screen overflow-hidden bg-[var(--acu-surface)]">
+        <div className="flex h-screen overflow-hidden" style={{ background: 'var(--acu-surface)', fontFamily: 'var(--font-body)' }}>
             {mobileSidebarOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    className="fixed inset-0 z-40 lg:hidden"
+                    style={{ background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(4px)' }}
                     onClick={() => setMobileSidebarOpen(false)}
                 />
             )}

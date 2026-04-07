@@ -11,6 +11,7 @@ import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
+import { Password } from 'primereact/password';
 import { Toast } from 'primereact/toast';
 import { useEffect, useRef, useState } from 'react';
 
@@ -97,6 +98,12 @@ export default function PlatformUsersIndex() {
     // Platform role selections (checkboxes)
     const [selectedPlatformRoles, setSelectedPlatformRoles] = useState<string[]>([]);
     const [originalPlatformRoles, setOriginalPlatformRoles] = useState<string[]>([]);
+
+    // Create user dialog state
+    const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    const [createForm, setCreateForm] = useState({ name: '', email: '', password: '', tenant_id: null as number | null });
+    const [createErrors, setCreateErrors] = useState<Record<string, string[]>>({});
+    const [createSaving, setCreateSaving] = useState(false);
 
     // Tenant role assignment
     const [selectedTenantForRole, setSelectedTenantForRole] = useState<number | null>(null);
@@ -302,6 +309,45 @@ export default function PlatformUsersIndex() {
         }
     };
 
+    const openCreateDialog = () => {
+        setCreateForm({ name: '', email: '', password: '', tenant_id: null });
+        setCreateErrors({});
+        setCreateDialogOpen(true);
+    };
+
+    const createUser = async () => {
+        setCreateSaving(true);
+        setCreateErrors({});
+
+        try {
+            const res = await fetch('/api/v1/platform/users', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                },
+                body: JSON.stringify(createForm),
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toast.current?.show({ severity: 'success', summary: 'Success', detail: 'User created successfully.' });
+                setCreateDialogOpen(false);
+                fetchUsers();
+            } else if (res.status === 422 && data.errors) {
+                setCreateErrors(data.errors);
+            } else {
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to create user.' });
+            }
+        } catch (error) {
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to create user.' });
+        } finally {
+            setCreateSaving(false);
+        }
+    };
+
     const platformRoles = availableRoles.filter((r) => r.is_platform_role);
     const tenantRoles = availableRoles.filter((r) => !r.is_platform_role);
 
@@ -361,6 +407,12 @@ export default function PlatformUsersIndex() {
                         outlined
                         size="small"
                         onClick={fetchUsers}
+                    />
+                    <Button
+                        label="Add User"
+                        icon="pi pi-plus"
+                        size="small"
+                        onClick={openCreateDialog}
                     />
                 </PageHeader>
 
@@ -465,6 +517,82 @@ export default function PlatformUsersIndex() {
                     </div>
                 </div>
             </div>
+
+            {/* Create User Dialog */}
+            <Dialog
+                header="Add User"
+                visible={createDialogOpen}
+                style={{ width: '28rem' }}
+                onHide={() => setCreateDialogOpen(false)}
+                modal
+                draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            label="Cancel"
+                            icon="pi pi-times"
+                            severity="secondary"
+                            outlined
+                            onClick={() => setCreateDialogOpen(false)}
+                        />
+                        <Button
+                            label={createSaving ? 'Creating...' : 'Create'}
+                            icon="pi pi-check"
+                            onClick={createUser}
+                            disabled={createSaving}
+                            loading={createSaving}
+                        />
+                    </div>
+                }
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--acu-text)] mb-1">Name</label>
+                        <InputText
+                            value={createForm.name}
+                            onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                            className={`w-full ${createErrors.name ? 'p-invalid' : ''}`}
+                            placeholder="Full name"
+                        />
+                        {createErrors.name && <small className="text-red-500">{createErrors.name[0]}</small>}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--acu-text)] mb-1">Email</label>
+                        <InputText
+                            value={createForm.email}
+                            onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                            className={`w-full ${createErrors.email ? 'p-invalid' : ''}`}
+                            placeholder="user@example.com"
+                            type="email"
+                        />
+                        {createErrors.email && <small className="text-red-500">{createErrors.email[0]}</small>}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--acu-text)] mb-1">Password</label>
+                        <Password
+                            value={createForm.password}
+                            onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                            className={`w-full ${createErrors.password ? 'p-invalid' : ''}`}
+                            inputClassName="w-full"
+                            placeholder="Minimum 8 characters"
+                            toggleMask
+                            feedback={false}
+                        />
+                        {createErrors.password && <small className="text-red-500">{createErrors.password[0]}</small>}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--acu-text)] mb-1">Tenant</label>
+                        <Dropdown
+                            value={createForm.tenant_id}
+                            onChange={(e) => setCreateForm({ ...createForm, tenant_id: e.value })}
+                            options={[{ label: 'Platform (no tenant)', value: null }, ...tenants]}
+                            placeholder="Select tenant..."
+                            className="w-full"
+                        />
+                        {createErrors.tenant_id && <small className="text-red-500">{createErrors.tenant_id[0]}</small>}
+                    </div>
+                </div>
+            </Dialog>
 
             {/* Role Management Dialog */}
             <Dialog

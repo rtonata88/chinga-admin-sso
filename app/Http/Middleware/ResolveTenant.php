@@ -63,6 +63,7 @@ class ResolveTenant
         // Extract subdomain from hosts like "betwin.sso.chingagames.com"
         $baseDomains = array_filter([
             config('app.base_domain', 'sso.chingagames.com'),
+            parse_url(config('app.url'), PHP_URL_HOST),
             'localhost',
         ]);
 

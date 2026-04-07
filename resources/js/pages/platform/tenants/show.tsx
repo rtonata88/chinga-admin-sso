@@ -7,8 +7,7 @@ import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
-import { Checkbox } from 'primereact/checkbox';
-import { InputSwitch } from 'primereact/inputswitch';
+
 import { Toast } from 'primereact/toast';
 import { useEffect, useRef, useState } from 'react';
 
@@ -451,10 +450,21 @@ export default function TenantShow() {
                             <Column
                                 header="Enabled"
                                 body={(row: AssignedGame) => (
-                                    <InputSwitch
-                                        checked={row.pivot.enabled}
-                                        onChange={() => handleToggleEnabled(row)}
-                                    />
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={row.pivot.enabled}
+                                        onClick={() => handleToggleEnabled(row)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                            row.pivot.enabled ? 'bg-[var(--acu-primary)]' : 'bg-gray-300'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                                row.pivot.enabled ? 'translate-x-6' : 'translate-x-1'
+                                            }`}
+                                        />
+                                    </button>
                                 )}
                                 style={{ width: '6rem' }}
                             />
@@ -678,28 +688,34 @@ export default function TenantShow() {
                         <p className="text-sm text-[var(--acu-text-light)] mb-3">
                             Select games to make available for {tenant.name}. Unchecked games will be removed.
                         </p>
-                        {[...allGames.assigned, ...allGames.available].map((game) => (
-                            <div
-                                key={game.uuid}
-                                className="flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-[var(--acu-surface-hover)]"
-                            >
-                                <Checkbox
-                                    inputId={`game-${game.uuid}`}
-                                    checked={selectedGameUuids.includes(game.uuid)}
-                                    onChange={(e) => {
-                                        if (e.checked) {
-                                            setSelectedGameUuids([...selectedGameUuids, game.uuid]);
-                                        } else {
-                                            setSelectedGameUuids(selectedGameUuids.filter((u) => u !== game.uuid));
-                                        }
-                                    }}
-                                />
-                                <label htmlFor={`game-${game.uuid}`} className="cursor-pointer flex-1">
-                                    <div className="text-sm font-medium text-[var(--acu-text)]">{game.name}</div>
-                                    <div className="text-xs text-[var(--acu-text-light)]">{game.type} — {game.slug}</div>
+                        {[...allGames.assigned, ...allGames.available].map((game) => {
+                            const isSelected = selectedGameUuids.includes(game.uuid);
+                            return (
+                                <label
+                                    key={game.uuid}
+                                    htmlFor={`game-${game.uuid}`}
+                                    className="flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-[var(--acu-surface-hover)] cursor-pointer"
+                                >
+                                    <input
+                                        id={`game-${game.uuid}`}
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {
+                                            setSelectedGameUuids((prev) =>
+                                                prev.includes(game.uuid)
+                                                    ? prev.filter((u) => u !== game.uuid)
+                                                    : [...prev, game.uuid]
+                                            );
+                                        }}
+                                        className="mt-1 h-4 w-4 rounded border-gray-300 accent-[var(--acu-primary)]"
+                                    />
+                                    <div className="flex-1">
+                                        <div className="text-sm font-medium text-[var(--acu-text)]">{game.name}</div>
+                                        <div className="text-xs text-[var(--acu-text-light)]">{game.type} — {game.slug}</div>
+                                    </div>
                                 </label>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {allGames.assigned.length === 0 && allGames.available.length === 0 && (
                             <p className="text-sm text-[var(--acu-text-light)] text-center py-4">No games available in the platform.</p>
                         )}

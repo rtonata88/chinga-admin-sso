@@ -1,7 +1,7 @@
-import '../css/app.css';
 import 'primereact/resources/themes/lara-light-blue/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
+import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -31,7 +31,7 @@ createInertiaApp({
         );
     },
     progress: {
-        color: '#2563EB',
+        color: '#C9A84C',
     },
 });
 

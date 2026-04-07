@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\Scopes\TenantScope;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\RoleManagementService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class PlatformRoleManagementController extends Controller
 {
@@ -86,6 +90,38 @@ class PlatformRoleManagementController extends Controller
                 'total' => $users->total(),
             ],
         ]);
+    }
+
+    public function createUser(Request $request): JsonResponse
+    {
+        $this->checkPermission($request);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'password' => 'required|string|min:8',
+            'tenant_id' => 'nullable|integer|exists:tenants,id',
+        ]);
+
+        $user = User::withoutGlobalScope(TenantScope::class)->create([
+            'uuid' => Str::uuid()->toString(),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'tenant_id' => $validated['tenant_id'] ?? null,
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User created successfully.',
+            'data' => [
+                'uuid' => $user->uuid,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+        ], 201);
     }
 
     public function getUserRoles(Request $request, string $uuid): JsonResponse

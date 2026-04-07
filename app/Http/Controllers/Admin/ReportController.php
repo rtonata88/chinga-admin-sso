@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\LoginAttempt;
 use App\Models\SecurityAuditLog;
+use App\Models\TenantRevenueRecord;
 use App\Models\User;
 use App\Models\UserSession;
 use App\Models\Venue;
@@ -213,6 +214,96 @@ class ReportController extends Controller
                     'city' => $v->city,
                     'transaction_volume' => $v->transaction_volume ?? 0,
                 ]),
+            ],
+        ]);
+    }
+
+    /**
+     * Revenue records for the current tenant.
+     */
+    public function revenue(Request $request): JsonResponse
+    {
+        $tenant = app('current_tenant');
+
+        if (! $tenant) {
+            return response()->json(['success' => false, 'message' => 'No tenant context.'], 403);
+        }
+
+        $query = TenantRevenueRecord::with('game:id,uuid,name')
+            ->where('tenant_id', $tenant->id);
+
+        if ($periodType = $request->input('period_type')) {
+            $query->where('period_type', $periodType);
+        }
+
+        if ($from = $request->input('from')) {
+            $query->where('period_start', '>=', $from);
+        }
+
+        if ($to = $request->input('to')) {
+            $query->where('period_end', '<=', $to);
+        }
+
+        $records = $query->orderByDesc('period_start')
+            ->paginate($request->input('per_page', 25));
+
+        return response()->json([
+            'success' => true,
+            'data' => $records->items(),
+            'meta' => [
+                'current_page' => $records->currentPage(),
+                'last_page' => $records->lastPage(),
+                'per_page' => $records->perPage(),
+                'total' => $records->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Revenue summary for the current tenant.
+     */
+    public function revenueSummary(Request $request): JsonResponse
+    {
+        $tenant = app('current_tenant');
+
+        if (! $tenant) {
+            return response()->json(['success' => false, 'message' => 'No tenant context.'], 403);
+        }
+
+        $from = $request->input('from', now()->startOfMonth()->toDateString());
+        $to = $request->input('to', now()->toDateString());
+
+        $totals = TenantRevenueRecord::where('tenant_id', $tenant->id)
+            ->where('period_start', '>=', $from)
+            ->where('period_end', '<=', $to)
+            ->selectRaw('
+                SUM(total_bets) as total_bets,
+                SUM(total_wins) as total_wins,
+                SUM(gross_gaming_revenue) as gross_gaming_revenue,
+                SUM(chinga_share) as chinga_share,
+                SUM(tenant_share) as tenant_share
+            ')
+            ->first();
+
+        $perGame = TenantRevenueRecord::with('game:id,uuid,name')
+            ->where('tenant_id', $tenant->id)
+            ->where('period_start', '>=', $from)
+            ->where('period_end', '<=', $to)
+            ->selectRaw('
+                game_id,
+                SUM(total_bets) as total_bets,
+                SUM(total_wins) as total_wins,
+                SUM(gross_gaming_revenue) as gross_gaming_revenue,
+                SUM(tenant_share) as tenant_share
+            ')
+            ->groupBy('game_id')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'totals' => $totals,
+                'per_game' => $perGame,
             ],
         ]);
     }

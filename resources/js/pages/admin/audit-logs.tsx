@@ -1,9 +1,9 @@
-import UserLayout from '@/layouts/user-layout';
 import PageHeader from '@/components/acumatica/Common/PageHeader';
+import UserLayout from '@/layouts/user-layout';
 import { Head } from '@inertiajs/react';
-import { DataTable } from 'primereact/datatable';
-import { Column } from 'primereact/column';
 import { Button } from 'primereact/button';
+import { Column } from 'primereact/column';
+import { DataTable } from 'primereact/datatable';
 import { InputText } from 'primereact/inputtext';
 import { useEffect, useState } from 'react';
 
@@ -85,7 +85,14 @@ export default function AuditLogs() {
     };
 
     const timestampTemplate = (rowData: AuditLog) => (
-        <span className="text-sm whitespace-nowrap">
+        <span
+            style={{
+                fontSize: '0.875rem',
+                whiteSpace: 'nowrap',
+                color: 'var(--acu-text-muted)',
+                fontFamily: 'var(--font-body)',
+            }}
+        >
             {new Date(rowData.created_at).toLocaleString()}
         </span>
     );
@@ -94,24 +101,51 @@ export default function AuditLogs() {
         if (rowData.user) {
             return (
                 <div>
-                    <div className="text-sm font-medium text-[var(--acu-text)]">
+                    <div
+                        style={{
+                            fontSize: '0.875rem',
+                            fontWeight: 500,
+                            color: 'var(--acu-text)',
+                            fontFamily: 'var(--font-body)',
+                        }}
+                    >
                         {rowData.user.name}
                     </div>
-                    <div className="text-xs text-[var(--acu-text-light)]">
+                    <div
+                        style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--acu-text-light)',
+                            fontFamily: 'var(--font-body)',
+                        }}
+                    >
                         {rowData.user.email}
                     </div>
                 </div>
             );
         }
-        return <span className="text-sm text-[var(--acu-text-muted)]">System</span>;
+        return (
+            <span
+                style={{
+                    fontSize: '0.875rem',
+                    color: 'var(--acu-text-muted)',
+                    fontFamily: 'var(--font-body)',
+                }}
+            >
+                System
+            </span>
+        );
     };
 
     const actionTemplate = (rowData: AuditLog) => (
         <code
-            className="text-xs px-2 py-1 rounded"
             style={{
-                backgroundColor: 'var(--acu-surface-hover)',
-                color: 'var(--acu-text)',
+                background: 'var(--acu-surface-elevated)',
+                color: 'var(--acu-primary)',
+                border: '1px solid var(--acu-border)',
+                borderRadius: '6px',
+                padding: '2px 8px',
+                fontSize: '0.75rem',
+                fontFamily: 'var(--font-body)',
             }}
         >
             {formatAction(rowData.action)}
@@ -119,20 +153,39 @@ export default function AuditLogs() {
     );
 
     const descriptionTemplate = (rowData: AuditLog) => (
-        <span className="text-sm text-[var(--acu-text)]" style={{ maxWidth: '300px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span
+            style={{
+                fontSize: '0.875rem',
+                color: 'var(--acu-text)',
+                fontFamily: 'var(--font-body)',
+                maxWidth: '300px',
+                display: 'block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+            }}
+        >
             {rowData.description}
         </span>
     );
 
     const ipTemplate = (rowData: AuditLog) => (
-        <span className="text-sm text-[var(--acu-text-muted)]">{rowData.ip_address}</span>
+        <span
+            style={{
+                fontSize: '0.875rem',
+                color: 'var(--acu-text-muted)',
+                fontFamily: 'var(--font-body)',
+            }}
+        >
+            {rowData.ip_address}
+        </span>
     );
 
     return (
         <UserLayout title="Audit Logs">
             <Head title="Audit Logs" />
 
-            <div className="space-y-6">
+            <div className="space-y-8">
                 <PageHeader title="Audit Logs" subtitle="Security and activity audit trail">
                     <Button
                         label="Refresh"
@@ -144,35 +197,50 @@ export default function AuditLogs() {
                     />
                 </PageHeader>
 
-                {/* Search */}
-                <div className="acu-fieldset">
-                    <div className="acu-fieldset-body">
-                        <div className="flex gap-2">
-                            <InputText
-                                placeholder="Filter by action (e.g., login, kyc, admin)..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                className="w-full max-w-sm"
-                            />
-                            <Button
-                                label="Filter"
-                                icon="pi pi-search"
-                                size="small"
-                                onClick={handleSearch}
-                            />
-                        </div>
+                {/* Search / Filter */}
+                <div
+                    className="rounded-xl p-4"
+                    style={{
+                        background: 'var(--acu-surface-card)',
+                        border: '1px solid var(--acu-border)',
+                    }}
+                >
+                    <div className="flex gap-3 items-center">
+                        <InputText
+                            placeholder="Filter by action (e.g., login, kyc, admin)..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                            className="w-full max-w-sm"
+                        />
+                        <Button
+                            label="Filter"
+                            icon="pi pi-search"
+                            size="small"
+                            onClick={handleSearch}
+                        />
                     </div>
                 </div>
 
                 {/* Logs Table */}
-                <div className="acu-fieldset">
+                <div
+                    className="acu-fieldset"
+                    style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}
+                >
                     <div className="acu-fieldset-header">
                         <div className="acu-fieldset-title">
                             <i className="pi pi-list" />
-                            <span>Activity Log</span>
+                            <span style={{ fontFamily: 'var(--font-display)' }}>Activity Log</span>
                             {meta?.total != null && (
-                                <span className="text-xs font-normal text-[var(--acu-text-light)] ml-1">
+                                <span
+                                    style={{
+                                        fontSize: '0.75rem',
+                                        fontWeight: 400,
+                                        color: 'var(--acu-text-light)',
+                                        marginLeft: '0.25rem',
+                                        fontFamily: 'var(--font-body)',
+                                    }}
+                                >
                                     ({meta.total} total events)
                                 </span>
                             )}

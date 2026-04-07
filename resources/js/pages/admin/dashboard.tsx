@@ -61,29 +61,68 @@ const defaultStats: Stats = {
 
 interface StatCardProps {
     icon: string;
-    iconColor: string;
+    accentColor: string;
     title: string;
     value: string | number;
     subtitle: string;
+    glowColor?: string;
 }
 
-function StatCard({ icon, iconColor, title, value, subtitle }: StatCardProps) {
+function StatCard({ icon, accentColor, title, value, subtitle, glowColor }: StatCardProps) {
     return (
-        <div className="acu-fieldset">
-            <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">
+        <div
+            className="relative overflow-hidden rounded-xl p-5 transition-all duration-300"
+            style={{
+                background: 'var(--acu-surface-card)',
+                border: '1px solid var(--acu-border)',
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${accentColor}30`;
+                e.currentTarget.style.boxShadow = `0 8px 32px ${glowColor || accentColor}15`;
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--acu-border)';
+                e.currentTarget.style.boxShadow = 'none';
+            }}
+        >
+            {/* Subtle gradient overlay */}
+            <div
+                className="absolute inset-0 opacity-[0.03]"
+                style={{
+                    background: `radial-gradient(circle at top right, ${accentColor}, transparent 70%)`,
+                }}
+            />
+
+            <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                    <span
+                        className="text-[10px] font-semibold uppercase tracking-[0.1em]"
+                        style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}
+                    >
                         {title}
                     </span>
                     <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: `${iconColor}15`, color: iconColor }}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center"
+                        style={{
+                            background: `${accentColor}12`,
+                            border: `1px solid ${accentColor}20`,
+                        }}
                     >
-                        <i className={`${icon} text-sm`} />
+                        <i className={`${icon} text-sm`} style={{ color: accentColor }} />
                     </div>
                 </div>
-                <div className="text-2xl font-bold text-[var(--acu-text)]">{value}</div>
-                <p className="text-xs text-[var(--acu-text-light)] mt-1">{subtitle}</p>
+                <div
+                    className="text-[1.75rem] font-bold leading-none"
+                    style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}
+                >
+                    {value}
+                </div>
+                <p
+                    className="text-xs mt-2"
+                    style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}
+                >
+                    {subtitle}
+                </p>
             </div>
         </div>
     );
@@ -99,28 +138,28 @@ export default function Dashboard({
         <UserLayout title="Dashboard">
             <Head title="Admin Dashboard" />
 
-            <div className="space-y-6">
+            <div className="space-y-8">
                 <PageHeader title="Dashboard" subtitle="Overview of platform activity" />
 
                 {/* Stats Cards */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
                     <StatCard
                         icon="pi pi-users"
-                        iconColor="#3B82F6"
+                        accentColor="#58A6FF"
                         title="Total Users"
                         value={(stats.users?.total ?? 0).toLocaleString()}
                         subtitle={`+${stats.users?.today ?? 0} today, +${stats.users?.this_week ?? 0} this week`}
                     />
                     <StatCard
                         icon="pi pi-map-marker"
-                        iconColor="#10B981"
+                        accentColor="#3FB950"
                         title="Active Venues"
                         value={stats.venues?.active ?? 0}
                         subtitle={`of ${stats.venues?.total ?? 0} total venues`}
                     />
                     <StatCard
                         icon="pi pi-wallet"
-                        iconColor="#8B5CF6"
+                        accentColor="#C9A84C"
                         title="Voucher Balance"
                         value={formatCurrency(stats.vouchers?.total_balance ?? 0)}
                         subtitle={`across ${stats.vouchers?.active ?? 0} active codes`}
@@ -130,23 +169,35 @@ export default function Dashboard({
                 {/* Security Alerts */}
                 {((stats.security?.failed_logins_today ?? 0) > 10 ||
                     (stats.security?.locked_accounts ?? 0) > 0) && (
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-warning)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-exclamation-triangle" />
-                                <span>Security Alerts</span>
-                            </div>
+                    <div
+                        className="rounded-xl overflow-hidden"
+                        style={{
+                            background: 'rgba(248, 81, 73, 0.04)',
+                            border: '1px solid rgba(248, 81, 73, 0.15)',
+                        }}
+                    >
+                        <div
+                            className="flex items-center gap-3 px-5 py-3"
+                            style={{ borderBottom: '1px solid rgba(248, 81, 73, 0.1)' }}
+                        >
+                            <i className="pi pi-exclamation-triangle text-sm" style={{ color: '#F85149' }} />
+                            <span
+                                className="text-sm font-semibold"
+                                style={{ color: '#F85149', fontFamily: 'var(--font-body)' }}
+                            >
+                                Security Alerts
+                            </span>
                         </div>
-                        <div className="acu-fieldset-body space-y-2">
+                        <div className="px-5 py-4 space-y-2">
                             {(stats.security?.failed_logins_today ?? 0) > 10 && (
-                                <p className="text-sm text-[var(--acu-text)]">
-                                    <i className="pi pi-times-circle text-red-500 mr-2" />
+                                <p className="text-sm flex items-center gap-2" style={{ color: 'var(--acu-text)' }}>
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#F85149' }} />
                                     {stats.security?.failed_logins_today ?? 0} failed login attempts today
                                 </p>
                             )}
                             {(stats.security?.locked_accounts ?? 0) > 0 && (
-                                <p className="text-sm text-[var(--acu-text)]">
-                                    <i className="pi pi-lock text-amber-500 mr-2" />
+                                <p className="text-sm flex items-center gap-2" style={{ color: 'var(--acu-text)' }}>
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#D29922' }} />
                                     {stats.security?.locked_accounts ?? 0} accounts currently locked
                                 </p>
                             )}
@@ -154,42 +205,46 @@ export default function Dashboard({
                     </div>
                 )}
 
-                <div className="grid gap-6 lg:grid-cols-2">
-                    {/* Recent Users */}
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-user-plus" />
-                                <span>Recent Registrations</span>
-                                <span className="text-xs font-normal text-[var(--acu-text-light)] ml-1">
-                                    ({recent_users.length})
-                                </span>
-                            </div>
-                            <Link href="/admin/users" className="text-xs font-semibold text-[var(--acu-primary)] hover:underline flex items-center gap-1">
-                                View all <i className="pi pi-arrow-right text-xs" />
-                            </Link>
-                        </div>
-                        <div className="acu-fieldset-body p-0">
-                            <DataTable
-                                value={recent_users}
-                                size="small"
-                                emptyMessage="No recent registrations"
-                                showGridlines={false}
-                                rows={5}
+                {/* Recent Users */}
+                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
+                    <div className="acu-fieldset-header">
+                        <div className="acu-fieldset-title">
+                            <i className="pi pi-user-plus" />
+                            <span>Recent Registrations</span>
+                            <span
+                                className="text-xs font-normal ml-1"
+                                style={{ color: 'var(--acu-text-light)' }}
                             >
-                                <Column field="name" header="Name" />
-                                <Column field="email" header="Email" />
-                                <Column
-                                    field="status"
-                                    header="Status"
-                                    body={(row) => (
-                                        <StatusBadge status={(row.status || 'pending') as StatusVariant} />
-                                    )}
-                                />
-                            </DataTable>
+                                ({recent_users.length})
+                            </span>
                         </div>
+                        <Link
+                            href="/admin/users"
+                            className="text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                            style={{ color: 'var(--acu-primary)', fontFamily: 'var(--font-body)' }}
+                        >
+                            View all <i className="pi pi-arrow-right text-[10px]" />
+                        </Link>
                     </div>
-
+                    <div className="acu-fieldset-body p-0">
+                        <DataTable
+                            value={recent_users}
+                            size="small"
+                            emptyMessage="No recent registrations"
+                            showGridlines={false}
+                            rows={5}
+                        >
+                            <Column field="name" header="Name" />
+                            <Column field="email" header="Email" />
+                            <Column
+                                field="status"
+                                header="Status"
+                                body={(row) => (
+                                    <StatusBadge status={(row.status || 'pending') as StatusVariant} />
+                                )}
+                            />
+                        </DataTable>
+                    </div>
                 </div>
             </div>
         </UserLayout>

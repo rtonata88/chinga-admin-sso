@@ -88,9 +88,10 @@ class CreateNewUser implements CreatesNewUsers
             'tenant_id' => $tenantId,
         ]);
 
-        // Assign player role for tenant users
+        // Assign player role and create wallet for tenant users
         if ($tenantId) {
             $user->assignRole('player', $tenantId);
+            $user->getOrCreateWallet();
         }
 
         return $user;
