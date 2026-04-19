@@ -43,9 +43,37 @@ interface RecentUser {
     created_at: string;
 }
 
+interface FantasySummary {
+    bets_placed: number;
+    active_players: number;
+    total_wagered: string;
+    total_paid_out: string;
+    ggr: string;
+    wins: number;
+    losses: number;
+    pending: number;
+}
+
+interface FantasyRound {
+    id: number;
+    round_number: number;
+    start_time: string;
+    end_time: string | null;
+    bet_count: number;
+    total_wagered: string;
+    total_paid_out: string;
+}
+
+interface FantasyData {
+    period: { from: string; to: string };
+    summary: FantasySummary;
+    recent_rounds: FantasyRound[];
+}
+
 interface DashboardProps {
     stats: Stats;
     recent_users: RecentUser[];
+    fantasy: FantasyData | null;
 }
 
 function formatCurrency(amount: number): string {
@@ -131,6 +159,7 @@ function StatCard({ icon, accentColor, title, value, subtitle, glowColor }: Stat
 export default function Dashboard({
     stats: propStats,
     recent_users = [],
+    fantasy = null,
 }: Partial<DashboardProps>) {
     const stats = propStats ?? defaultStats;
 
@@ -202,6 +231,100 @@ export default function Dashboard({
                                 </p>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {/* Chinga Fantasy — last 30 days (tenant-scoped) */}
+                {fantasy ? (
+                    <div className="space-y-5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold" style={{ color: 'var(--acu-text)' }}>
+                                    Chinga Fantasy
+                                </h2>
+                                <p className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
+                                    Last 30 days
+                                </p>
+                            </div>
+                        </div>
+                        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+                            <StatCard
+                                icon="pi pi-ticket"
+                                accentColor="#8B5CF6"
+                                title="Bets Placed"
+                                value={(fantasy.summary.bets_placed ?? 0).toLocaleString()}
+                                subtitle={`${fantasy.summary.active_players ?? 0} active players`}
+                            />
+                            <StatCard
+                                icon="pi pi-dollar"
+                                accentColor="#3FB950"
+                                title="Total Wagered"
+                                value={formatCurrency(parseFloat(fantasy.summary.total_wagered || '0'))}
+                                subtitle={`${fantasy.summary.wins ?? 0} wins · ${fantasy.summary.losses ?? 0} losses`}
+                            />
+                            <StatCard
+                                icon="pi pi-money-bill"
+                                accentColor="#F85149"
+                                title="Total Paid Out"
+                                value={formatCurrency(parseFloat(fantasy.summary.total_paid_out || '0'))}
+                                subtitle="To winners"
+                            />
+                            <StatCard
+                                icon="pi pi-chart-line"
+                                accentColor="#58A6FF"
+                                title="GGR"
+                                value={formatCurrency(parseFloat(fantasy.summary.ggr || '0'))}
+                                subtitle="Gross gaming revenue"
+                            />
+                        </div>
+                        {fantasy.recent_rounds.length > 0 && (
+                            <div className="acu-fieldset">
+                                <div className="acu-fieldset-header">
+                                    <div className="acu-fieldset-title">
+                                        <i className="pi pi-history" />
+                                        <span>Recent Rounds</span>
+                                    </div>
+                                </div>
+                                <div className="acu-fieldset-body p-0">
+                                    <DataTable
+                                        value={fantasy.recent_rounds}
+                                        size="small"
+                                        emptyMessage="No rounds yet"
+                                        showGridlines={false}
+                                    >
+                                        <Column field="round_number" header="Round" />
+                                        <Column
+                                            field="start_time"
+                                            header="Started"
+                                            body={(row: FantasyRound) => new Date(row.start_time).toLocaleString()}
+                                        />
+                                        <Column field="bet_count" header="Bets" />
+                                        <Column
+                                            field="total_wagered"
+                                            header="Wagered"
+                                            body={(row: FantasyRound) => formatCurrency(parseFloat(row.total_wagered))}
+                                        />
+                                        <Column
+                                            field="total_paid_out"
+                                            header="Paid Out"
+                                            body={(row: FantasyRound) => formatCurrency(parseFloat(row.total_paid_out))}
+                                        />
+                                    </DataTable>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div
+                        className="rounded-xl px-5 py-4"
+                        style={{
+                            background: 'rgba(210, 153, 34, 0.04)',
+                            border: '1px solid rgba(210, 153, 34, 0.15)',
+                            color: 'var(--acu-text-light)',
+                        }}
+                    >
+                        <i className="pi pi-info-circle mr-2" />
+                        Chinga Fantasy metrics are unavailable. Check that the fantasy backend is reachable and SSO_INTERNAL_CLIENT_ID/SECRET are set.
                     </div>
                 )}
 
