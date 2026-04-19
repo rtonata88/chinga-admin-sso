@@ -116,4 +116,19 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Refresh Token Cookie
+    |--------------------------------------------------------------------------
+    |
+    | Settings for the httpOnly refresh-token cookie issued by the auth proxy
+    | (POST /api/v1/auth/login). In production, set domain to your parent
+    | domain (e.g. ".chinga.games") so all subdomains share the cookie.
+    |
+    */
+
+    'refresh_cookie_domain' => env('AUTH_REFRESH_COOKIE_DOMAIN'),
+    'refresh_cookie_secure' => (bool) env('AUTH_REFRESH_COOKIE_SECURE', true),
+    'refresh_cookie_same_site' => env('AUTH_REFRESH_COOKIE_SAME_SITE', 'lax'),
+
 ];

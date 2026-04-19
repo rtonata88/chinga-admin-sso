@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -23,6 +26,17 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configurePassport();
+        $this->configureRateLimiters();
+    }
+
+    private function configureRateLimiters(): void
+    {
+        RateLimiter::for('oauth-token', function (Request $request) {
+            return [
+                Limit::perMinute(20)->by($request->ip()),
+                Limit::perMinute(10)->by($request->input('username') ?? $request->input('client_id') ?? $request->ip()),
+            ];
+        });
     }
 
     /**

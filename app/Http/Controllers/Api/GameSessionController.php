@@ -266,6 +266,39 @@ class GameSessionController extends Controller
     }
 
     /**
+     * Service-to-service settlement credit.
+     * Requires client_credentials token with wallet:write scope.
+     * Accepts a session token and credits that session's source even if the session is no longer active.
+     */
+    public function settlementCredit(Request $request): JsonResponse
+    {
+        $request->validate([
+            'session_token' => ['required', 'string'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'reference' => ['required', 'string', 'max:100'],
+        ]);
+
+        try {
+            $transaction = $this->gameSessionService->settlementCredit(
+                $request->input('session_token'),
+                (string) $request->input('amount'),
+                $request->input('reference')
+            );
+
+            return response()->json([
+                'transaction_id' => $transaction->uuid,
+                'amount' => (float) $transaction->amount,
+                'balance_before' => $transaction->balance_before,
+                'balance_after' => $transaction->balance_after,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
      * Get recent transactions for the session.
      */
     public function transactions(Request $request): JsonResponse

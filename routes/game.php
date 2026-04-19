@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\VoucherWebSessionController;
 use App\Http\Middleware\AuthenticateGameSession;
 use App\Http\Middleware\AuthenticateTerminal;
 use Illuminate\Support\Facades\Route;
+use Laravel\Passport\Http\Middleware\EnsureClientIsResourceOwner;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,3 +43,13 @@ Route::middleware(['api', AuthenticateGameSession::class])->prefix('api/v1/game'
     Route::post('/credit', [GameSessionController::class, 'credit'])->name('credit');
     Route::get('/transactions', [GameSessionController::class, 'transactions'])->name('transactions');
 });
+
+// Service-to-service settlement credit (client_credentials + wallet:write).
+// Used by game backends to pay out winnings against closed/expired sessions,
+// where the player's session token is no longer valid.
+Route::middleware(['api', EnsureClientIsResourceOwner::using('wallet:write')])
+    ->prefix('api/v1/game/service')->name('api.game.service.')->group(function () {
+        Route::post('/credit', [GameSessionController::class, 'settlementCredit'])
+            ->middleware('throttle:120,1')
+            ->name('credit');
+    });

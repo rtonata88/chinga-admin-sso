@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AuthProxyController;
 use App\Http\Controllers\Api\RegistrationController;
 use App\Http\Controllers\OAuth\OAuthClientController;
 use App\Http\Controllers\OAuth\OpenIDConnectController;
@@ -26,6 +27,14 @@ Route::prefix('v1')->group(function () {
     Route::post('register', [RegistrationController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('api.register');
+
+    // Cookie-backed auth proxy — keeps the refresh_token in an httpOnly cookie
+    // on the parent domain instead of exposing it to the browser (XSS surface).
+    Route::prefix('auth')->name('api.auth.')->middleware('throttle:20,1')->group(function () {
+        Route::post('login', [AuthProxyController::class, 'login'])->name('login');
+        Route::post('refresh', [AuthProxyController::class, 'refresh'])->name('refresh');
+        Route::post('logout', [AuthProxyController::class, 'logout'])->name('logout');
+    });
 
     // OAuth2 authenticated routes
     Route::middleware('auth:api')->group(function () {

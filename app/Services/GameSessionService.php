@@ -199,6 +199,27 @@ class GameSessionService
     }
 
     /**
+     * Credit a session's source for settlement purposes.
+     * Unlike credit(), this does not require the session to still be active — it is
+     * intended for service-to-service payouts from a game backend where the player's
+     * original session may have expired. Idempotent by (wallet/voucher, session, reference).
+     */
+    public function settlementCredit(string $sessionToken, string $amount, string $reference)
+    {
+        $session = GameSession::where('session_token', $sessionToken)->first();
+
+        if (!$session) {
+            throw new \RuntimeException('Session not found.');
+        }
+
+        if ($session->source_type === Wallet::class) {
+            return $this->walletService->credit($session->source, $amount, $session, $reference);
+        }
+
+        return $this->voucherCodeService->credit($session->source, $amount, $session, $reference);
+    }
+
+    /**
      * Get the current balance for a session.
      */
     public function getBalance(string $sessionToken): array

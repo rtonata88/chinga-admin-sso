@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('revenue:calculate --period=daily')->dailyAt('02:00');
 Schedule::command('game-sessions:cleanup')->hourly();
+Schedule::command('wallets:reconcile')->dailyAt('03:00');
