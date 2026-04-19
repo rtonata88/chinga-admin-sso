@@ -44,9 +44,15 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configurePassport(): void
     {
-        // Token expiration times
-        Passport::tokensExpireIn(now()->addHour());
-        Passport::refreshTokensExpireIn(now()->addDays(30));
+        // Player token lifetimes sized for a 20-minute idle logout window.
+        // Active players silently refresh every ~10 minutes; if they go idle
+        // for > 20 minutes, the refresh token expires and they must re-login.
+        // Personal access tokens default to 6 months for venue-staff use; the
+        // fantasy-voucher PAT is explicitly shortened to 20 minutes in the
+        // voucher-session controller so voucher players must re-enter their
+        // code after a 20-minute idle window.
+        Passport::tokensExpireIn(now()->addMinutes(10));
+        Passport::refreshTokensExpireIn(now()->addMinutes(20));
         Passport::personalAccessTokensExpireIn(now()->addMonths(6));
 
         // Enable PKCE

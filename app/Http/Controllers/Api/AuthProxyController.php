@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\Cookie;
  */
 class AuthProxyController extends Controller
 {
-    private const REFRESH_COOKIE = 'chinga_refresh';
+    public const REFRESH_COOKIE = 'chinga_refresh';
 
     public function login(Request $request): JsonResponse
     {
@@ -116,7 +116,7 @@ class AuthProxyController extends Controller
         return $responseBuilder;
     }
 
-    private function buildRefreshCookie(string $value, int $minutes): Cookie
+    public static function buildRefreshCookie(string $value, int $minutes): Cookie
     {
         return cookie(
             name: self::REFRESH_COOKIE,

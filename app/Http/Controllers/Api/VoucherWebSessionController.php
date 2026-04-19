@@ -89,8 +89,11 @@ class VoucherWebSessionController extends Controller
                 $request->ip()
             );
 
-            // Issue a Passport token
+            // Issue a 20-minute personal access token. Voucher sessions do not
+            // carry a refresh token by design — a player who goes idle for
+            // 20 minutes must re-enter their voucher code.
             $token = $user->createToken('fantasy-voucher', ['openid', 'profile', 'wallet', 'gaming:history']);
+            $token->token->forceFill(['expires_at' => now()->addMinutes(20)])->save();
 
             return response()->json([
                 'user' => [
