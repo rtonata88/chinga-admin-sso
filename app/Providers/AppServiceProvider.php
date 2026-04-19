@@ -68,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
             'wallet:write' => 'Make wallet transactions',
             'kyc' => 'Access your KYC verification status',
             'gaming:history' => 'Access your gaming history',
+            'gaming:read' => 'Read gaming data (admin/reporting, service-to-service)',
             'admin' => 'Administrative access',
         ]);
 
