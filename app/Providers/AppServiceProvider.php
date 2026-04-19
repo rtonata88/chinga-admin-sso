@@ -32,9 +32,12 @@ class AppServiceProvider extends ServiceProvider
     private function configureRateLimiters(): void
     {
         RateLimiter::for('oauth-token', function (Request $request) {
+            $ip = $request->ip() ?: 'no-ip';
+            $identity = $request->input('username') ?: $request->input('client_id') ?: $ip;
+
             return [
-                Limit::perMinute(20)->by($request->ip()),
-                Limit::perMinute(10)->by($request->input('username') ?? $request->input('client_id') ?? $request->ip()),
+                Limit::perMinute(20)->by('oauth-token:ip:'.$ip),
+                Limit::perMinute(10)->by('oauth-token:identity:'.$identity),
             ];
         });
     }

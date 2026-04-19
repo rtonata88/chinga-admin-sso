@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\ThrottleRequests;
-use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Applies the `oauth-token` rate limiter to Passport's token endpoints only.
@@ -13,13 +12,16 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ThrottleOAuthToken extends ThrottleRequests
 {
-    public function handle($request, Closure $next, $maxAttempts = 'oauth-token', $decayMinutes = 1, $prefix = ''): Response
+    public function handle($request, Closure $next, $maxAttempts = 'oauth-token', $decayMinutes = 1, $prefix = '')
     {
         if (!$this->shouldThrottle($request)) {
             return $next($request);
         }
 
-        return parent::handle($request, $next, $maxAttempts, $decayMinutes, $prefix);
+        // ThrottleRequests::handle() only takes the named-limiter branch when
+        // called with exactly 3 arguments (func_num_args() === 3). Pass just
+        // three so the base class looks up our registered limiter.
+        return parent::handle($request, $next, $maxAttempts);
     }
 
     private function shouldThrottle(Request $request): bool

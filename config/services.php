@@ -39,4 +39,11 @@ return [
         'api_url' => env('CHINGA_FANTASY_API_URL', 'http://localhost:3001'),
     ],
 
+    // SSO-internal OAuth client used to obtain a client_credentials token
+    // for calling trusted partner services (e.g. chinga-fantasy admin APIs).
+    'sso_internal' => [
+        'client_id' => env('SSO_INTERNAL_CLIENT_ID'),
+        'client_secret' => env('SSO_INTERNAL_CLIENT_SECRET'),
+    ],
+
 ];
