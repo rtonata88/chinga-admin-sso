@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\OAuth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Game;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Laravel\Passport\ClientRepository;
 use Laravel\Passport\Passport;
 
@@ -154,6 +156,69 @@ class OAuthClientController extends Controller
                 'secret' => $client->plainSecret,
             ],
         ]);
+    }
+
+    /**
+     * List the games this OAuth client is authorized for.
+     */
+    public function games(Request $request, string $id): JsonResponse
+    {
+        $client = Passport::client()->findOrFail($id);
+        $this->authorizeClient($request, $client);
+
+        $games = Game::whereIn('id', DB::table('oauth_client_games')
+            ->where('oauth_client_id', $client->id)
+            ->pluck('game_id'))
+            ->get(['uuid', 'name', 'slug']);
+
+        return response()->json(['data' => $games]);
+    }
+
+    /**
+     * Set the games this OAuth client is authorized for. Replaces any
+     * existing bindings. Pass an array of game UUIDs.
+     */
+    public function setGames(Request $request, string $id): JsonResponse
+    {
+        $client = Passport::client()->findOrFail($id);
+        $this->authorizeClient($request, $client);
+
+        $validated = $request->validate([
+            'game_uuids' => ['present', 'array'],
+            'game_uuids.*' => ['string'],
+        ]);
+
+        $gameIds = Game::whereIn('uuid', $validated['game_uuids'])->pluck('id');
+
+        if ($gameIds->count() !== count($validated['game_uuids'])) {
+            return response()->json([
+                'message' => 'One or more game UUIDs are invalid.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($client, $gameIds) {
+            DB::table('oauth_client_games')
+                ->where('oauth_client_id', $client->id)
+                ->delete();
+
+            foreach ($gameIds as $gameId) {
+                DB::table('oauth_client_games')->insert([
+                    'oauth_client_id' => $client->id,
+                    'game_id' => $gameId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        });
+
+        return $this->games($request, $id);
+    }
+
+    private function authorizeClient(Request $request, $client): void
+    {
+        if ($client->user_id !== $request->user()->id && !$request->user()->tokenCan('admin')) {
+            abort(403, 'Unauthorized');
+        }
     }
 
     /**

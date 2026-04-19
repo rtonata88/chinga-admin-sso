@@ -60,4 +60,18 @@ class Game extends Model
             ->withPivot(['enabled', 'custom_settings'])
             ->withTimestamps();
     }
+
+    /**
+     * OAuth clients authorized to call service-level endpoints (e.g.
+     * settlement credit) against sessions of this game.
+     */
+    public function oauthClients(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            \Laravel\Passport\Client::class,
+            'oauth_client_games',
+            'game_id',
+            'oauth_client_id',
+        )->withTimestamps();
+    }
 }

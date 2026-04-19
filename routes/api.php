@@ -56,6 +56,10 @@ Route::prefix('v1')->group(function () {
                 ->name('api.oauth.clients.destroy');
             Route::post('{id}/regenerate-secret', [OAuthClientController::class, 'regenerateSecret'])
                 ->name('api.oauth.clients.regenerate-secret');
+            Route::get('{id}/games', [OAuthClientController::class, 'games'])
+                ->name('api.oauth.clients.games.index');
+            Route::put('{id}/games', [OAuthClientController::class, 'setGames'])
+                ->name('api.oauth.clients.games.update');
         });
 
         // User profile endpoint

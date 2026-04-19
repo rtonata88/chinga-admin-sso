@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Game;
+use App\Models\GameSession;
 use App\Models\VoucherCode;
 use App\Services\GameSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class GameSessionController extends Controller
 {
@@ -278,9 +280,36 @@ class GameSessionController extends Controller
             'reference' => ['required', 'string', 'max:100'],
         ]);
 
+        $sessionToken = $request->input('session_token');
+        $clientId = $this->resolveClientId($request);
+
+        if (!$clientId) {
+            return response()->json([
+                'message' => 'Unable to identify OAuth client for this request.',
+            ], 401);
+        }
+
+        $session = GameSession::where('session_token', $sessionToken)->first();
+        if (!$session) {
+            return response()->json(['message' => 'Session not found.'], 404);
+        }
+
+        // Enforce per-client game binding: an OAuth client may only credit
+        // sessions of games it has been authorized for via oauth_client_games.
+        $allowed = DB::table('oauth_client_games')
+            ->where('oauth_client_id', $clientId)
+            ->where('game_id', $session->game_id)
+            ->exists();
+
+        if (!$allowed) {
+            return response()->json([
+                'message' => 'OAuth client is not authorized to credit this game.',
+            ], 403);
+        }
+
         try {
             $transaction = $this->gameSessionService->settlementCredit(
-                $request->input('session_token'),
+                $sessionToken,
                 (string) $request->input('amount'),
                 $request->input('reference')
             );
@@ -296,6 +325,18 @@ class GameSessionController extends Controller
                 'message' => $e->getMessage(),
             ], 422);
         }
+    }
+
+    /**
+     * Resolve the OAuth client_id from the current bearer token (client_credentials grant).
+     */
+    private function resolveClientId(Request $request): ?string
+    {
+        $token = $request->user()?->currentAccessToken();
+        if ($token && !empty($token->oauth_client_id)) {
+            return (string) $token->oauth_client_id;
+        }
+        return null;
     }
 
     /**
