@@ -101,6 +101,11 @@ export default function TenantShow() {
     const [dialogLoading, setDialogLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
 
+    // Inline editor for revenue_share_pct (platform's commercial terms control)
+    const [editingRevenue, setEditingRevenue] = useState(false);
+    const [revenueInput, setRevenueInput] = useState('');
+    const [savingRevenue, setSavingRevenue] = useState(false);
+
     const { uuid } = usePage<{ uuid: string }>().props;
 
     const fetchVenues = async () => {
@@ -185,6 +190,59 @@ export default function TenantShow() {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update games.' });
         } finally {
             setSyncing(false);
+        }
+    };
+
+    const handleStartEditRevenue = () => {
+        if (!tenant) return;
+        setRevenueInput(String(tenant.revenue_share_pct ?? ''));
+        setEditingRevenue(true);
+    };
+
+    const handleCancelEditRevenue = () => {
+        setEditingRevenue(false);
+        setRevenueInput('');
+    };
+
+    const handleSaveRevenue = async () => {
+        const value = Number(revenueInput);
+        if (!Number.isFinite(value) || value < 0 || value > 100) {
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Invalid value',
+                detail: 'Revenue share must be between 0 and 100.',
+            });
+            return;
+        }
+
+        setSavingRevenue(true);
+        try {
+            const response = await fetch(`/api/v1/platform/tenants/${uuid}`, {
+                method: 'PUT',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                },
+                body: JSON.stringify({ revenue_share_pct: value }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                setTenant((prev) => (prev ? { ...prev, revenue_share_pct: Number(data.data.revenue_share_pct) } : prev));
+                setEditingRevenue(false);
+                toast.current?.show({
+                    severity: 'success',
+                    summary: 'Saved',
+                    detail: `Revenue share updated to ${value}%.`,
+                });
+            } else {
+                const msg = data.errors?.revenue_share_pct?.[0] || data.message || 'Failed to update.';
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: msg });
+            }
+        } catch (error) {
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update revenue share.' });
+        } finally {
+            setSavingRevenue(false);
         }
     };
 
@@ -378,7 +436,60 @@ export default function TenantShow() {
                             <div><strong>Country:</strong> {tenant.country_code}</div>
                             <div><strong>Currency:</strong> {tenant.currency}</div>
                             <div><strong>Timezone:</strong> {tenant.timezone}</div>
-                            <div><strong>Revenue Share:</strong> {tenant.revenue_share_pct}%</div>
+                            <div className="flex items-center gap-2">
+                                <strong>Revenue Share:</strong>
+                                {editingRevenue ? (
+                                    <div className="flex items-center gap-2">
+                                        <InputText
+                                            type="number"
+                                            value={revenueInput}
+                                            onChange={(e) => setRevenueInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') void handleSaveRevenue();
+                                                if (e.key === 'Escape') handleCancelEditRevenue();
+                                            }}
+                                            min={0}
+                                            max={100}
+                                            step={0.1}
+                                            style={{ width: '6rem' }}
+                                            autoFocus
+                                            disabled={savingRevenue}
+                                        />
+                                        <span>%</span>
+                                        <Button
+                                            icon="pi pi-check"
+                                            size="small"
+                                            text
+                                            onClick={() => void handleSaveRevenue()}
+                                            disabled={savingRevenue}
+                                            loading={savingRevenue}
+                                            tooltip="Save"
+                                        />
+                                        <Button
+                                            icon="pi pi-times"
+                                            size="small"
+                                            text
+                                            severity="secondary"
+                                            onClick={handleCancelEditRevenue}
+                                            disabled={savingRevenue}
+                                            tooltip="Cancel"
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span>{tenant.revenue_share_pct}%</span>
+                                        <Button
+                                            icon="pi pi-pencil"
+                                            size="small"
+                                            text
+                                            severity="secondary"
+                                            onClick={handleStartEditRevenue}
+                                            tooltip="Edit revenue share"
+                                            aria-label="Edit revenue share"
+                                        />
+                                    </>
+                                )}
+                            </div>
                             <div><strong>Custom Domain:</strong> {tenant.domain || '—'}</div>
                         </div>
                     </div>
