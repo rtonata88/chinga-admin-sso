@@ -55,6 +55,11 @@ class FantasySettingsController extends Controller
             'max_jackpot_amount' => ['required', 'numeric', 'min:0'],
             'jackpot_percentage' => ['required', 'integer', 'min:0', 'max:100'],
             'winning_teams_count' => ['required', 'integer', 'min:4', 'max:50'],
+            // Commercial defaults applied to NEW tenants of this game.
+            'default_business_model' => ['nullable', 'in:reseller,direct'],
+            'default_revenue_share_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'default_tax_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'house_edge_target_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $game->update(['settings' => $validated]);

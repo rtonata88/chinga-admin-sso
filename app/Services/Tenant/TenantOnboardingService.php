@@ -34,6 +34,8 @@ class TenantOnboardingService
                 'currency' => $data['currency'] ?? 'NAD',
                 'timezone' => $data['timezone'] ?? 'Africa/Windhoek',
                 'revenue_share_pct' => $data['revenue_share_pct'] ?? 0,
+                'business_model' => $data['business_model'] ?? 'reseller',
+                'tax_pct' => $data['tax_pct'] ?? 0,
                 'contract_starts_at' => $data['contract_starts_at'] ?? null,
                 'contract_ends_at' => $data['contract_ends_at'] ?? null,
                 'settings' => $data['settings'] ?? null,

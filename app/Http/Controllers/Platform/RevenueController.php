@@ -46,18 +46,23 @@ class RevenueController extends Controller
                 SUM(total_bets) as total_bets,
                 SUM(total_wins) as total_wins,
                 SUM(gross_gaming_revenue) as gross_gaming_revenue,
+                SUM(tax_amount) as tax_amount,
+                SUM(net_gaming_revenue) as net_gaming_revenue,
                 SUM(chinga_share) as chinga_share,
                 SUM(tenant_share) as tenant_share
             ')
             ->first();
 
-        $perTenant = TenantRevenueRecord::with('tenant:id,uuid,name')
+        $perTenant = TenantRevenueRecord::with('tenant:id,uuid,name,business_model')
             ->where('period_start', '>=', $from)
             ->where('period_end', '<=', $to)
             ->selectRaw('
                 tenant_id,
+                MAX(business_model) as business_model,
                 SUM(total_bets) as total_bets,
                 SUM(gross_gaming_revenue) as gross_gaming_revenue,
+                SUM(tax_amount) as tax_amount,
+                SUM(net_gaming_revenue) as net_gaming_revenue,
                 SUM(chinga_share) as chinga_share,
                 SUM(tenant_share) as tenant_share
             ')

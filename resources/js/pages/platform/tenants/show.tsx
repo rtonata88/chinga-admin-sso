@@ -27,6 +27,8 @@ interface Tenant {
     timezone: string;
     status: string;
     revenue_share_pct: number;
+    business_model: 'reseller' | 'direct';
+    tax_pct: number;
     users_count: number;
     venues_count: number;
     voucher_codes_count: number;
@@ -101,10 +103,12 @@ export default function TenantShow() {
     const [dialogLoading, setDialogLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
 
-    // Inline editor for revenue_share_pct (platform's commercial terms control)
-    const [editingRevenue, setEditingRevenue] = useState(false);
+    // Inline editor for commercial terms (revenue share, tax, business model)
+    const [editingCommercial, setEditingCommercial] = useState(false);
     const [revenueInput, setRevenueInput] = useState('');
-    const [savingRevenue, setSavingRevenue] = useState(false);
+    const [taxInput, setTaxInput] = useState('');
+    const [businessModelInput, setBusinessModelInput] = useState<'reseller' | 'direct'>('reseller');
+    const [savingCommercial, setSavingCommercial] = useState(false);
 
     const { uuid } = usePage<{ uuid: string }>().props;
 
@@ -193,29 +197,31 @@ export default function TenantShow() {
         }
     };
 
-    const handleStartEditRevenue = () => {
+    const handleStartEditCommercial = () => {
         if (!tenant) return;
         setRevenueInput(String(tenant.revenue_share_pct ?? ''));
-        setEditingRevenue(true);
+        setTaxInput(String(tenant.tax_pct ?? ''));
+        setBusinessModelInput(tenant.business_model ?? 'reseller');
+        setEditingCommercial(true);
     };
 
-    const handleCancelEditRevenue = () => {
-        setEditingRevenue(false);
-        setRevenueInput('');
+    const handleCancelEditCommercial = () => {
+        setEditingCommercial(false);
     };
 
-    const handleSaveRevenue = async () => {
-        const value = Number(revenueInput);
-        if (!Number.isFinite(value) || value < 0 || value > 100) {
-            toast.current?.show({
-                severity: 'warn',
-                summary: 'Invalid value',
-                detail: 'Revenue share must be between 0 and 100.',
-            });
+    const handleSaveCommercial = async () => {
+        const revenue = Number(revenueInput);
+        const tax = Number(taxInput);
+        if (!Number.isFinite(revenue) || revenue < 0 || revenue > 100) {
+            toast.current?.show({ severity: 'warn', summary: 'Invalid value', detail: 'Revenue share must be 0–100.' });
+            return;
+        }
+        if (!Number.isFinite(tax) || tax < 0 || tax > 100) {
+            toast.current?.show({ severity: 'warn', summary: 'Invalid value', detail: 'Tax must be 0–100.' });
             return;
         }
 
-        setSavingRevenue(true);
+        setSavingCommercial(true);
         try {
             const response = await fetch(`/api/v1/platform/tenants/${uuid}`, {
                 method: 'PUT',
@@ -224,25 +230,31 @@ export default function TenantShow() {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
                 },
-                body: JSON.stringify({ revenue_share_pct: value }),
+                body: JSON.stringify({
+                    revenue_share_pct: revenue,
+                    tax_pct: tax,
+                    business_model: businessModelInput,
+                }),
             });
             const data = await response.json();
             if (response.ok) {
-                setTenant((prev) => (prev ? { ...prev, revenue_share_pct: Number(data.data.revenue_share_pct) } : prev));
-                setEditingRevenue(false);
-                toast.current?.show({
-                    severity: 'success',
-                    summary: 'Saved',
-                    detail: `Revenue share updated to ${value}%.`,
-                });
+                setTenant((prev) => prev ? {
+                    ...prev,
+                    revenue_share_pct: Number(data.data.revenue_share_pct),
+                    tax_pct: Number(data.data.tax_pct),
+                    business_model: data.data.business_model,
+                } : prev);
+                setEditingCommercial(false);
+                toast.current?.show({ severity: 'success', summary: 'Saved', detail: 'Commercial terms updated.' });
             } else {
-                const msg = data.errors?.revenue_share_pct?.[0] || data.message || 'Failed to update.';
+                const errors = data.errors ?? {};
+                const msg = errors.revenue_share_pct?.[0] ?? errors.tax_pct?.[0] ?? errors.business_model?.[0] ?? data.message ?? 'Failed to update.';
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: msg });
             }
-        } catch (error) {
-            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update revenue share.' });
+        } catch {
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update commercial terms.' });
         } finally {
-            setSavingRevenue(false);
+            setSavingCommercial(false);
         }
     };
 
@@ -436,58 +448,115 @@ export default function TenantShow() {
                             <div><strong>Country:</strong> {tenant.country_code}</div>
                             <div><strong>Currency:</strong> {tenant.currency}</div>
                             <div><strong>Timezone:</strong> {tenant.timezone}</div>
-                            <div className="flex items-center gap-2">
-                                <strong>Revenue Share:</strong>
-                                {editingRevenue ? (
-                                    <div className="flex items-center gap-2">
-                                        <InputText
-                                            type="number"
-                                            value={revenueInput}
-                                            onChange={(e) => setRevenueInput(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') void handleSaveRevenue();
-                                                if (e.key === 'Escape') handleCancelEditRevenue();
-                                            }}
-                                            min={0}
-                                            max={100}
-                                            step={0.1}
-                                            style={{ width: '6rem' }}
-                                            autoFocus
-                                            disabled={savingRevenue}
-                                        />
-                                        <span>%</span>
-                                        <Button
-                                            icon="pi pi-check"
-                                            size="small"
-                                            text
-                                            onClick={() => void handleSaveRevenue()}
-                                            disabled={savingRevenue}
-                                            loading={savingRevenue}
-                                            tooltip="Save"
-                                        />
-                                        <Button
-                                            icon="pi pi-times"
-                                            size="small"
-                                            text
-                                            severity="secondary"
-                                            onClick={handleCancelEditRevenue}
-                                            disabled={savingRevenue}
-                                            tooltip="Cancel"
-                                        />
-                                    </div>
-                                ) : (
-                                    <>
-                                        <span>{tenant.revenue_share_pct}%</span>
+                            {/* Commercial terms: business model + revenue share + tax */}
+                            <div className="rounded-lg p-3 space-y-2" style={{ background: 'var(--acu-surface-elevated)', border: '1px solid var(--acu-border)' }}>
+                                <div className="flex items-center justify-between">
+                                    <strong style={{ fontSize: '0.85rem' }}>Commercial Terms</strong>
+                                    {!editingCommercial && (
                                         <Button
                                             icon="pi pi-pencil"
+                                            label="Edit"
                                             size="small"
                                             text
                                             severity="secondary"
-                                            onClick={handleStartEditRevenue}
-                                            tooltip="Edit revenue share"
-                                            aria-label="Edit revenue share"
+                                            onClick={handleStartEditCommercial}
                                         />
-                                    </>
+                                    )}
+                                </div>
+                                {editingCommercial ? (
+                                    <div className="space-y-2">
+                                        <div>
+                                            <label className="block text-xs mb-1" style={{ color: 'var(--acu-text-light)' }}>Business Model</label>
+                                            <select
+                                                value={businessModelInput}
+                                                onChange={(e) => setBusinessModelInput(e.target.value as 'reseller' | 'direct')}
+                                                className="w-full px-2 py-1 rounded text-sm"
+                                                style={{
+                                                    background: 'var(--acu-surface-card)',
+                                                    border: '1px solid var(--acu-border)',
+                                                    color: 'var(--acu-text)',
+                                                }}
+                                                disabled={savingCommercial}
+                                            >
+                                                <option value="reseller">Reseller (revenue share)</option>
+                                                <option value="direct">Direct (100% to platform)</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs flex-1" style={{ color: 'var(--acu-text-light)' }}>
+                                                Revenue Share %
+                                            </label>
+                                            <InputText
+                                                type="number"
+                                                value={revenueInput}
+                                                onChange={(e) => setRevenueInput(e.target.value)}
+                                                min={0}
+                                                max={100}
+                                                step={0.1}
+                                                style={{ width: '6rem' }}
+                                                disabled={savingCommercial || businessModelInput === 'direct'}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs flex-1" style={{ color: 'var(--acu-text-light)' }}>
+                                                Gambling Tax %
+                                            </label>
+                                            <InputText
+                                                type="number"
+                                                value={taxInput}
+                                                onChange={(e) => setTaxInput(e.target.value)}
+                                                min={0}
+                                                max={100}
+                                                step={0.1}
+                                                style={{ width: '6rem' }}
+                                                disabled={savingCommercial}
+                                            />
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-1">
+                                            <Button
+                                                icon="pi pi-times"
+                                                label="Cancel"
+                                                size="small"
+                                                severity="secondary"
+                                                outlined
+                                                onClick={handleCancelEditCommercial}
+                                                disabled={savingCommercial}
+                                            />
+                                            <Button
+                                                icon="pi pi-check"
+                                                label={savingCommercial ? 'Saving…' : 'Save'}
+                                                size="small"
+                                                onClick={() => void handleSaveCommercial()}
+                                                loading={savingCommercial}
+                                                disabled={savingCommercial}
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1 text-sm">
+                                        <div>
+                                            <span style={{ color: 'var(--acu-text-light)' }}>Model:</span>{' '}
+                                            <span
+                                                className="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                                                style={{
+                                                    background: tenant.business_model === 'direct' ? 'rgba(88, 166, 255, 0.15)' : 'rgba(63, 185, 80, 0.12)',
+                                                    color: tenant.business_model === 'direct' ? '#58A6FF' : '#3FB950',
+                                                }}
+                                            >
+                                                {tenant.business_model === 'direct' ? 'Direct (platform-sold)' : 'Reseller'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span style={{ color: 'var(--acu-text-light)' }}>Revenue Share:</span>{' '}
+                                            {tenant.business_model === 'direct'
+                                                ? <em style={{ color: 'var(--acu-text-light)' }}>n/a</em>
+                                                : `${tenant.revenue_share_pct}%`}
+                                        </div>
+                                        <div>
+                                            <span style={{ color: 'var(--acu-text-light)' }}>Gambling Tax:</span>{' '}
+                                            {tenant.tax_pct ?? 0}%
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                             <div><strong>Custom Domain:</strong> {tenant.domain || '—'}</div>

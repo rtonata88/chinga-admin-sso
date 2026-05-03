@@ -30,6 +30,8 @@ class Tenant extends Model
         'status',
         'settings',
         'revenue_share_pct',
+        'business_model',
+        'tax_pct',
         'contract_starts_at',
         'contract_ends_at',
     ];
@@ -39,6 +41,7 @@ class Tenant extends Model
         return [
             'settings' => 'array',
             'revenue_share_pct' => 'decimal:2',
+            'tax_pct' => 'decimal:2',
             'contract_starts_at' => 'datetime',
             'contract_ends_at' => 'datetime',
         ];

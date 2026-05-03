@@ -20,6 +20,11 @@ interface GameSettings {
     min_jackpot_amount?: number;
     max_jackpot_amount?: number;
     jackpot_percentage?: number;
+    // Commercial defaults applied to NEW tenants of this game.
+    default_business_model?: 'reseller' | 'direct';
+    default_revenue_share_pct?: number;
+    default_tax_pct?: number;
+    house_edge_target_pct?: number;
 }
 
 interface TenantConfig {
@@ -310,6 +315,112 @@ export default function Settings({ game, tenants }: Props) {
                             onChange={handleGlobalChange}
                             prefix="global"
                         />
+                    </div>
+                </div>
+
+                {/* Commercial & Revenue defaults */}
+                <div
+                    className="rounded-xl overflow-hidden"
+                    style={{
+                        background: 'var(--acu-surface-card)',
+                        border: '1px solid var(--acu-border)',
+                    }}
+                >
+                    <div
+                        className="px-5 py-4 flex items-center justify-between"
+                        style={{ borderBottom: '1px solid var(--acu-border)' }}
+                    >
+                        <div className="flex items-center gap-2">
+                            <i className="pi pi-dollar" style={{ color: 'var(--acu-primary)' }} />
+                            <span className="font-semibold text-sm" style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}>
+                                Commercial &amp; Revenue (defaults for new tenants)
+                            </span>
+                        </div>
+                    </div>
+                    <div className="p-5 space-y-5">
+                        <p className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
+                            These are <strong>defaults applied to newly-created tenants</strong>.
+                            Each existing tenant has its own values that override these on the
+                            tenant detail page. Revenue stack: <code>NGR = GGR − tax</code>; for
+                            reseller tenants <code>tenant_share = NGR × revenue_share_pct</code>,
+                            for direct tenants <code>tenant_share = 0</code>.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>
+                                    Default Business Model
+                                </label>
+                                <select
+                                    value={globalSettings.default_business_model ?? 'reseller'}
+                                    onChange={(e) =>
+                                        setGlobalSettings((prev) => ({
+                                            ...prev,
+                                            default_business_model: e.target.value as 'reseller' | 'direct',
+                                        }))
+                                    }
+                                    className="w-full px-3 py-2 rounded text-sm"
+                                    style={{
+                                        background: 'var(--acu-surface-elevated)',
+                                        border: '1px solid var(--acu-border)',
+                                        color: 'var(--acu-text)',
+                                    }}
+                                >
+                                    <option value="reseller">Reseller (betting shop, gets revenue share)</option>
+                                    <option value="direct">Direct (we sell to players, 100% to platform)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>
+                                    Default Revenue Share % (resellers only)
+                                </label>
+                                <InputNumber
+                                    value={globalSettings.default_revenue_share_pct ?? null}
+                                    onValueChange={(e) => handleGlobalChange('default_revenue_share_pct', e.value ?? null)}
+                                    suffix="%"
+                                    min={0}
+                                    max={100}
+                                    minFractionDigits={2}
+                                    className="w-full"
+                                />
+                                <small className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
+                                    Tenant's cut of NGR. e.g. 70.00 = tenant gets 70%, platform 30%.
+                                </small>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>
+                                    Default Gambling Tax %
+                                </label>
+                                <InputNumber
+                                    value={globalSettings.default_tax_pct ?? null}
+                                    onValueChange={(e) => handleGlobalChange('default_tax_pct', e.value ?? null)}
+                                    suffix="%"
+                                    min={0}
+                                    max={100}
+                                    minFractionDigits={2}
+                                    className="w-full"
+                                />
+                                <small className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
+                                    Deducted from GGR before the share split.
+                                </small>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>
+                                    House Edge Target %
+                                </label>
+                                <InputNumber
+                                    value={globalSettings.house_edge_target_pct ?? null}
+                                    onValueChange={(e) => handleGlobalChange('house_edge_target_pct', e.value ?? null)}
+                                    suffix="%"
+                                    min={0}
+                                    max={100}
+                                    minFractionDigits={2}
+                                    className="w-full"
+                                />
+                                <small className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
+                                    Informational target. e.g. 10.00 means we expect to keep 10% of every NAD wagered (RTP = 90%).
+                                </small>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

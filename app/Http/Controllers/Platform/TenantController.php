@@ -52,6 +52,8 @@ class TenantController extends Controller
             'currency' => ['string', 'size:3'],
             'timezone' => ['string', 'max:50'],
             'revenue_share_pct' => ['numeric', 'min:0', 'max:100'],
+            'business_model' => ['nullable', 'in:reseller,direct'],
+            'tax_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'contract_starts_at' => ['nullable', 'date'],
             'contract_ends_at' => ['nullable', 'date', 'after:contract_starts_at'],
             'settings' => ['nullable', 'array'],

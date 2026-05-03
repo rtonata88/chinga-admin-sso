@@ -87,14 +87,30 @@ class CalculateRevenueCommand extends Command
                     ->where('type', 'win')
                     ->sum('amount');
 
-                // Calculate totals using bcmath
+                // Revenue stack:
+                //   GGR  = bets - wins
+                //   tax  = GGR * tax_pct (jurisdictional, snapshotted at calc time)
+                //   NGR  = GGR - tax
+                //   reseller: tenant = NGR * revenue_share_pct, platform = NGR - tenant
+                //   direct:   tenant = 0,                       platform = NGR
                 $totalBets = bcadd((string) $walletBets, (string) $voucherBets, 2);
                 $totalWins = bcadd((string) $walletWins, (string) $voucherWins, 2);
                 $grossGamingRevenue = bcsub($totalBets, $totalWins, 2);
 
-                $revenueSharePct = $tenant->revenue_share_pct ?? '70.00';
-                $tenantShare = bcdiv(bcmul($grossGamingRevenue, (string) $revenueSharePct, 4), '100', 2);
-                $chingaShare = bcsub($grossGamingRevenue, $tenantShare, 2);
+                $taxPct = (string) ($tenant->tax_pct ?? '0.00');
+                $taxAmount = bcdiv(bcmul($grossGamingRevenue, $taxPct, 4), '100', 2);
+                $netGamingRevenue = bcsub($grossGamingRevenue, $taxAmount, 2);
+
+                $businessModel = $tenant->business_model ?? 'reseller';
+                $revenueSharePct = (string) ($tenant->revenue_share_pct ?? '0.00');
+
+                if ($businessModel === 'direct') {
+                    $tenantShare = '0.00';
+                    $chingaShare = $netGamingRevenue;
+                } else {
+                    $tenantShare = bcdiv(bcmul($netGamingRevenue, $revenueSharePct, 4), '100', 2);
+                    $chingaShare = bcsub($netGamingRevenue, $tenantShare, 2);
+                }
 
                 TenantRevenueRecord::updateOrCreate(
                     [
@@ -108,6 +124,10 @@ class CalculateRevenueCommand extends Command
                         'total_bets' => $totalBets,
                         'total_wins' => $totalWins,
                         'gross_gaming_revenue' => $grossGamingRevenue,
+                        'tax_pct' => $taxPct,
+                        'tax_amount' => $taxAmount,
+                        'net_gaming_revenue' => $netGamingRevenue,
+                        'business_model' => $businessModel,
                         'revenue_share_pct' => $revenueSharePct,
                         'tenant_share' => $tenantShare,
                         'chinga_share' => $chingaShare,
@@ -116,7 +136,7 @@ class CalculateRevenueCommand extends Command
                     ]
                 );
 
-                $this->line("  Game ID {$gameId}: bets={$totalBets}, wins={$totalWins}, GGR={$grossGamingRevenue}, tenant_share={$tenantShare}, chinga_share={$chingaShare}");
+                $this->line("  Game ID {$gameId} ({$businessModel}): GGR={$grossGamingRevenue} tax={$taxAmount} NGR={$netGamingRevenue} tenant={$tenantShare} chinga={$chingaShare}");
                 $totalRecords++;
             }
         }
