@@ -50,6 +50,9 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('fan
     Route::put('settings/tenant/{tenantUuid}', [FantasySettingsController::class, 'updateTenantSettings'])->name('fantasy.settings.tenant');
 
     Route::get('rounds', [FantasyRoundController::class, 'index'])->name('fantasy.rounds');
+    Route::get('rounds/{id}', [FantasyRoundController::class, 'show'])
+        ->whereNumber('id')
+        ->name('fantasy.rounds.show');
 });
 
 // Platform admin API routes
