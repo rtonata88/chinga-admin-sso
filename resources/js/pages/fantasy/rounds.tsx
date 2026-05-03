@@ -38,6 +38,9 @@ interface Props {
     tenants: TenantOption[];
     filters: Filters;
     error: string | null;
+    lockedTenantUuid?: string | null;
+    listHref?: string;
+    detailHrefBase?: string;
 }
 
 function formatCurrency(amount: string | number): string {
@@ -55,15 +58,24 @@ function deriveStatus(round: Round): { label: string; variant: StatusVariant } {
     return { label: 'in progress', variant: 'pending' };
 }
 
-export default function Rounds({ rounds = [], tenants = [], filters, error }: Props) {
+export default function Rounds({
+    rounds = [],
+    tenants = [],
+    filters,
+    error,
+    lockedTenantUuid = null,
+    listHref = '/fantasy/rounds',
+    detailHrefBase = '/fantasy/rounds',
+}: Props) {
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
+    const tenantLocked = !!lockedTenantUuid;
 
     const applyFilters = (next: { tenant_uuid?: string | null; page?: number }) => {
         const params: Record<string, string | number> = {};
         const nextTenant = next.tenant_uuid !== undefined ? next.tenant_uuid : tenantUuid;
-        if (nextTenant) params.tenant_uuid = nextTenant;
+        if (nextTenant && !tenantLocked) params.tenant_uuid = nextTenant;
         if (next.page && next.page > 1) params.page = next.page;
-        router.get('/fantasy/rounds', params, { preserveState: true, preserveScroll: true });
+        router.get(listHref, params, { preserveState: true, preserveScroll: true });
     };
 
     const tenantOptions = [
@@ -97,24 +109,26 @@ export default function Rounds({ rounds = [], tenants = [], filters, error }: Pr
                     </div>
                 )}
 
-                <div className="flex flex-wrap gap-3 items-end">
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium" style={{ color: 'var(--acu-text-light)' }}>
-                            Tenant
-                        </label>
-                        <Dropdown
-                            value={tenantUuid}
-                            options={tenantOptions}
-                            onChange={(e) => {
-                                setTenantUuid(e.value);
-                                applyFilters({ tenant_uuid: e.value, page: 1 });
-                            }}
-                            placeholder="All tenants"
-                            style={{ minWidth: '14rem' }}
-                            showClear
-                        />
+                {!tenantLocked && (
+                    <div className="flex flex-wrap gap-3 items-end">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs font-medium" style={{ color: 'var(--acu-text-light)' }}>
+                                Tenant
+                            </label>
+                            <Dropdown
+                                value={tenantUuid}
+                                options={tenantOptions}
+                                onChange={(e) => {
+                                    setTenantUuid(e.value);
+                                    applyFilters({ tenant_uuid: e.value, page: 1 });
+                                }}
+                                placeholder="All tenants"
+                                style={{ minWidth: '14rem' }}
+                                showClear
+                            />
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {isEmpty ? (
                     <div
@@ -157,7 +171,7 @@ export default function Rounds({ rounds = [], tenants = [], filters, error }: Pr
                                 size="small"
                                 showGridlines={false}
                                 emptyMessage="No rounds found"
-                                onRowClick={(e) => router.get(`/fantasy/rounds/${(e.data as Round).id}`)}
+                                onRowClick={(e) => router.get(`${detailHrefBase}/${(e.data as Round).id}`)}
                                 rowHover
                                 dataKey="id"
                             >

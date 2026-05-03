@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\DashboardController;
-
+use App\Http\Controllers\Admin\Games\FantasyRoundController;
 use App\Http\Controllers\UserDashboardController;
 use App\Http\Middleware\EnsureTenantAdmin;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +27,12 @@ Route::middleware(['auth', 'verified', EnsureTenantAdmin::class])->prefix('admin
     Route::get('wallets', [DashboardController::class, 'wallets'])->name('admin.wallets');
     Route::get('wallet-transactions', [DashboardController::class, 'walletTransactions'])->name('admin.wallet-transactions');
     Route::get('revenue', fn () => Inertia::render('admin/revenue'))->name('admin.revenue');
+
+    // Tenant-scoped fantasy rounds (always scoped to the admin's tenant).
+    Route::get('fantasy/rounds', [FantasyRoundController::class, 'tenantIndex'])->name('admin.fantasy.rounds');
+    Route::get('fantasy/rounds/{id}', [FantasyRoundController::class, 'tenantShow'])
+        ->whereNumber('id')
+        ->name('admin.fantasy.rounds.show');
 });
 
 require __DIR__.'/settings.php';

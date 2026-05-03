@@ -44,6 +44,7 @@ interface Props {
     round: Round | null;
     bets: Bet[];
     error: string | null;
+    backHref?: string;
 }
 
 function formatCurrency(amount: string | number): string {
@@ -57,13 +58,13 @@ function outcomeVariant(outcome: Bet['outcome']): StatusVariant {
     return 'pending';
 }
 
-export default function RoundDetail({ round, bets = [], error }: Props) {
+export default function RoundDetail({ round, bets = [], error, backHref = '/fantasy/rounds' }: Props) {
     if (error || !round) {
         return (
             <UserLayout title="Round Detail">
                 <Head title="Round Detail" />
                 <div className="space-y-6">
-                    <Link href="/fantasy/rounds">
+                    <Link href={backHref}>
                         <Button label="Back to rounds" icon="pi pi-arrow-left" size="small" text severity="secondary" />
                     </Link>
                     <div
@@ -91,7 +92,7 @@ export default function RoundDetail({ round, bets = [], error }: Props) {
 
             <div className="space-y-6">
                 <div>
-                    <Link href="/fantasy/rounds">
+                    <Link href={backHref}>
                         <Button label="Back to rounds" icon="pi pi-arrow-left" size="small" text severity="secondary" />
                     </Link>
                 </div>

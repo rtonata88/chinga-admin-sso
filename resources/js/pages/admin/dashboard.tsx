@@ -2,7 +2,7 @@ import UserLayout from '@/layouts/user-layout';
 import PageHeader from '@/components/acumatica/Common/PageHeader';
 import StatusBadge from '@/components/acumatica/Common/StatusBadge';
 import type { StatusVariant } from '@/types/acumatica';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 
@@ -284,6 +284,13 @@ export default function Dashboard({
                                         <i className="pi pi-history" />
                                         <span>Recent Rounds</span>
                                     </div>
+                                    <Link
+                                        href="/admin/fantasy/rounds"
+                                        className="text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                                        style={{ color: 'var(--acu-primary)', fontFamily: 'var(--font-body)' }}
+                                    >
+                                        View all <i className="pi pi-arrow-right text-[10px]" />
+                                    </Link>
                                 </div>
                                 <div className="acu-fieldset-body p-0">
                                     <DataTable
@@ -291,8 +298,11 @@ export default function Dashboard({
                                         size="small"
                                         emptyMessage="No rounds yet"
                                         showGridlines={false}
+                                        onRowClick={(e) => router.get(`/admin/fantasy/rounds/${(e.data as FantasyRound).id}`)}
+                                        rowHover
+                                        dataKey="id"
                                     >
-                                        <Column field="round_number" header="Round" />
+                                        <Column field="round_number" header="Round" body={(row: FantasyRound) => `#${row.round_number}`} />
                                         <Column
                                             field="start_time"
                                             header="Started"
@@ -308,6 +318,13 @@ export default function Dashboard({
                                             field="total_paid_out"
                                             header="Paid Out"
                                             body={(row: FantasyRound) => formatCurrency(parseFloat(row.total_paid_out))}
+                                        />
+                                        <Column
+                                            header=""
+                                            body={() => (
+                                                <i className="pi pi-chevron-right" style={{ color: 'var(--acu-text-light)' }} />
+                                            )}
+                                            style={{ width: '2rem' }}
                                         />
                                     </DataTable>
                                 </div>
