@@ -75,14 +75,16 @@ class DashboardController extends Controller
     private function fetchFantasyStats(): ?array
     {
         $tenant = app('current_tenant');
-        $tenantUuid = $tenant?->uuid;
+        // chinga-fantasy stores tenant slug in its tenant_uuid columns.
+        // TODO: backfill the data and pass $tenant?->uuid here instead.
+        $tenantId = $tenant?->slug;
         $from = now()->subDays(30)->startOfDay()->toIso8601String();
         $to = now()->toIso8601String();
 
         try {
-            $summary = $this->fantasyAdminClient->statsSummary($tenantUuid, $from, $to);
-            $byDay = $this->fantasyAdminClient->statsByDay($tenantUuid, $from, $to);
-            $rounds = $this->fantasyAdminClient->listRounds($tenantUuid, 5, 0);
+            $summary = $this->fantasyAdminClient->statsSummary($tenantId, $from, $to);
+            $byDay = $this->fantasyAdminClient->statsByDay($tenantId, $from, $to);
+            $rounds = $this->fantasyAdminClient->listRounds($tenantId, 5, 0);
 
             return [
                 'period' => ['from' => $from, 'to' => $to],
