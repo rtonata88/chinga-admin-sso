@@ -56,7 +56,9 @@ class WithdrawalService
     {
         $tenant = Tenant::findOrFail($user->tenant_id);
         $config = $this->tenantConfig($tenant);
-        $wallet = $user->getOrCreateWallet();
+        // Eloquent caches `$user->wallet` from earlier reads; refresh to
+        // avoid a stale balance check against $wallet->balance.
+        $wallet = $user->getOrCreateWallet()->refresh();
 
         $amount = (string) ($data['amount'] ?? '0');
         $method = $data['payment_method'] ?? null;
