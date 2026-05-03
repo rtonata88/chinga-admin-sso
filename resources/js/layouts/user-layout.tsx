@@ -1,5 +1,6 @@
 import AppLayout from '@/components/acumatica/Layout/AppLayout';
 import type { SidebarNavGroup } from '@/components/acumatica/Layout/Sidebar';
+import { FantasyHealthBanner } from '@/components/fantasy/FantasyHealthBanner';
 import { usePage } from '@inertiajs/react';
 import { type PropsWithChildren, useMemo } from 'react';
 
@@ -79,6 +80,7 @@ export default function UserLayout({ children, title }: PropsWithChildren<Props>
 
     return (
         <AppLayout title={title} navigation={navigation}>
+            {isAdmin && <FantasyHealthBanner />}
             {children}
         </AppLayout>
     );

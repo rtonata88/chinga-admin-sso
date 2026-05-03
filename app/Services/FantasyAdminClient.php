@@ -15,6 +15,35 @@ class FantasyAdminClient
     private const TOKEN_CACHE_KEY = 'sso_internal_access_token';
     private const TOKEN_SCOPE = 'gaming:read';
 
+    /**
+     * Probe the fantasy backend's /api/health endpoint. Does NOT require auth.
+     * Returns ['status' => 'ok'|'down'|'degraded', 'message' => ?string, 'db' => ?string].
+     * Cached for 15 seconds so dashboards don't hammer the backend.
+     */
+    public function health(): array
+    {
+        return Cache::remember('fantasy_health_probe', 15, function () {
+            $baseUrl = rtrim((string) config('services.chinga_fantasy.api_url'), '/');
+            try {
+                $response = Http::acceptJson()->timeout(3)->get($baseUrl.'/api/health');
+                if (!$response->successful()) {
+                    $body = $response->json() ?? [];
+                    return [
+                        'status' => $body['status'] ?? 'down',
+                        'db' => $body['db'] ?? null,
+                        'message' => 'Backend reported HTTP '.$response->status(),
+                    ];
+                }
+                return $response->json() ?? ['status' => 'ok'];
+            } catch (\Throwable $e) {
+                return [
+                    'status' => 'down',
+                    'message' => 'Cannot reach fantasy backend at '.$baseUrl,
+                ];
+            }
+        });
+    }
+
     public function statsSummary(?string $tenantUuid = null, ?string $from = null, ?string $to = null): array
     {
         return $this->get('/api/admin/stats/summary', array_filter([

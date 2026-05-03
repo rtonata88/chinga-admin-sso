@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Api\FantasyHealthController;
 use App\Http\Controllers\Admin\VenueManagementController;
 use App\Http\Controllers\Admin\WalletManagementController;
 use App\Http\Controllers\Admin\WalletTransactionController;
@@ -23,6 +24,9 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->name('api.admin.')->group(function () {
     // Dashboard & Reports
     Route::get('dashboard', [ReportController::class, 'dashboard'])->name('dashboard');
+
+    // Fantasy backend health probe (used by the layout banner).
+    Route::get('fantasy-health', [FantasyHealthController::class, 'show'])->name('fantasy-health');
 
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('registrations', [ReportController::class, 'registrations'])->name('registrations');
