@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Auth\SecurityAuditService;
+use App\Services\FantasyAdminClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -403,5 +405,40 @@ class UserManagementController extends Controller
             'success' => true,
             'data' => $stats,
         ]);
+    }
+
+    /**
+     * Proxy to chinga-fantasy: list this user's bet history (most-recent first).
+     * Tenant-scoped: tenant admins automatically get their own tenant's slice;
+     * platform admins see across tenants unless ?tenant_uuid= is supplied.
+     */
+    public function fantasyBets(Request $request, string $uuid, FantasyAdminClient $client): JsonResponse
+    {
+        $user = $this->findUser($request, $uuid);
+
+        $tenantUuid = $request->query('tenant_uuid');
+        if (!$tenantUuid && !$request->user()?->isPlatformAdmin()) {
+            $tenantUuid = app('current_tenant')?->uuid;
+        }
+
+        $limit = (int) $request->query('limit', 50);
+        $offset = (int) $request->query('offset', 0);
+
+        try {
+            $response = $client->listUserBets($user->uuid, $tenantUuid ?: null, $limit, $offset);
+            return response()->json([
+                'success' => true,
+                'data' => $response['data'] ?? [],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('UserManagementController.fantasyBets failed', [
+                'user_uuid' => $uuid,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not load fantasy bet history.',
+            ], 502);
+        }
     }
 }

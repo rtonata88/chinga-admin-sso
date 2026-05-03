@@ -1,5 +1,6 @@
 import PageHeader from '@/components/acumatica/Common/PageHeader';
 import StatusBadge from '@/components/acumatica/Common/StatusBadge';
+import { UserFantasyBets } from '@/components/fantasy/UserFantasyBets';
 import UserLayout from '@/layouts/user-layout';
 import type { StatusVariant } from '@/types/acumatica';
 import { Head, router } from '@inertiajs/react';
@@ -320,6 +321,8 @@ export default function UserShow({ uuid }: { uuid: string }) {
                         </div>
                     </div>
                 </div>
+
+                <UserFantasyBets userUuid={user.uuid} />
             </div>
 
             {/* Reset Password Dialog */}
