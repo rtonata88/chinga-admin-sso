@@ -19,6 +19,7 @@ const adminGroup: SidebarNavGroup = {
         { label: 'Users', icon: 'pi pi-users', href: '/admin/users' },
         { label: 'Wallets', icon: 'pi pi-credit-card', href: '/admin/wallets' },
         { label: 'Wallet Transactions', icon: 'pi pi-arrow-right-arrow-left', href: '/admin/wallet-transactions' },
+        { label: 'Withdrawals', icon: 'pi pi-money-bill', href: '/admin/withdrawals' },
         { label: 'Voucher Codes', icon: 'pi pi-ticket', href: '/admin/voucher-codes' },
         { label: 'Revenue', icon: 'pi pi-dollar', href: '/admin/revenue' },
         { label: 'Reports', icon: 'pi pi-chart-bar', href: '/admin/reports' },

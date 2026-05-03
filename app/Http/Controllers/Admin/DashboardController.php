@@ -145,4 +145,12 @@ class DashboardController extends Controller
     {
         return Inertia::render('admin/wallet-transactions');
     }
+
+    /**
+     * Display withdrawal queue page.
+     */
+    public function withdrawals(): Response
+    {
+        return Inertia::render('admin/withdrawals');
+    }
 }

@@ -160,6 +160,62 @@ class WalletService
     }
 
     /**
+     * Refund a previously-held withdrawal: credits the wallet by the held
+     * transaction's amount and records the reversal as type='adjustment'.
+     * Idempotent by reference.
+     *
+     * Used when a withdrawal request is rejected or cancelled before payout.
+     */
+    public function refundWithdrawalHold(
+        WalletTransaction $heldTransaction,
+        ?\App\Models\User $performedBy = null,
+        ?string $reference = null,
+        ?string $description = 'Withdrawal refund',
+    ): WalletTransaction {
+        if ($heldTransaction->type !== 'withdrawal') {
+            throw new \InvalidArgumentException('refundWithdrawalHold requires a transaction of type withdrawal.');
+        }
+
+        $wallet = $heldTransaction->wallet()->firstOrFail();
+        $amount = (string) $heldTransaction->amount;
+
+        return DB::transaction(function () use ($wallet, $heldTransaction, $amount, $performedBy, $reference, $description) {
+            // Idempotency: if this refund has already been applied, return it.
+            if ($reference) {
+                $existing = WalletTransaction::where('wallet_id', $wallet->id)
+                    ->where('reference', $reference)
+                    ->where('type', 'adjustment')
+                    ->first();
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
+            $wallet = Wallet::lockForUpdate()->find($wallet->id);
+
+            $balanceBefore = $wallet->balance;
+            $balanceAfter = bcadd($balanceBefore, $amount, 2);
+
+            // Reverse the withdrawal accounting too — total_withdrawn was bumped on the hold.
+            $wallet->update([
+                'balance' => $balanceAfter,
+                'total_withdrawn' => bcsub($wallet->total_withdrawn, $amount, 2),
+            ]);
+
+            return $this->recordTransaction(
+                $wallet,
+                'adjustment',
+                $amount,
+                $balanceBefore,
+                $balanceAfter,
+                $performedBy,
+                $reference,
+                $description
+            );
+        });
+    }
+
+    /**
      * Record a wallet transaction.
      */
     private function recordTransaction(

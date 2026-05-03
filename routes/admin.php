@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\WithdrawalController as AdminWithdrawalController;
 use App\Http\Controllers\Api\FantasyHealthController;
 use App\Http\Controllers\Admin\VenueManagementController;
 use App\Http\Controllers\Admin\WalletManagementController;
@@ -100,6 +101,15 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
 
     // Wallet Transactions
     Route::get('wallet-transactions', [WalletTransactionController::class, 'index'])->name('wallet-transactions.index');
+
+    // Withdrawal queue management (tenant-admin scoped automatically, platform admin sees all).
+    Route::prefix('withdrawals')->name('withdrawals.')->group(function () {
+        Route::get('/', [AdminWithdrawalController::class, 'index'])->name('index');
+        Route::get('{uuid}', [AdminWithdrawalController::class, 'show'])->name('show');
+        Route::post('{uuid}/approve', [AdminWithdrawalController::class, 'approve'])->name('approve');
+        Route::post('{uuid}/reject', [AdminWithdrawalController::class, 'reject'])->name('reject');
+        Route::post('{uuid}/mark-paid', [AdminWithdrawalController::class, 'markPaid'])->name('mark-paid');
+    });
 });
 
 // Super Admin only routes

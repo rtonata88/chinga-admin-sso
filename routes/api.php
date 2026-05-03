@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthProxyController;
 use App\Http\Controllers\Api\RegistrationController;
+use App\Http\Controllers\Api\WithdrawalController;
 use App\Http\Controllers\OAuth\OAuthClientController;
 use App\Http\Controllers\OAuth\OpenIDConnectController;
 use App\Http\Controllers\OAuth\UserInfoController;
@@ -41,6 +42,14 @@ Route::prefix('v1')->group(function () {
         // OpenID Connect userinfo endpoint
         Route::get('oauth/userinfo', [UserInfoController::class, 'show'])
             ->name('api.oauth.userinfo');
+
+        // Player withdrawal API.
+        Route::prefix('wallet/withdrawals')->name('api.wallet.withdrawals.')->group(function () {
+            Route::get('options', [WithdrawalController::class, 'options'])->name('options');
+            Route::get('/', [WithdrawalController::class, 'index'])->name('index');
+            Route::post('/', [WithdrawalController::class, 'store'])->name('store');
+            Route::post('{uuid}/cancel', [WithdrawalController::class, 'cancel'])->name('cancel');
+        });
 
         // OAuth Client management (for game developers)
         Route::prefix('oauth/clients')->group(function () {

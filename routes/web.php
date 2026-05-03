@@ -26,6 +26,7 @@ Route::middleware(['auth', 'verified', EnsureTenantAdmin::class])->prefix('admin
     Route::get('audit-logs', [DashboardController::class, 'auditLogs'])->name('admin.audit-logs');
     Route::get('wallets', [DashboardController::class, 'wallets'])->name('admin.wallets');
     Route::get('wallet-transactions', [DashboardController::class, 'walletTransactions'])->name('admin.wallet-transactions');
+    Route::get('withdrawals', [DashboardController::class, 'withdrawals'])->name('admin.withdrawals');
     Route::get('revenue', fn () => Inertia::render('admin/revenue'))->name('admin.revenue');
 
     // Tenant-scoped fantasy rounds (always scoped to the admin's tenant).
