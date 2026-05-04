@@ -632,27 +632,36 @@ export default function PlatformUsersIndex() {
                             <div>
                                 <h4 className="text-sm font-semibold text-[var(--acu-text)] mb-2">Platform Roles</h4>
                                 <div className="space-y-2">
-                                    {platformRoles.map((role) => (
-                                        <div key={role.name} className="flex items-start gap-3 p-2 rounded hover:bg-[var(--acu-surface-hover)]">
-                                            <Checkbox
-                                                inputId={`platform-${role.name}`}
-                                                checked={selectedPlatformRoles.includes(role.name)}
-                                                onChange={() => {
-                                                    // Toggle from current state — avoids PrimeReact's
-                                                    // sometimes-undefined e.checked.
-                                                    setSelectedPlatformRoles((prev) =>
-                                                        prev.includes(role.name)
-                                                            ? prev.filter((r) => r !== role.name)
-                                                            : [...prev, role.name]
-                                                    );
-                                                }}
-                                            />
-                                            <label htmlFor={`platform-${role.name}`} className="cursor-pointer">
-                                                <div className="text-sm font-medium text-[var(--acu-text)]">{role.display_name}</div>
-                                                <div className="text-xs text-[var(--acu-text-light)]">{role.description}</div>
-                                            </label>
-                                        </div>
-                                    ))}
+                                    {platformRoles.map((role) => {
+                                        const isChecked = selectedPlatformRoles.includes(role.name);
+                                        const toggle = () => {
+                                            setSelectedPlatformRoles((prev) =>
+                                                prev.includes(role.name)
+                                                    ? prev.filter((r) => r !== role.name)
+                                                    : [...prev, role.name]
+                                            );
+                                        };
+                                        return (
+                                            <div
+                                                key={role.name}
+                                                className="flex items-start gap-3 p-2 rounded hover:bg-[var(--acu-surface-hover)] cursor-pointer"
+                                                onClick={toggle}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    id={`platform-${role.name}`}
+                                                    checked={isChecked}
+                                                    onChange={toggle}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="mt-1 h-4 w-4 rounded border-gray-300 accent-[var(--acu-primary)] cursor-pointer"
+                                                />
+                                                <div className="flex-1 select-none">
+                                                    <div className="text-sm font-medium text-[var(--acu-text)]">{role.display_name}</div>
+                                                    <div className="text-xs text-[var(--acu-text-light)]">{role.description}</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -686,25 +695,36 @@ export default function PlatformUsersIndex() {
                                 />
                                 {selectedTenantForRole && (
                                     <div className="space-y-2 pl-2">
-                                        {tenantRoles.map((role) => (
-                                            <div key={role.name} className="flex items-start gap-3 p-2 rounded hover:bg-[var(--acu-surface-hover)]">
-                                                <Checkbox
-                                                    inputId={`tenant-${role.name}`}
-                                                    checked={selectedTenantRoles.includes(role.name)}
-                                                    onChange={() => {
-                                                        setSelectedTenantRoles((prev) =>
-                                                            prev.includes(role.name)
-                                                                ? prev.filter((r) => r !== role.name)
-                                                                : [...prev, role.name]
-                                                        );
-                                                    }}
-                                                />
-                                                <label htmlFor={`tenant-${role.name}`} className="cursor-pointer">
-                                                    <div className="text-sm font-medium text-[var(--acu-text)]">{role.display_name}</div>
-                                                    <div className="text-xs text-[var(--acu-text-light)]">{role.description}</div>
-                                                </label>
-                                            </div>
-                                        ))}
+                                        {tenantRoles.map((role) => {
+                                            const isChecked = selectedTenantRoles.includes(role.name);
+                                            const toggle = () => {
+                                                setSelectedTenantRoles((prev) =>
+                                                    prev.includes(role.name)
+                                                        ? prev.filter((r) => r !== role.name)
+                                                        : [...prev, role.name]
+                                                );
+                                            };
+                                            return (
+                                                <div
+                                                    key={role.name}
+                                                    className="flex items-start gap-3 p-2 rounded hover:bg-[var(--acu-surface-hover)] cursor-pointer"
+                                                    onClick={toggle}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`tenant-${role.name}`}
+                                                        checked={isChecked}
+                                                        onChange={toggle}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="mt-1 h-4 w-4 rounded border-gray-300 accent-[var(--acu-primary)] cursor-pointer"
+                                                    />
+                                                    <div className="flex-1 select-none">
+                                                        <div className="text-sm font-medium text-[var(--acu-text)]">{role.display_name}</div>
+                                                        <div className="text-xs text-[var(--acu-text-light)]">{role.description}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
