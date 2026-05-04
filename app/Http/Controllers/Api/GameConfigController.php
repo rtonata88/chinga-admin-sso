@@ -19,7 +19,10 @@ class GameConfigController extends Controller
         }
 
         $teams = FantasyTeam::active()
-            ->select('uuid', 'name', 'short_name', 'logo_url', 'country', 'league')
+            ->select(
+                'uuid', 'name', 'short_name', 'logo_url', 'country', 'league',
+                'mascot', 'display_name', 'icon_slug', 'accent_color'
+            )
             ->orderBy('name')
             ->get();
 
