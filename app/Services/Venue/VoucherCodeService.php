@@ -37,6 +37,7 @@ class VoucherCodeService
         $initialBalance = $initialBalance ?? '0.00';
 
         $voucherCode = VoucherCode::create([
+            'tenant_id' => $venue->tenant_id,
             'venue_id' => $venue->id,
             'code' => $code,
             'pin' => $pin ? bcrypt($pin) : null,
@@ -106,6 +107,7 @@ class VoucherCodeService
         $initialBalance = $initialBalance ?? '0.00';
 
         $voucherCode = VoucherCode::create([
+            'tenant_id' => $venue->tenant_id,
             'venue_id' => $venue->id,
             'code' => $code,
             'pin' => $pin ? bcrypt($pin) : null,
