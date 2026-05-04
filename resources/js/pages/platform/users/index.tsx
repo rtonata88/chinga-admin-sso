@@ -637,12 +637,14 @@ export default function PlatformUsersIndex() {
                                             <Checkbox
                                                 inputId={`platform-${role.name}`}
                                                 checked={selectedPlatformRoles.includes(role.name)}
-                                                onChange={(e) => {
-                                                    if (e.checked) {
-                                                        setSelectedPlatformRoles([...selectedPlatformRoles, role.name]);
-                                                    } else {
-                                                        setSelectedPlatformRoles(selectedPlatformRoles.filter((r) => r !== role.name));
-                                                    }
+                                                onChange={() => {
+                                                    // Toggle from current state — avoids PrimeReact's
+                                                    // sometimes-undefined e.checked.
+                                                    setSelectedPlatformRoles((prev) =>
+                                                        prev.includes(role.name)
+                                                            ? prev.filter((r) => r !== role.name)
+                                                            : [...prev, role.name]
+                                                    );
                                                 }}
                                             />
                                             <label htmlFor={`platform-${role.name}`} className="cursor-pointer">
@@ -689,12 +691,12 @@ export default function PlatformUsersIndex() {
                                                 <Checkbox
                                                     inputId={`tenant-${role.name}`}
                                                     checked={selectedTenantRoles.includes(role.name)}
-                                                    onChange={(e) => {
-                                                        if (e.checked) {
-                                                            setSelectedTenantRoles([...selectedTenantRoles, role.name]);
-                                                        } else {
-                                                            setSelectedTenantRoles(selectedTenantRoles.filter((r) => r !== role.name));
-                                                        }
+                                                    onChange={() => {
+                                                        setSelectedTenantRoles((prev) =>
+                                                            prev.includes(role.name)
+                                                                ? prev.filter((r) => r !== role.name)
+                                                                : [...prev, role.name]
+                                                        );
                                                     }}
                                                 />
                                                 <label htmlFor={`tenant-${role.name}`} className="cursor-pointer">
