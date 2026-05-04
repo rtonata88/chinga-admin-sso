@@ -76,16 +76,12 @@ class VoucherCodeService
         // Assign player role
         $voucherUser->assignRole('player', $venue->tenant_id);
 
-        // Create wallet and deposit initial balance if > 0
-        $wallet = $voucherUser->getOrCreateWallet($venue->currency);
-        if (bccomp($initialBalance, '0', 2) > 0) {
-            app(\App\Services\WalletService::class)->deposit(
-                $wallet,
-                $initialBalance,
-                null,
-                "voucher_initial_{$voucherCode->uuid}"
-            );
-        }
+        // Create the wallet but DO NOT pre-deposit the balance. The voucher
+        // itself holds the funds until VoucherWebSessionController::start()
+        // redeems it, at which point the balance transfers to the wallet via
+        // a single 'voucher_transfer_*' deposit. Pre-depositing here caused a
+        // double-credit bug (voucher_initial_* + voucher_transfer_* on redeem).
+        $voucherUser->getOrCreateWallet($venue->currency);
 
         // Link user to voucher
         $voucherCode->update(['user_id' => $voucherUser->id]);
@@ -144,15 +140,8 @@ class VoucherCodeService
 
         $voucherUser->assignRole('player', $venue->tenant_id);
 
-        $wallet = $voucherUser->getOrCreateWallet($venue->currency);
-        if (bccomp($initialBalance, '0', 2) > 0) {
-            app(\App\Services\WalletService::class)->deposit(
-                $wallet,
-                $initialBalance,
-                null,
-                "voucher_initial_{$voucherCode->uuid}"
-            );
-        }
+        // Create the wallet but DO NOT pre-deposit. See notes in createCode().
+        $voucherUser->getOrCreateWallet($venue->currency);
 
         $voucherCode->update(['user_id' => $voucherUser->id]);
 
