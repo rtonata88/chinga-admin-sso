@@ -13,7 +13,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Settings, Trophy, Users } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -22,20 +22,27 @@ const mainNavItems: NavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
     },
+    // Chinga Fantasy admin — settings (winning_teams_count, jackpot %, etc.),
+    // round history, and the league team roster. URLs match routes/platform.php
+    // under the /fantasy/ prefix.
+    {
+        title: 'Fantasy Settings',
+        href: '/fantasy/settings',
+        icon: Settings,
+    },
+    {
+        title: 'Fantasy Rounds',
+        href: '/fantasy/rounds',
+        icon: Trophy,
+    },
+    {
+        title: 'Fantasy Teams',
+        href: '/fantasy/teams',
+        icon: Users,
+    },
 ];
 
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
-    },
-];
+const footerNavItems: NavItem[] = [];
 
 export function AppSidebar() {
     return (
