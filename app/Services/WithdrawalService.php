@@ -223,8 +223,12 @@ class WithdrawalService
         if (bccomp($max, '0', 2) > 0 && bccomp($amount, $max, 2) > 0) {
             throw new \InvalidArgumentException("Maximum per-request withdrawal is {$max}.");
         }
-        if (!$wallet->hasSufficientBalance($amount)) {
-            throw new \RuntimeException('Insufficient balance.');
+        // Players can only withdraw what they've won — deposits stay locked
+        // until they're played through and turn into winnings.
+        if (!$wallet->hasSufficientWithdrawableBalance($amount)) {
+            throw new \RuntimeException(
+                'You can only withdraw funds you have won through play. Deposits are locked until you win with them.'
+            );
         }
     }
 

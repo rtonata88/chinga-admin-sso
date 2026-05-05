@@ -221,6 +221,11 @@ class GameSessionController extends Controller
                 'amount' => abs((float) $transaction->amount),
                 'balance_before' => $transaction->balance_before,
                 'balance_after' => $transaction->balance_after,
+                // Pool split — the bet drained these amounts from each pool.
+                // chinga-fantasy uses amount_from_deposit to compute jackpot
+                // contributions (jackpot only grows from real deposits).
+                'amount_from_deposit' => $transaction->amount_from_deposit ?? '0.00',
+                'amount_from_winnings' => $transaction->amount_from_winnings ?? '0.00',
             ]);
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'Insufficient balance')) {

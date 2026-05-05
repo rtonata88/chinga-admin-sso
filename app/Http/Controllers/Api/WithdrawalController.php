@@ -46,7 +46,12 @@ class WithdrawalController extends Controller
                 'fee_pct' => $config['fee_pct'],
                 'auto_approve_under' => $config['auto_approve_under'],
                 'currency' => $wallet->currency,
-                'available_balance' => $wallet->balance,
+                // available_balance is the cap the FE enforces — only winnings
+                // are withdrawable. total_balance + deposits_in_play let the FE
+                // show the player exactly why their cap is what it is.
+                'available_balance' => $wallet->winnings_balance ?? '0.00',
+                'deposits_in_play' => $wallet->deposit_balance ?? '0.00',
+                'total_balance' => $wallet->balance,
                 'venues' => $venues,
             ],
         ]);

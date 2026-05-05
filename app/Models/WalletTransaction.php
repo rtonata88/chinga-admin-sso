@@ -17,6 +17,8 @@ class WalletTransaction extends Model
         'game_session_id',
         'type',
         'amount',
+        'amount_from_deposit',
+        'amount_from_winnings',
         'balance_before',
         'balance_after',
         'reference',
@@ -29,6 +31,8 @@ class WalletTransaction extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'amount_from_deposit' => 'decimal:2',
+            'amount_from_winnings' => 'decimal:2',
             'balance_before' => 'decimal:2',
             'balance_after' => 'decimal:2',
             'metadata' => 'array',

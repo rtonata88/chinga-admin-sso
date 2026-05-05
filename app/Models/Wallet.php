@@ -19,6 +19,8 @@ class Wallet extends Model
         'tenant_id',
         'user_id',
         'balance',
+        'deposit_balance',
+        'winnings_balance',
         'currency',
         'status',
         'total_deposited',
@@ -31,6 +33,8 @@ class Wallet extends Model
     {
         return [
             'balance' => 'decimal:2',
+            'deposit_balance' => 'decimal:2',
+            'winnings_balance' => 'decimal:2',
             'total_deposited' => 'decimal:2',
             'total_withdrawn' => 'decimal:2',
             'total_won' => 'decimal:2',
@@ -68,11 +72,23 @@ class Wallet extends Model
     }
 
     /**
-     * Check if the wallet has sufficient balance for the given amount.
+     * Check if the wallet has sufficient TOTAL balance for the given amount.
+     * Used for bet placement — bets can be paid from either pool, so we
+     * check the sum.
      */
     public function hasSufficientBalance(string $amount): bool
     {
         return bccomp($this->balance, $amount, 2) >= 0;
+    }
+
+    /**
+     * Check if the wallet has sufficient WITHDRAWABLE (winnings) balance
+     * for the given amount. Used for withdrawal validation — players can
+     * only withdraw what they've won, not what they deposited.
+     */
+    public function hasSufficientWithdrawableBalance(string $amount): bool
+    {
+        return bccomp($this->winnings_balance ?? '0', $amount, 2) >= 0;
     }
 
     /**
