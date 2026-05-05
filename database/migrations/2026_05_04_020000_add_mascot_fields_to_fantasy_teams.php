@@ -156,11 +156,12 @@ return new class extends Migration {
             // Otters / smaller mammals
             'Otters'      => ['icon_slug' => 'otter',      'accent_color' => 'cyan'],
 
-            // Celestial / abstract — fall through to lightning/crown/mountain bonus art
-            'Stars'       => ['icon_slug' => 'lightning',  'accent_color' => 'gold'],
-            'Comets'      => ['icon_slug' => 'lightning',  'accent_color' => 'cyan'],
-            'Flames'      => ['icon_slug' => 'lightning',  'accent_color' => 'orange'],
-            'Arrows'      => ['icon_slug' => 'lightning',  'accent_color' => 'rose'],
+            // Celestial / abstract — re-routed off `lightning.svg` (kept in
+            // /public/team-icons/ but unused by any team for now).
+            'Stars'       => ['icon_slug' => 'crown',      'accent_color' => 'gold'],
+            'Comets'      => ['icon_slug' => 'mountain',   'accent_color' => 'cyan'],
+            'Flames'      => ['icon_slug' => 'dragon',     'accent_color' => 'orange'],
+            'Arrows'      => ['icon_slug' => 'eagle',      'accent_color' => 'rose'],
             'Aces'        => ['icon_slug' => 'crown',      'accent_color' => 'gold'],
             'Oaks'        => ['icon_slug' => 'mountain',   'accent_color' => 'amber'],
             'Scorpions'   => ['icon_slug' => 'crocodile',  'accent_color' => 'rose'],
