@@ -10,6 +10,33 @@ use Inertia\Inertia;
 
 class FantasySettingsController extends Controller
 {
+    /**
+     * Effective defaults the chinga-fantasy game backend falls back to when
+     * a setting isn't saved in SSO. Mirrors gameConfigService.DEFAULTS in
+     * chinga-fantasy/app/services/gameConfigService.js so the admin form
+     * always shows the values currently in use, not blanks.
+     *
+     * If you change either side, change both — they're a contract between
+     * the two services.
+     */
+    private const DEFAULTS = [
+        'min_bet_amount' => 5,
+        'max_bet_amount' => 50,
+        'display_teams' => 50,
+        'round_betting_seconds' => 30,
+        'round_results_seconds' => 30,
+        'round_dialog_seconds' => 30,
+        'min_jackpot_amount' => 100,
+        'max_jackpot_amount' => 50000,
+        'jackpot_percentage' => 15,
+        'winning_teams_count' => 20,
+        // Commercial defaults applied to NEW tenants of this game.
+        'default_business_model' => 'reseller',
+        'default_revenue_share_pct' => 70,
+        'default_tax_pct' => 0,
+        'house_edge_target_pct' => 5,
+    ];
+
     private function getFantasyGame(): Game
     {
         return Game::where('slug', 'chinga-fantasy')->firstOrFail();
@@ -19,6 +46,10 @@ class FantasySettingsController extends Controller
     {
         $game = $this->getFantasyGame();
 
+        // Merge defaults with whatever is saved so the form always renders
+        // the current effective values. Saved values win on conflict.
+        $effectiveSettings = array_merge(self::DEFAULTS, $game->settings ?? []);
+
         $tenants = $game->tenants()
             ->select('tenants.id', 'tenants.uuid', 'tenants.name', 'tenants.slug')
             ->get()
@@ -27,6 +58,7 @@ class FantasySettingsController extends Controller
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
                 'enabled' => $tenant->pivot->enabled,
+                // Tenant overrides stay sparse — empty means "inherit global".
                 'custom_settings' => $tenant->pivot->custom_settings ?? [],
             ]);
 
@@ -34,8 +66,9 @@ class FantasySettingsController extends Controller
             'game' => [
                 'uuid' => $game->uuid,
                 'name' => $game->name,
-                'settings' => $game->settings ?? [],
+                'settings' => $effectiveSettings,
             ],
+            'defaults' => self::DEFAULTS,
             'tenants' => $tenants,
         ]);
     }
