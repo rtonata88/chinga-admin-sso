@@ -80,7 +80,7 @@ class FantasySettingsController extends Controller
         $validated = $request->validate([
             'min_bet_amount' => ['required', 'numeric', 'min:1'],
             'max_bet_amount' => ['required', 'numeric', 'min:1'],
-            'display_teams' => ['required', 'integer', 'min:4', 'max:50'],
+            'display_teams' => ['required', 'integer', 'min:4', 'max:100'],
             'round_betting_seconds' => ['required', 'integer', 'min:10', 'max:300'],
             'round_results_seconds' => ['required', 'integer', 'min:5', 'max:120'],
             'round_dialog_seconds' => ['required', 'integer', 'min:5', 'max:120'],
@@ -109,7 +109,7 @@ class FantasySettingsController extends Controller
             'custom_settings' => ['nullable', 'array'],
             'custom_settings.min_bet_amount' => ['nullable', 'numeric', 'min:1'],
             'custom_settings.max_bet_amount' => ['nullable', 'numeric', 'min:1'],
-            'custom_settings.display_teams' => ['nullable', 'integer', 'min:4', 'max:50'],
+            'custom_settings.display_teams' => ['nullable', 'integer', 'min:4', 'max:100'],
             'custom_settings.round_betting_seconds' => ['nullable', 'integer', 'min:10'],
             'custom_settings.round_results_seconds' => ['nullable', 'integer', 'min:5'],
             'custom_settings.round_dialog_seconds' => ['nullable', 'integer', 'min:5'],

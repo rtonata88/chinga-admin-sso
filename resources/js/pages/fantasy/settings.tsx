@@ -94,7 +94,7 @@ function SettingsForm({
                     value={values.display_teams ?? null}
                     onValueChange={(e) => onChange('display_teams', e.value ?? null)}
                     min={4}
-                    max={50}
+                    max={100}
                     className="w-full"
                 />
             </div>
