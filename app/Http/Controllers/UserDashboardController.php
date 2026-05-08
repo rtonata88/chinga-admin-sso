@@ -94,14 +94,15 @@ class UserDashboardController extends Controller
                     ->take(-8)
                     ->all();
 
+                // chinga-fantasy AdminController.listRounds returns { data: [...] }
                 $rounds = $fantasy->listRounds($tenantUuid, 6, 0);
-                $recentRounds = collect($rounds['rounds'] ?? $rounds['rows'] ?? [])
+                $recentRounds = collect($rounds['data'] ?? $rounds['rounds'] ?? $rounds['rows'] ?? [])
                     ->map(fn ($r) => [
                         'id' => $r['id'] ?? null,
                         'round_number' => $r['round_number'] ?? null,
                         'tenant_uuid' => $r['tenant_uuid'] ?? null,
-                        'created_at' => $r['created_at'] ?? null,
-                        'bet_count' => $r['bet_count'] ?? $r['bets'] ?? null,
+                        'created_at' => $r['created_at'] ?? $r['start_time'] ?? null,
+                        'bet_count' => isset($r['bet_count']) ? (int) $r['bet_count'] : null,
                         'total_wagered' => isset($r['total_wagered']) ? (float) $r['total_wagered'] : null,
                     ])
                     ->all();
