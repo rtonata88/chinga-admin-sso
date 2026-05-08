@@ -246,25 +246,27 @@ export default function Dashboard(props: DashboardProps) {
                     />
                 </div>
 
-                {/* Recent bets preview */}
-                <div className="cgo-table-wrap" style={{ borderRadius: 8 }}>
-                    <div className="cgo-table-bar">
-                        <div className="cgo-table-bar-title">Recent bets</div>
-                        <Link href="/operator/wagers" className="cgo-table-bar-link">
-                            View all →
-                        </Link>
-                    </div>
+                {/* Recent bets preview — header stays put while the body
+                 * scrolls. The bar above sits OUTSIDE the scroll container
+                 * so it doesn't move when scrolling either. */}
+                <div className="cgo-table-bar" style={{ borderRadius: '8px 8px 0 0', borderTop: '1px solid var(--cg-rule)', borderLeft: '1px solid var(--cg-rule)', borderRight: '1px solid var(--cg-rule)' }}>
+                    <div className="cgo-table-bar-title">Recent bets</div>
+                    <Link href="/operator/wagers" className="cgo-table-bar-link">
+                        View all →
+                    </Link>
+                </div>
+                <div className="cgo-table-wrap cgo-table-wrap--scroll" style={{ borderRadius: '0 0 8px 8px' }}>
                     <table className="cgo-wagers">
                         <thead>
                             <tr>
-                                <th>Player</th>
-                                <th>Tenant</th>
-                                <th className="cgo-r">Round</th>
-                                <th>Picks</th>
-                                <th className="cgo-r">Wager</th>
-                                <th className="cgo-r">Odds</th>
-                                <th className="cgo-r">Potential</th>
-                                <th>Outcome</th>
+                                <th style={{ minWidth: 180 }}>Player</th>
+                                <th style={{ minWidth: 140 }}>Tenant</th>
+                                <th className="cgo-r" style={{ width: 80 }}>Round</th>
+                                <th style={{ minWidth: 200 }}>Picks</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Wager</th>
+                                <th className="cgo-r" style={{ width: 80 }}>Odds</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Potential</th>
+                                <th style={{ width: 100 }}>Outcome</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -277,22 +279,29 @@ export default function Dashboard(props: DashboardProps) {
                             ) : (
                                 recentBets.map((b) => {
                                     const pill = outcomePill(b.outcome);
+                                    const picks = b.team_names.length > 0
+                                        ? b.team_names.slice(0, 2).join(', ') + (b.team_names.length > 2 ? ` +${b.team_names.length - 2}` : '')
+                                        : '—';
                                     return (
                                         <tr key={b.id ?? Math.random()}>
-                                            <td>
+                                            <td style={{ maxWidth: 220 }}>
                                                 <div className="cgo-user">
                                                     <div className="cgo-av">{b.player.initials}</div>
-                                                    <div>
-                                                        <div className="cgo-name">{b.player.name}</div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div className="cgo-name cgo-cell-clip" title={b.player.name}>{b.player.name}</div>
                                                         {b.player.uuid_short ? (
                                                             <div className="cgo-uid">{b.player.uuid_short}</div>
                                                         ) : null}
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td style={{ maxWidth: 180 }}>
                                                 {b.tenant_name || b.tenant_uuid ? (
-                                                    <span style={{ color: 'var(--cg-fg-2)', fontSize: 12 }}>
+                                                    <span
+                                                        className="cgo-cell-clip"
+                                                        style={{ display: 'block', color: 'var(--cg-fg-2)', fontSize: 12 }}
+                                                        title={b.tenant_name ?? b.tenant_uuid ?? ''}
+                                                    >
                                                         {b.tenant_name ?? b.tenant_uuid}
                                                     </span>
                                                 ) : (
@@ -302,13 +311,14 @@ export default function Dashboard(props: DashboardProps) {
                                             <td className="cgo-r">
                                                 <span className="cgo-odds">#{b.round_number ?? '—'}</span>
                                             </td>
-                                            <td>
-                                                <span className="cgo-selection">
+                                            <td style={{ maxWidth: 280 }}>
+                                                <span
+                                                    className="cgo-selection cgo-cell-clip"
+                                                    style={{ display: 'block' }}
+                                                    title={b.team_names.join(', ')}
+                                                >
                                                     {b.team_names.length > 0 ? (
-                                                        <span className="cgo-pick">
-                                                            {b.team_names.slice(0, 2).join(', ')}
-                                                            {b.team_names.length > 2 ? ` +${b.team_names.length - 2}` : ''}
-                                                        </span>
+                                                        <span className="cgo-pick">{picks}</span>
                                                     ) : (
                                                         '—'
                                                     )}

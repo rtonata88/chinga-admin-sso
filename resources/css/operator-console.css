@@ -497,6 +497,39 @@
   overflow: hidden;
   background: var(--cg-ink-card);
 }
+/* Scroll-bounded variant — caps the table body so a long list
+ * doesn't push the rest of the page miles down. Header stays in
+ * place via thead position: sticky. */
+.cgo-table-wrap--scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  border-radius: 8px;
+}
+.cgo-table-wrap--scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.cgo-table-wrap--scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.cgo-table-wrap--scroll::-webkit-scrollbar-thumb {
+  background: var(--cg-rule-strong);
+  border-radius: 4px;
+}
+.cgo-table-wrap--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Long-text guard for cells that can hold arbitrary user-input
+ * strings (player display names, tenant names, multi-team picks).
+ * Truncate with ellipsis and let the title attribute show the full
+ * value on hover. Apply per-cell with .cgo-cell-clip + a max-width. */
+.cgo-cell-clip {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 table.cgo-wagers {
   width: 100%;
   border-collapse: collapse;
