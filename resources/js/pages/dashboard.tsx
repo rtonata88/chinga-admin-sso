@@ -9,7 +9,51 @@
 // so it doesn't go blank for player accounts that happen to land here.
 
 import UserLayout from '@/layouts/user-layout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useEffect } from 'react';
+
+// Live pill on the page header is the user-facing signal that the
+// numbers are kept fresh. This is the actual refresh — every 5s we
+// ask Inertia to re-fetch ONLY the live-changing props (KPIs,
+// sparkline, recent bets, timestamp). preserveScroll + preserveState
+// mean the page doesn't blink or jump. Polling pauses when the tab
+// is hidden so we don't burn HTTP in the background.
+const POLL_INTERVAL_MS = 5_000;
+const LIVE_PROPS = ['wager_stats', 'wager_spark', 'recent_bets', 'last_updated'];
+
+function useDashboardPoll(enabled: boolean): void {
+    useEffect(() => {
+        if (!enabled || typeof window === 'undefined') return;
+
+        let intervalId: ReturnType<typeof setInterval> | null = null;
+
+        // Inertia v2 router.reload preserves scroll + state implicitly
+        // (it's a partial visit to the current URL), so only `only` is
+        // needed here.
+        const tick = () => {
+            router.reload({ only: LIVE_PROPS });
+        };
+
+        const start = () => {
+            if (intervalId !== null) return;
+            intervalId = setInterval(tick, POLL_INTERVAL_MS);
+        };
+        const stop = () => {
+            if (intervalId !== null) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+        };
+        const onVisibility = () => (document.hidden ? stop() : start());
+
+        if (!document.hidden) start();
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            stop();
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, [enabled]);
+}
 
 interface Account {
     name: string;
@@ -147,6 +191,7 @@ function sparkBars(series: number[] | null | undefined): number[] {
 
 export default function Dashboard(props: DashboardProps) {
     const isAdmin = !!props.is_admin;
+    useDashboardPoll(isAdmin);
 
     if (!isAdmin) {
         return <NonAdminDashboard {...props} />;
