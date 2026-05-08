@@ -43,14 +43,6 @@ interface Stats {
     security: SecurityStats;
 }
 
-interface RecentUser {
-    uuid: string;
-    name: string;
-    email: string;
-    status: string;
-    created_at: string;
-}
-
 interface TenantBreakdown {
     tenant_id: number | null;
     tenant_uuid: string | null;
@@ -69,44 +61,10 @@ interface TenantBreakdown {
 
 interface AdminDashboardProps {
     stats: Stats;
-    recent_users: RecentUser[];
     tenants?: TenantBreakdown[];
 }
 
-function initialsFor(name: string): string {
-    return (
-        name
-            .split(' ')
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((p) => p[0])
-            .join('')
-            .toUpperCase() || '??'
-    );
-}
-
-function formatDate(iso: string): string {
-    try {
-        const d = new Date(iso);
-        const date = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        return `${hh}:${mm} · ${date}`;
-    } catch {
-        return iso;
-    }
-}
-
-function statusPill(status: string): { className: string; label: string } {
-    const s = (status || '').toLowerCase();
-    if (s === 'active') return { className: 'cgo-pill live', label: 'Active' };
-    if (s === 'pending') return { className: 'cgo-pill pending', label: 'Pending' };
-    if (s === 'suspended' || s === 'banned') return { className: 'cgo-pill flagged', label: status };
-    if (s === 'locked') return { className: 'cgo-pill flagged', label: 'Locked' };
-    return { className: 'cgo-pill void', label: status || '—' };
-}
-
-export default function AdminDashboard({ stats, recent_users, tenants = [] }: AdminDashboardProps) {
+export default function AdminDashboard({ stats, tenants = [] }: AdminDashboardProps) {
     const playersDelta =
         stats.users.today > 0
             ? { sign: 'pos' as const, text: `+${stats.users.today} today` }
@@ -261,83 +219,6 @@ export default function AdminDashboard({ stats, recent_users, tenants = [] }: Ad
                     </table>
                 </div>
 
-                {/* Recent registrations — same hairline-row idiom as /dashboard. */}
-                <div
-                    className="cgo-table-bar"
-                    style={{
-                        borderRadius: '8px 8px 0 0',
-                        borderTop: '1px solid var(--cg-rule)',
-                        borderLeft: '1px solid var(--cg-rule)',
-                        borderRight: '1px solid var(--cg-rule)',
-                    }}
-                >
-                    <div className="cgo-table-bar-title">Recent registrations</div>
-                </div>
-                <div
-                    className="cgo-table-wrap cgo-table-wrap--scroll"
-                    style={{ borderRadius: '0 0 8px 8px' }}
-                >
-                    <table className="cgo-wagers">
-                        <thead>
-                            <tr>
-                                <th style={{ minWidth: 200 }}>Player</th>
-                                <th style={{ minWidth: 220 }}>Email</th>
-                                <th style={{ width: 120 }}>Status</th>
-                                <th style={{ width: 180 }}>Joined</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {recent_users.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
-                                        No registrations yet.
-                                    </td>
-                                </tr>
-                            ) : (
-                                recent_users.map((u) => {
-                                    const pill = statusPill(u.status);
-                                    return (
-                                        <tr key={u.uuid}>
-                                            <td style={{ maxWidth: 240 }}>
-                                                <div className="cgo-user">
-                                                    <div className="cgo-av">{initialsFor(u.name)}</div>
-                                                    <div style={{ minWidth: 0 }}>
-                                                        <div
-                                                            className="cgo-name cgo-cell-clip"
-                                                            title={u.name}
-                                                        >
-                                                            {u.name}
-                                                        </div>
-                                                        <div className="cgo-uid">
-                                                            {u.uuid.slice(0, 6).toUpperCase()}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td style={{ maxWidth: 260 }}>
-                                                <span
-                                                    className="cgo-cell-clip"
-                                                    style={{
-                                                        display: 'block',
-                                                        color: 'var(--cg-fg-2)',
-                                                        fontSize: 12,
-                                                    }}
-                                                    title={u.email}
-                                                >
-                                                    {u.email}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className={pill.className}>{pill.label}</span>
-                                            </td>
-                                            <td className="cgo-ts">{formatDate(u.created_at)}</td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
             </div>
         </UserLayout>
     );

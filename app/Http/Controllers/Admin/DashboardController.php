@@ -47,20 +47,8 @@ class DashboardController extends Controller
             ],
         ];
 
-        // Recent registrations
-        $recentUsers = User::orderBy('created_at', 'desc')
-            ->limit(5)
-            ->get(['uuid', 'name', 'email', 'created_at', 'status']);
-
         return Inertia::render('admin/dashboard', [
             'stats' => $stats,
-            'recent_users' => $recentUsers->map(fn ($u) => [
-                'uuid' => $u->uuid,
-                'name' => $u->name,
-                'email' => $u->email,
-                'status' => $u->status,
-                'created_at' => $u->created_at->toIso8601String(),
-            ]),
             'tenants' => $this->fetchTenantBreakdown(),
         ]);
     }
