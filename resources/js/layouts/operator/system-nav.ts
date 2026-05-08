@@ -46,7 +46,7 @@ export function buildSystemNav({ isTenantAdmin, isPlatformAdmin }: BuildSystemNa
         groups.push({
             label: 'Administration',
             items: [
-                { label: 'Tenant overview', href: '/admin', icon: LayoutGrid },
+                { label: 'Tenant Overview', href: '/tenant-overview', icon: LayoutGrid },
                 { label: 'Users', href: '/admin/users', icon: Users },
                 { label: 'Wallets', href: '/admin/wallets', icon: Wallet },
                 { label: 'Wallet Transactions', href: '/admin/wallet-transactions', icon: History },

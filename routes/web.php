@@ -16,9 +16,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', UserDashboardController::class)->name('dashboard');
 });
 
-// Admin routes
+// Tenant overview lives at its own URL — the page identity is the
+// tenant's overview, not "admin". The other admin operational pages
+// stay under /admin/* (Users, Wallets, Withdrawals, …) since those
+// are operations rather than dashboards.
+Route::middleware(['auth', 'verified', EnsureTenantAdmin::class])->group(function () {
+    Route::get('tenant-overview', [DashboardController::class, 'index'])->name('admin.dashboard');
+    // Backwards-compat redirect for /admin bookmarks. Keep until we're
+    // confident no external link points here.
+    Route::get('admin', fn () => redirect('/tenant-overview'));
+});
+
+// Admin operations
 Route::middleware(['auth', 'verified', EnsureTenantAdmin::class])->prefix('admin')->group(function () {
-    Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('users', [DashboardController::class, 'users'])->name('admin.users');
     Route::get('users/{uuid}', fn (string $uuid) => Inertia::render('admin/users/show', ['uuid' => $uuid]))->name('admin.users.show');
     Route::get('voucher-codes', [DashboardController::class, 'voucherCodes'])->name('admin.voucher-codes');
