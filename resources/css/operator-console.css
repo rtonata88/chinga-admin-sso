@@ -673,3 +673,31 @@ table.cgo-wagers {
   background: var(--cg-brass);
   border-color: var(--cg-brass);
 }
+
+/* Generic header strip for cards/tables that need a labelled bar above
+ * a body — used on the dashboard's "Recent rounds" preview and any
+ * future operator-console summary panel. */
+.cgo-table-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--cg-rule-strong);
+  background: var(--cg-ink-elevated);
+}
+.cgo-table-bar-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--cg-fg-3);
+}
+.cgo-table-bar-link {
+  font-size: 12px;
+  color: var(--cg-fg-3);
+  text-decoration: none;
+  transition: color var(--cg-dur-fast) var(--cg-ease);
+}
+.cgo-table-bar-link:hover {
+  color: var(--cg-brass-hi);
+}
