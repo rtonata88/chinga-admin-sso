@@ -94,10 +94,18 @@ function formatCount(n: number): string {
     return n.toLocaleString('en-US');
 }
 
+// Compact NAD formatter for KPI display values. Always prefixes with
+// "N$" so the figure reads as money even when the number is small —
+// otherwise "35" is indistinguishable from a count. Uses K / M
+// suffixes once we cross 1 000 / 1 000 000.
 function formatCurrencyCompact(n: number): string {
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-    return n.toFixed(0);
+    const sign = n < 0 ? '-' : '';
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return `${sign}N$${(abs / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${sign}N$${(abs / 1_000).toFixed(1)}K`;
+    // Show two decimals under 100 so cents are visible on small days.
+    if (abs >= 100) return `${sign}N$${abs.toFixed(0)}`;
+    return `${sign}N$${abs.toFixed(2)}`;
 }
 
 function formatNAD(n: number): string {
@@ -211,21 +219,21 @@ export default function Dashboard(props: DashboardProps) {
                     <KpiCard
                         label="Total wagered · today"
                         value={formatCurrencyCompact(wageredToday)}
-                        meta="NAD · gross"
+                        meta="gross"
                         spark={sparkHeights}
                     />
                     <KpiCard
                         label="Total wins · today"
                         value={formatCurrencyCompact(winsToday)}
                         delta={winsDelta.sign === 'flat' ? undefined : winsDelta}
-                        meta="NAD · paid to players"
+                        meta="paid to players"
                     />
                     <KpiCard
                         label="GGR · today"
                         value={formatCurrencyCompact(ggrToday)}
                         brass
                         delta={ggrDelta.sign === 'flat' ? undefined : ggrDelta}
-                        meta="NAD · deposit-funded"
+                        meta="deposit-funded"
                     />
                 </div>
 
