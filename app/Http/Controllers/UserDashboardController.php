@@ -64,7 +64,7 @@ class UserDashboardController extends Controller
         // will render zero-state cards if the upstream is down.
         $wagerStats = null;
         $wagerSpark = null;
-        $recentRounds = [];
+        $recentBets = [];
 
         if ($isAdmin) {
             try {
@@ -94,24 +94,49 @@ class UserDashboardController extends Controller
                     ->take(-8)
                     ->all();
 
-                // chinga-fantasy AdminController.listRounds returns { data: [...] }.
-                // Most rounds have no bets (the timer creates a round per
-                // tenant per cycle whether anyone played or not), so request
-                // a wide window and filter to ones with activity before
-                // trimming back to the dashboard's 6-row preview.
-                $rounds = $fantasy->listRounds($tenantUuid, 60, 0);
-                $recentRounds = collect($rounds['data'] ?? $rounds['rounds'] ?? $rounds['rows'] ?? [])
-                    ->map(fn ($r) => [
-                        'id' => $r['id'] ?? null,
-                        'round_number' => $r['round_number'] ?? null,
-                        'tenant_uuid' => $r['tenant_uuid'] ?? null,
-                        'created_at' => $r['created_at'] ?? $r['start_time'] ?? null,
-                        'bet_count' => isset($r['bet_count']) ? (int) $r['bet_count'] : 0,
-                        'total_wagered' => isset($r['total_wagered']) ? (float) $r['total_wagered'] : null,
-                    ])
-                    ->filter(fn ($r) => $r['bet_count'] > 0)
-                    ->take(6)
-                    ->values()
+                // Recent bets across rounds — pre-joined with team picks,
+                // combined odds, and potential payout. Player names get
+                // resolved via a single whereIn lookup against the local
+                // SSO users table; uuids missing from there fall back to
+                // a short uuid label.
+                $betsResp = $fantasy->recentBets($tenantUuid, 10);
+                $rawBets = $betsResp['data'] ?? [];
+
+                $userUuids = collect($rawBets)->pluck('user_uuid')->filter()->unique()->values()->all();
+                $usersByUuid = empty($userUuids)
+                    ? collect()
+                    : \App\Models\User::whereIn('uuid', $userUuids)->get()->keyBy('uuid');
+
+                $recentBets = collect($rawBets)
+                    ->map(function ($b) use ($usersByUuid) {
+                        $uuid = $b['user_uuid'] ?? null;
+                        $u = $uuid ? ($usersByUuid->get($uuid)) : null;
+                        $name = $u?->display_name ?? $u?->name ?? ($uuid ? 'Player ' . substr($uuid, 0, 6) : '—');
+                        $initials = strtoupper(
+                            collect(explode(' ', trim($name)))
+                                ->filter()
+                                ->take(2)
+                                ->map(fn ($p) => $p[0] ?? '')
+                                ->implode('')
+                        ) ?: '??';
+
+                        return [
+                            'id' => $b['id'] ?? null,
+                            'placed_at' => $b['placed_at'] ?? null,
+                            'player' => [
+                                'name' => $name,
+                                'uuid_short' => $uuid ? strtoupper(substr($uuid, 0, 6)) : null,
+                                'initials' => $initials,
+                            ],
+                            'round_number' => $b['round_number'] ?? null,
+                            'team_names' => $b['team_names'] ?? [],
+                            'bet_amount' => isset($b['bet_amount']) ? (float) $b['bet_amount'] : 0,
+                            'combined_odds' => isset($b['combined_odds']) ? (float) $b['combined_odds'] : 0,
+                            'potential_payout' => isset($b['potential_payout']) ? (float) $b['potential_payout'] : 0,
+                            'outcome' => $b['outcome'] ?? 'pending',
+                            'winning_amount' => isset($b['winning_amount']) ? (float) $b['winning_amount'] : 0,
+                        ];
+                    })
                     ->all();
             } catch (Throwable $e) {
                 logger()->warning('UserDashboardController fantasy stats fetch failed', [
@@ -129,7 +154,7 @@ class UserDashboardController extends Controller
             'is_admin' => $isAdmin,
             'wager_stats' => $wagerStats,
             'wager_spark' => $wagerSpark,
-            'recent_rounds' => $recentRounds,
+            'recent_bets' => $recentBets,
             'last_updated' => Carbon::now('Africa/Windhoek')->format('H:i:s') . ' CAT',
         ]);
     }

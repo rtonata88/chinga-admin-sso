@@ -107,6 +107,19 @@ class FantasyAdminClient
         ]));
     }
 
+    /**
+     * Cross-round recent-bet preview used by the admin dashboard's Live
+     * Activity table. Each row already has team picks, combined odds
+     * and potential payout pre-joined, so no N+1.
+     */
+    public function recentBets(?string $tenantUuid = null, int $limit = 10): array
+    {
+        return $this->get('/api/admin/bets/recent', array_filter([
+            'tenant_uuid' => $tenantUuid,
+            'limit' => $limit,
+        ]));
+    }
+
     private function get(string $path, array $query = []): array
     {
         $baseUrl = rtrim((string) config('services.chinga_fantasy.api_url'), '/');

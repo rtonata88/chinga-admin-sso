@@ -65,13 +65,19 @@ interface WagerStats {
     yesterday: StatsBucket;
 }
 
-interface RecentRound {
+type WagerOutcome = 'win' | 'lost' | 'pending';
+
+interface RecentBet {
     id: number | null;
+    placed_at: string | null;
+    player: { name: string; uuid_short: string | null; initials: string };
     round_number: number | null;
-    tenant_uuid: string | null;
-    created_at: string | null;
-    bet_count: number | null;
-    total_wagered: number | null;
+    team_names: string[];
+    bet_amount: number;
+    combined_odds: number;
+    potential_payout: number;
+    outcome: WagerOutcome | string;
+    winning_amount: number;
 }
 
 interface DashboardProps {
@@ -80,7 +86,7 @@ interface DashboardProps {
     is_admin?: boolean;
     wager_stats?: WagerStats | null;
     wager_spark?: number[] | null;
-    recent_rounds?: RecentRound[];
+    recent_bets?: RecentBet[];
     last_updated?: string;
 }
 
@@ -182,7 +188,7 @@ export default function Dashboard(props: DashboardProps) {
     const ggrDelta = deltaPct(ggrToday, ggrYesterday);
 
     const sparkHeights = sparkBars(props.wager_spark);
-    const recentRounds = props.recent_rounds ?? [];
+    const recentBets = props.recent_bets ?? [];
 
     return (
         <UserLayout title="Dashboard">
@@ -243,10 +249,10 @@ export default function Dashboard(props: DashboardProps) {
                     />
                 </div>
 
-                {/* Recent rounds preview */}
+                {/* Recent bets preview */}
                 <div className="cgo-table-wrap" style={{ borderRadius: 8 }}>
                     <div className="cgo-table-bar">
-                        <div className="cgo-table-bar-title">Recent rounds</div>
+                        <div className="cgo-table-bar-title">Recent bets</div>
                         <Link href="/operator/wagers" className="cgo-table-bar-link">
                             View all →
                         </Link>
@@ -254,49 +260,73 @@ export default function Dashboard(props: DashboardProps) {
                     <table className="cgo-wagers">
                         <thead>
                             <tr>
-                                <th style={{ width: 130 }}>Round</th>
-                                <th>Tenant</th>
-                                <th className="cgo-r">Bets</th>
-                                <th className="cgo-r">Wagered</th>
-                                <th>Started</th>
+                                <th>Player</th>
+                                <th className="cgo-r">Round</th>
+                                <th>Picks</th>
+                                <th className="cgo-r">Wager</th>
+                                <th className="cgo-r">Odds</th>
+                                <th className="cgo-r">Potential</th>
+                                <th>Outcome</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {recentRounds.length === 0 ? (
+                            {recentBets.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
-                                        No recent rounds yet.
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No bets placed yet.
                                     </td>
                                 </tr>
                             ) : (
-                                recentRounds.map((r) => (
-                                    <tr key={r.id ?? Math.random()}>
-                                        <td>
-                                            <span className="cgo-stake" style={{ fontSize: 16 }}>
-                                                #{r.round_number ?? '—'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span style={{ color: 'var(--cg-fg-2)', fontFamily: 'var(--cg-mono)', fontSize: 11.5 }}>
-                                                {r.tenant_uuid ?? '—'}
-                                            </span>
-                                        </td>
-                                        <td className="cgo-r">
-                                            <span className="cgo-odds">{r.bet_count ?? '—'}</span>
-                                        </td>
-                                        <td className="cgo-r">
-                                            {r.total_wagered !== null ? (
+                                recentBets.map((b) => {
+                                    const pill = outcomePill(b.outcome);
+                                    return (
+                                        <tr key={b.id ?? Math.random()}>
+                                            <td>
+                                                <div className="cgo-user">
+                                                    <div className="cgo-av">{b.player.initials}</div>
+                                                    <div>
+                                                        <div className="cgo-name">{b.player.name}</div>
+                                                        {b.player.uuid_short ? (
+                                                            <div className="cgo-uid">{b.player.uuid_short}</div>
+                                                        ) : null}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">#{b.round_number ?? '—'}</span>
+                                            </td>
+                                            <td>
+                                                <span className="cgo-selection">
+                                                    {b.team_names.length > 0 ? (
+                                                        <span className="cgo-pick">
+                                                            {b.team_names.slice(0, 2).join(', ')}
+                                                            {b.team_names.length > 2 ? ` +${b.team_names.length - 2}` : ''}
+                                                        </span>
+                                                    ) : (
+                                                        '—'
+                                                    )}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
                                                 <span className="cgo-stake">
                                                     <span className="cgo-ccy">NAD</span>
-                                                    {formatNAD(r.total_wagered)}
+                                                    {formatNAD(b.bet_amount)}
                                                 </span>
-                                            ) : (
-                                                <span className="cgo-odds">—</span>
-                                            )}
-                                        </td>
-                                        <td className="cgo-ts">{r.created_at ? formatTime(r.created_at) : '—'}</td>
-                                    </tr>
-                                ))
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">
+                                                    {b.combined_odds.toFixed(2)}x
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-payout">{formatNAD(b.potential_payout)}</span>
+                                            </td>
+                                            <td>
+                                                <span className={pill.className}>{pill.label}</span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
@@ -349,6 +379,18 @@ function KpiCard({ label, value, brass, delta, meta, spark }: KpiCardProps) {
             </div>
         </div>
     );
+}
+
+function outcomePill(outcome: string): { className: string; label: string } {
+    switch (outcome) {
+        case 'win':
+            return { className: 'cgo-pill live', label: 'Win' };
+        case 'lost':
+            return { className: 'cgo-pill flagged', label: 'Loss' };
+        case 'pending':
+        default:
+            return { className: 'cgo-pill pending', label: 'Pending' };
+    }
 }
 
 function formatTime(iso: string): string {
