@@ -48,6 +48,13 @@ interface StatsBucket {
     active_players: number;
     total_wagered: string | number;
     total_paid_out: string | number;
+    // GGR fields. `ggr` is the legacy gross figure (wagered - paid_out).
+    // `real_ggr` is deposit-aware: only counts the deposit-funded slice
+    // of activity, so re-staked winnings don't inflate house revenue.
+    ggr?: string | number;
+    deposit_wagered?: string | number;
+    deposit_paid_out?: string | number;
+    real_ggr?: string | number;
     wins: number;
     losses: number;
     pending: number;
@@ -126,20 +133,39 @@ export default function Dashboard(props: DashboardProps) {
     const today = props.wager_stats?.today;
     const yesterday = props.wager_stats?.yesterday;
 
-    const livePending = num(today?.pending);
-    const livePendingDelta = deltaPct(livePending, num(yesterday?.pending));
-
-    const handleToday = num(today?.total_wagered);
-    const handleYesterday = num(yesterday?.total_wagered);
-    const handleDelta = deltaPct(handleToday, handleYesterday);
-
-    const paidOutToday = num(today?.total_paid_out);
-    const paidOutYesterday = num(yesterday?.total_paid_out);
-    const paidOutDelta = deltaPct(paidOutToday, paidOutYesterday);
-
+    // Card 1 — Active players
     const playersToday = num(today?.active_players);
     const playersYesterday = num(yesterday?.active_players);
     const playersDelta = deltaPct(playersToday, playersYesterday);
+
+    // Card 2 — Bets placed
+    const betsToday = num(today?.bets_placed);
+    const betsYesterday = num(yesterday?.bets_placed);
+    const betsDelta = deltaPct(betsToday, betsYesterday);
+
+    // Card 3 — Total wagered (raw activity; includes re-stakes)
+    const wageredToday = num(today?.total_wagered);
+    const wageredYesterday = num(yesterday?.total_wagered);
+    const wageredDelta = deltaPct(wageredToday, wageredYesterday);
+
+    // Card 4 — Total wins (paid out to winners)
+    const winsToday = num(today?.total_paid_out);
+    const winsYesterday = num(yesterday?.total_paid_out);
+    const winsDelta = deltaPct(winsToday, winsYesterday);
+
+    // Card 5 — GGR (deposit-aware). Falls back to gross GGR if the
+    // upstream is too old to expose real_ggr — that path is just
+    // wagered - paid_out, which is what the user is correcting away
+    // from but is the safest fallback.
+    const ggrToday =
+        today?.real_ggr !== undefined
+            ? num(today.real_ggr)
+            : num(today?.ggr) || wageredToday - winsToday;
+    const ggrYesterday =
+        yesterday?.real_ggr !== undefined
+            ? num(yesterday.real_ggr)
+            : num(yesterday?.ggr) || wageredYesterday - winsYesterday;
+    const ggrDelta = deltaPct(ggrToday, ggrYesterday);
 
     const sparkHeights = sparkBars(props.wager_spark);
     const recentRounds = props.recent_rounds ?? [];
@@ -168,32 +194,38 @@ export default function Dashboard(props: DashboardProps) {
                     </div>
                 </div>
 
-                {/* KPI strip */}
-                <div className="cgo-kpis">
-                    <KpiCard
-                        label="Live wagers"
-                        value={formatCount(livePending)}
-                        delta={livePendingDelta.sign === 'flat' ? undefined : livePendingDelta}
-                        meta="vs. yesterday"
-                    />
-                    <KpiCard
-                        label="Handle · today"
-                        value={formatCurrencyCompact(handleToday)}
-                        brass
-                        meta={handleDelta.sign === 'flat' ? 'NAD · gross' : `${handleDelta.text} vs. ${formatCurrencyCompact(handleYesterday)}`}
-                        spark={sparkHeights}
-                    />
-                    <KpiCard
-                        label="Paid out · today"
-                        value={formatCurrencyCompact(paidOutToday)}
-                        delta={paidOutDelta.sign === 'flat' ? undefined : paidOutDelta}
-                        meta="NAD · winners"
-                    />
+                {/* KPI strip — five cards: players, bets, wagered, wins, GGR. */}
+                <div className="cgo-kpis cgo-kpis--5">
                     <KpiCard
                         label="Active players · today"
                         value={formatCount(playersToday)}
                         delta={playersDelta.sign === 'flat' ? undefined : playersDelta}
                         meta="distinct user uuids"
+                    />
+                    <KpiCard
+                        label="Bets placed · today"
+                        value={formatCount(betsToday)}
+                        delta={betsDelta.sign === 'flat' ? undefined : betsDelta}
+                        meta="all outcomes"
+                    />
+                    <KpiCard
+                        label="Total wagered · today"
+                        value={formatCurrencyCompact(wageredToday)}
+                        meta="NAD · gross"
+                        spark={sparkHeights}
+                    />
+                    <KpiCard
+                        label="Total wins · today"
+                        value={formatCurrencyCompact(winsToday)}
+                        delta={winsDelta.sign === 'flat' ? undefined : winsDelta}
+                        meta="NAD · paid to players"
+                    />
+                    <KpiCard
+                        label="GGR · today"
+                        value={formatCurrencyCompact(ggrToday)}
+                        brass
+                        delta={ggrDelta.sign === 'flat' ? undefined : ggrDelta}
+                        meta="NAD · deposit-funded"
                     />
                 </div>
 
