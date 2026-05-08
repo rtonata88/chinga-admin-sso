@@ -9,6 +9,13 @@
 // so it doesn't go blank for player accounts that happen to land here.
 
 import UserLayout from '@/layouts/user-layout';
+import {
+    KpiCard,
+    deltaPct,
+    formatCount,
+    formatCurrencyCompact,
+    formatNAD,
+} from '@/components/operator/kpi-card';
 import { Head, Link, router } from '@inertiajs/react';
 import { useEffect } from 'react';
 
@@ -140,46 +147,6 @@ function num(value: string | number | null | undefined): number {
     if (value === null || value === undefined) return 0;
     const n = typeof value === 'string' ? parseFloat(value) : value;
     return Number.isFinite(n) ? n : 0;
-}
-
-function formatCount(n: number): string {
-    return n.toLocaleString('en-US');
-}
-
-// Compact NAD formatter for KPI display values. Always prefixes with
-// "N$" and uses K/M/B suffixes so even busy days fit a card without
-// wrapping. Decimal precision shrinks as the magnitude grows.
-//
-//   < N$100         → N$12.34
-//   < N$1,000       → N$345
-//   < N$1,000,000   → N$487.2K  (or N$987K if no cents-of-thousand)
-//   < N$1,000,000,000 → N$3.4M
-//   ≥ N$1,000,000,000 → N$2.1B
-function formatCurrencyCompact(n: number): string {
-    const sign = n < 0 ? '-' : '';
-    const abs = Math.abs(n);
-    if (abs >= 1_000_000_000) return `${sign}N$${(abs / 1_000_000_000).toFixed(1)}B`;
-    if (abs >= 1_000_000) return `${sign}N$${(abs / 1_000_000).toFixed(1)}M`;
-    if (abs >= 100_000) return `${sign}N$${(abs / 1_000).toFixed(0)}K`;
-    if (abs >= 1_000) return `${sign}N$${(abs / 1_000).toFixed(1)}K`;
-    if (abs >= 100) return `${sign}N$${abs.toFixed(0)}`;
-    return `${sign}N$${abs.toFixed(2)}`;
-}
-
-function formatNAD(n: number): string {
-    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function deltaPct(today: number, yesterday: number): { sign: 'pos' | 'neg' | 'flat'; text: string } {
-    if (yesterday === 0) {
-        if (today > 0) return { sign: 'pos', text: 'New today' };
-        return { sign: 'flat', text: 'No change' };
-    }
-    const diff = today - yesterday;
-    const pct = (diff / yesterday) * 100;
-    const sign: 'pos' | 'neg' | 'flat' = pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'flat';
-    const abs = Math.abs(pct).toFixed(1);
-    return { sign, text: `${pct >= 0 ? '+' : '-'}${abs}%` };
 }
 
 // Map a numeric series to 0..100 bar heights for the sparkline.
@@ -395,51 +362,6 @@ export default function Dashboard(props: DashboardProps) {
                 </div>
             </div>
         </UserLayout>
-    );
-}
-
-interface KpiCardProps {
-    label: string;
-    value: string;
-    brass?: boolean;
-    delta?: { sign: 'pos' | 'neg' | 'flat'; text: string };
-    meta?: string;
-    spark?: number[];
-}
-
-function KpiCard({ label, value, brass, delta, meta, spark }: KpiCardProps) {
-    return (
-        <div className="cgo-kpi">
-            <div className="cgo-kpi-label">{label}</div>
-            <div className={`cgo-kpi-num${brass ? ' brass' : ''}`}>{value}</div>
-            <div className="cgo-kpi-foot">
-                {delta ? (
-                    <span
-                        className={
-                            delta.sign === 'pos'
-                                ? 'cgo-delta-pos'
-                                : delta.sign === 'neg'
-                                  ? 'cgo-delta-neg'
-                                  : 'cgo-meta'
-                        }
-                    >
-                        {delta.sign === 'pos' ? '▲ ' : delta.sign === 'neg' ? '▼ ' : ''}
-                        {delta.text}
-                    </span>
-                ) : (
-                    <span className="cgo-meta">{meta}</span>
-                )}
-                {spark && spark.length > 0 ? (
-                    <div className="cgo-spark">
-                        {spark.map((h, i) => (
-                            <span key={i} style={{ height: `${h}%` }} />
-                        ))}
-                    </div>
-                ) : delta && meta ? (
-                    <span className="cgo-meta">{meta}</span>
-                ) : null}
-            </div>
-        </div>
     );
 }
 
