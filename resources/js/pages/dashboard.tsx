@@ -95,15 +95,21 @@ function formatCount(n: number): string {
 }
 
 // Compact NAD formatter for KPI display values. Always prefixes with
-// "N$" so the figure reads as money even when the number is small —
-// otherwise "35" is indistinguishable from a count. Uses K / M
-// suffixes once we cross 1 000 / 1 000 000.
+// "N$" and uses K/M/B suffixes so even busy days fit a card without
+// wrapping. Decimal precision shrinks as the magnitude grows.
+//
+//   < N$100         → N$12.34
+//   < N$1,000       → N$345
+//   < N$1,000,000   → N$487.2K  (or N$987K if no cents-of-thousand)
+//   < N$1,000,000,000 → N$3.4M
+//   ≥ N$1,000,000,000 → N$2.1B
 function formatCurrencyCompact(n: number): string {
     const sign = n < 0 ? '-' : '';
     const abs = Math.abs(n);
+    if (abs >= 1_000_000_000) return `${sign}N$${(abs / 1_000_000_000).toFixed(1)}B`;
     if (abs >= 1_000_000) return `${sign}N$${(abs / 1_000_000).toFixed(1)}M`;
+    if (abs >= 100_000) return `${sign}N$${(abs / 1_000).toFixed(0)}K`;
     if (abs >= 1_000) return `${sign}N$${(abs / 1_000).toFixed(1)}K`;
-    // Show two decimals under 100 so cents are visible on small days.
     if (abs >= 100) return `${sign}N$${abs.toFixed(0)}`;
     return `${sign}N$${abs.toFixed(2)}`;
 }

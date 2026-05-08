@@ -366,14 +366,27 @@
 .cgo-kpi-num {
   font-family: var(--cg-condensed);
   font-weight: 700;
-  font-size: 44px;
+  font-size: clamp(28px, 3vw, 44px);
   letter-spacing: -0.015em;
   line-height: 1;
   margin-top: 14px;
   font-feature-settings: 'tnum' 1;
+  /* Numbers (especially currency) can run long — guard the card so a
+   * busy day doesn't push the next column or wrap awkwardly. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cgo-kpi-num.brass {
   color: var(--cg-brass-hi);
+}
+/* 5-up dashboard cards are narrower than the 4-up wagers strip, so
+ * pull the display size down a touch and tighten the gutters. */
+.cgo-kpis.cgo-kpis--5 .cgo-kpi {
+  padding: 22px 18px 20px;
+}
+.cgo-kpis.cgo-kpis--5 .cgo-kpi-num {
+  font-size: clamp(24px, 2.4vw, 36px);
 }
 .cgo-kpi-foot {
   display: flex;
