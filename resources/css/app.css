@@ -2,6 +2,17 @@
 
 @import "tw-animate-css";
 
+/*
+ * Chinga Games operator console design system.
+ * Defines :root CSS custom properties and utility classes
+ * (.cg-display, .cg-h1, .cg-mono, .cg-num, .cg-status, .cg-btn, …)
+ * used by the Operator Console layout + Live Wagers Monitor screen.
+ * Tokens reside on :root so they coexist with the existing Tailwind
+ * tokens — Tailwind does not mangle properties prefixed with --cg-.
+ */
+@import "./colors_and_type.css";
+@import "./operator-console.css";
+
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 

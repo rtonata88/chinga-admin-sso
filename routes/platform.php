@@ -10,6 +10,7 @@ use App\Http\Controllers\Platform\TenantVenueController;
 use App\Http\Controllers\Admin\Games\FantasyTeamController;
 use App\Http\Controllers\Admin\Games\FantasySettingsController;
 use App\Http\Controllers\Admin\Games\FantasyRoundController;
+use App\Http\Controllers\Operator\LiveWagersController;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -53,6 +54,12 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('fan
     Route::get('rounds/{id}', [FantasyRoundController::class, 'show'])
         ->whereNumber('id')
         ->name('fantasy.rounds.show');
+});
+
+// Operator Console — trading desk views (Live Wagers Monitor first).
+// See design_handoff_operator_console/README.md.
+Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('operator')->name('operator.')->group(function () {
+    Route::get('wagers', [LiveWagersController::class, 'index'])->name('wagers');
 });
 
 // Platform admin API routes
