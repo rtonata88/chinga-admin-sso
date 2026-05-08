@@ -9,6 +9,7 @@ import {
     KpiCard,
     formatCount,
     formatCurrencyCompact,
+    formatNAD,
 } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { Head } from '@inertiajs/react';
@@ -50,9 +51,26 @@ interface RecentUser {
     created_at: string;
 }
 
+interface TenantBreakdown {
+    tenant_id: number | null;
+    tenant_uuid: string | null;
+    tenant_name: string;
+    business_model: string;
+    revenue_share_pct: number;
+    bets_placed: number;
+    active_players: number;
+    total_wagered: number;
+    total_paid_out: number;
+    ggr: number;
+    ngr: number;
+    tenant_profit: number;
+    platform_profit: number;
+}
+
 interface AdminDashboardProps {
     stats: Stats;
     recent_users: RecentUser[];
+    tenants?: TenantBreakdown[];
 }
 
 function initialsFor(name: string): string {
@@ -88,7 +106,7 @@ function statusPill(status: string): { className: string; label: string } {
     return { className: 'cgo-pill void', label: status || '—' };
 }
 
-export default function AdminDashboard({ stats, recent_users }: AdminDashboardProps) {
+export default function AdminDashboard({ stats, recent_users, tenants = [] }: AdminDashboardProps) {
     const playersDelta =
         stats.users.today > 0
             ? { sign: 'pos' as const, text: `+${stats.users.today} today` }
@@ -151,6 +169,96 @@ export default function AdminDashboard({ stats, recent_users }: AdminDashboardPr
                         }
                         meta={securityLocked === 0 ? 'none held' : 'awaiting unlock'}
                     />
+                </div>
+
+                {/* Tenant breakdown (last 30 days) */}
+                <div
+                    className="cgo-table-bar"
+                    style={{
+                        borderRadius: '8px 8px 0 0',
+                        borderTop: '1px solid var(--cg-rule)',
+                        borderLeft: '1px solid var(--cg-rule)',
+                        borderRight: '1px solid var(--cg-rule)',
+                        marginTop: 0,
+                    }}
+                >
+                    <div className="cgo-table-bar-title">Tenants · last 30 days</div>
+                </div>
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', marginBottom: 32 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 200 }}>Tenant</th>
+                                <th className="cgo-r" style={{ width: 100 }}>Total bets</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Total wagered</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Wins</th>
+                                <th className="cgo-r" style={{ width: 140 }}>Tenant profit</th>
+                                <th className="cgo-r" style={{ width: 140 }}>Platform profit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tenants.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No tenant activity in the last 30 days.
+                                    </td>
+                                </tr>
+                            ) : (
+                                tenants.map((t) => (
+                                    <tr key={t.tenant_uuid ?? t.tenant_name}>
+                                        <td style={{ maxWidth: 240 }}>
+                                            <div
+                                                className="cgo-name cgo-cell-clip"
+                                                title={t.tenant_name}
+                                            >
+                                                {t.tenant_name}
+                                            </div>
+                                            <div className="cgo-uid">
+                                                {t.business_model.toUpperCase()}
+                                                {t.business_model === 'reseller' && t.revenue_share_pct > 0
+                                                    ? ` · ${t.revenue_share_pct.toFixed(0)}% share`
+                                                    : ''}
+                                            </div>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-odds">{formatCount(t.bets_placed)}</span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-stake">
+                                                <span className="cgo-ccy">NAD</span>
+                                                {formatNAD(t.total_wagered)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-stake">
+                                                <span className="cgo-ccy">NAD</span>
+                                                {formatNAD(t.total_paid_out)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span
+                                                className="cgo-payout"
+                                                style={{ color: t.tenant_profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                            >
+                                                {formatNAD(t.tenant_profit)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span
+                                                className="cgo-payout"
+                                                style={{ color: t.platform_profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                            >
+                                                {formatNAD(t.platform_profit)}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
 
                 {/* Recent registrations — same hairline-row idiom as /dashboard. */}

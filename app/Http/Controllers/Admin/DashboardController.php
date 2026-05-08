@@ -24,7 +24,6 @@ class DashboardController extends Controller
     {
         $today = today();
         $thisWeek = now()->startOfWeek();
-        $thisMonth = now()->startOfMonth();
 
         $stats = [
             'users' => [
@@ -53,8 +52,6 @@ class DashboardController extends Controller
             ->limit(5)
             ->get(['uuid', 'name', 'email', 'created_at', 'status']);
 
-        $fantasy = $this->fetchFantasyStats();
-
         return Inertia::render('admin/dashboard', [
             'stats' => $stats,
             'recent_users' => $recentUsers->map(fn ($u) => [
@@ -64,38 +61,102 @@ class DashboardController extends Controller
                 'status' => $u->status,
                 'created_at' => $u->created_at->toIso8601String(),
             ]),
-            'fantasy' => $fantasy,
+            'tenants' => $this->fetchTenantBreakdown(),
         ]);
     }
 
     /**
-     * Fetch Chinga Fantasy metrics for the current tenant. Returns null
-     * on failure so the dashboard still renders if chinga-fantasy is down.
+     * Per-tenant breakdown for the admin dashboard tenants table.
+     *
+     * Pulls the last-30-day cross-tenant aggregates from chinga-fantasy
+     * (statsByTenant), resolves each row's tenant_uuid back to a local
+     * Tenant model so we can show a real name and apply the commercial
+     * split:
+     *
+     *   GGR  = total_wagered - total_paid_out
+     *   tax  = GGR * tax_pct / 100               (jurisdictional)
+     *   NGR  = GGR - tax
+     *   reseller: tenant_profit = NGR * revenue_share_pct / 100
+     *             platform_profit = NGR - tenant_profit
+     *   direct:   tenant_profit = 0
+     *             platform_profit = NGR
+     *
+     * Tenant admins only see their own tenant's row; platform admins
+     * see every tenant. Returns [] on upstream failure.
      */
-    private function fetchFantasyStats(): ?array
+    private function fetchTenantBreakdown(): array
     {
-        $tenant = app('current_tenant');
-        // chinga-fantasy stores tenant slug in its tenant_uuid columns.
-        // TODO: backfill the data and pass $tenant?->uuid here instead.
-        $tenantId = $tenant?->slug;
-        $from = now()->subDays(30)->startOfDay()->toIso8601String();
-        $to = now()->toIso8601String();
+        $user = auth()->user();
+        if (!$user->isPlatformAdmin() && !$user->isTenantAdmin()) {
+            return [];
+        }
 
         try {
-            $summary = $this->fantasyAdminClient->statsSummary($tenantId, $from, $to);
-            $byDay = $this->fantasyAdminClient->statsByDay($tenantId, $from, $to);
-            $rounds = $this->fantasyAdminClient->listRounds($tenantId, 5, 0);
-
-            return [
-                'period' => ['from' => $from, 'to' => $to],
-                'summary' => $summary,
-                'by_day' => $byDay['days'] ?? [],
-                'recent_rounds' => $rounds['data'] ?? [],
-            ];
+            $from = now()->subDays(30)->startOfDay()->toIso8601String();
+            $to = now()->toIso8601String();
+            $resp = $this->fantasyAdminClient->statsByTenant($from, $to);
         } catch (\Throwable $e) {
-            Log::warning('Fantasy stats fetch failed', ['error' => $e->getMessage()]);
-            return null;
+            Log::warning('statsByTenant fetch failed', ['error' => $e->getMessage()]);
+            return [];
         }
+
+        $rows = $resp['tenants'] ?? [];
+        if (empty($rows)) {
+            return [];
+        }
+
+        // chinga-fantasy stores SSO tenant slug in its tenant_uuid columns
+        // (TODO: backfill to use UUID). Try slug first, fall back to uuid.
+        $keys = collect($rows)->pluck('tenant_uuid')->filter()->unique()->values()->all();
+        $tenantsBySlug = \App\Models\Tenant::whereIn('slug', $keys)->get()->keyBy('slug');
+        $tenantsByUuid = \App\Models\Tenant::whereIn('uuid', $keys)->get()->keyBy('uuid');
+
+        $isPlatformAdmin = $user->isPlatformAdmin();
+        $myTenantId = $user->tenant_id;
+
+        return collect($rows)
+            ->map(function ($r) use ($tenantsBySlug, $tenantsByUuid) {
+                $key = $r['tenant_uuid'] ?? null;
+                $tenant = $key ? ($tenantsBySlug->get($key) ?? $tenantsByUuid->get($key)) : null;
+
+                $wagered = (float) ($r['total_wagered'] ?? 0);
+                $paidOut = (float) ($r['total_paid_out'] ?? 0);
+                $ggr = $wagered - $paidOut;
+
+                $taxPct = $tenant ? (float) ($tenant->tax_pct ?? 0) : 0.0;
+                $tax = $ggr > 0 ? $ggr * ($taxPct / 100) : 0;
+                $ngr = $ggr - $tax;
+
+                $businessModel = $tenant->business_model ?? 'reseller';
+                $sharePct = $tenant ? (float) ($tenant->revenue_share_pct ?? 0) : 0.0;
+
+                if ($businessModel === 'direct') {
+                    $tenantProfit = 0.0;
+                    $platformProfit = $ngr;
+                } else {
+                    $tenantProfit = $ngr * ($sharePct / 100);
+                    $platformProfit = $ngr - $tenantProfit;
+                }
+
+                return [
+                    'tenant_id' => $tenant?->id,
+                    'tenant_uuid' => $tenant?->uuid ?? $key,
+                    'tenant_name' => $tenant?->name ?? $key ?? '—',
+                    'business_model' => $businessModel,
+                    'revenue_share_pct' => $sharePct,
+                    'bets_placed' => (int) ($r['bets_placed'] ?? 0),
+                    'active_players' => (int) ($r['active_players'] ?? 0),
+                    'total_wagered' => $wagered,
+                    'total_paid_out' => $paidOut,
+                    'ggr' => $ggr,
+                    'ngr' => $ngr,
+                    'tenant_profit' => $tenantProfit,
+                    'platform_profit' => $platformProfit,
+                ];
+            })
+            ->when(!$isPlatformAdmin, fn ($c) => $c->filter(fn ($r) => $r['tenant_id'] === $myTenantId))
+            ->values()
+            ->all();
     }
 
     /**
