@@ -94,17 +94,24 @@ class UserDashboardController extends Controller
                     ->take(-8)
                     ->all();
 
-                // chinga-fantasy AdminController.listRounds returns { data: [...] }
-                $rounds = $fantasy->listRounds($tenantUuid, 6, 0);
+                // chinga-fantasy AdminController.listRounds returns { data: [...] }.
+                // Most rounds have no bets (the timer creates a round per
+                // tenant per cycle whether anyone played or not), so request
+                // a wide window and filter to ones with activity before
+                // trimming back to the dashboard's 6-row preview.
+                $rounds = $fantasy->listRounds($tenantUuid, 60, 0);
                 $recentRounds = collect($rounds['data'] ?? $rounds['rounds'] ?? $rounds['rows'] ?? [])
                     ->map(fn ($r) => [
                         'id' => $r['id'] ?? null,
                         'round_number' => $r['round_number'] ?? null,
                         'tenant_uuid' => $r['tenant_uuid'] ?? null,
                         'created_at' => $r['created_at'] ?? $r['start_time'] ?? null,
-                        'bet_count' => isset($r['bet_count']) ? (int) $r['bet_count'] : null,
+                        'bet_count' => isset($r['bet_count']) ? (int) $r['bet_count'] : 0,
                         'total_wagered' => isset($r['total_wagered']) ? (float) $r['total_wagered'] : null,
                     ])
+                    ->filter(fn ($r) => $r['bet_count'] > 0)
+                    ->take(6)
+                    ->values()
                     ->all();
             } catch (Throwable $e) {
                 logger()->warning('UserDashboardController fantasy stats fetch failed', [
