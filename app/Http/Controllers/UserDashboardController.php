@@ -107,8 +107,13 @@ class UserDashboardController extends Controller
                     ? collect()
                     : \App\Models\User::whereIn('uuid', $userUuids)->get()->keyBy('uuid');
 
+                $tenantUuids = collect($rawBets)->pluck('tenant_uuid')->filter()->unique()->values()->all();
+                $tenantsByUuid = empty($tenantUuids)
+                    ? collect()
+                    : \App\Models\Tenant::whereIn('uuid', $tenantUuids)->get()->keyBy('uuid');
+
                 $recentBets = collect($rawBets)
-                    ->map(function ($b) use ($usersByUuid) {
+                    ->map(function ($b) use ($usersByUuid, $tenantsByUuid) {
                         $uuid = $b['user_uuid'] ?? null;
                         $u = $uuid ? ($usersByUuid->get($uuid)) : null;
                         $name = $u?->display_name ?? $u?->name ?? ($uuid ? 'Player ' . substr($uuid, 0, 6) : '—');
@@ -120,6 +125,9 @@ class UserDashboardController extends Controller
                                 ->implode('')
                         ) ?: '??';
 
+                        $tUuid = $b['tenant_uuid'] ?? null;
+                        $tenant = $tUuid ? ($tenantsByUuid->get($tUuid)) : null;
+
                         return [
                             'id' => $b['id'] ?? null,
                             'placed_at' => $b['placed_at'] ?? null,
@@ -128,6 +136,8 @@ class UserDashboardController extends Controller
                                 'uuid_short' => $uuid ? strtoupper(substr($uuid, 0, 6)) : null,
                                 'initials' => $initials,
                             ],
+                            'tenant_uuid' => $tUuid,
+                            'tenant_name' => $tenant?->name ?? null,
                             'round_number' => $b['round_number'] ?? null,
                             'team_names' => $b['team_names'] ?? [],
                             'bet_amount' => isset($b['bet_amount']) ? (float) $b['bet_amount'] : 0,

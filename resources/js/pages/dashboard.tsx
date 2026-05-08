@@ -71,6 +71,8 @@ interface RecentBet {
     id: number | null;
     placed_at: string | null;
     player: { name: string; uuid_short: string | null; initials: string };
+    tenant_uuid: string | null;
+    tenant_name: string | null;
     round_number: number | null;
     team_names: string[];
     bet_amount: number;
@@ -261,6 +263,7 @@ export default function Dashboard(props: DashboardProps) {
                         <thead>
                             <tr>
                                 <th>Player</th>
+                                <th>Tenant</th>
                                 <th className="cgo-r">Round</th>
                                 <th>Picks</th>
                                 <th className="cgo-r">Wager</th>
@@ -272,7 +275,7 @@ export default function Dashboard(props: DashboardProps) {
                         <tbody>
                             {recentBets.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
                                         No bets placed yet.
                                     </td>
                                 </tr>
@@ -291,6 +294,15 @@ export default function Dashboard(props: DashboardProps) {
                                                         ) : null}
                                                     </div>
                                                 </div>
+                                            </td>
+                                            <td>
+                                                {b.tenant_name || b.tenant_uuid ? (
+                                                    <span style={{ color: 'var(--cg-fg-2)', fontSize: 12 }}>
+                                                        {b.tenant_name ?? b.tenant_uuid}
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ color: 'var(--cg-fg-4)' }}>—</span>
+                                                )}
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-odds">#{b.round_number ?? '—'}</span>
