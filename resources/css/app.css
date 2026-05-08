@@ -935,3 +935,144 @@ body .dark .p-datatable .p-datatable-loading-overlay {
 .acu-sidebar-link.active i {
     color: var(--acu-primary);
 }
+
+/* ================================================================
+ * Operator Console — system-wide retheme
+ *
+ * Maps shadcn (--background / --foreground / etc.) and Acumatica
+ * (--acu-*) tokens onto the brass-on-ink palette defined in
+ * colors_and_type.css. The existing token structure stays — we just
+ * point at new values, so every component that reads from these
+ * variables (shadcn buttons, inputs, popovers; Acumatica fieldsets,
+ * status pills, sidebar) re-themes automatically.
+ *
+ * Cleanups still pending (per-screen sweep): hardcoded Tailwind
+ * colors like bg-white / text-gray-900 / border-gray-200 in page
+ * components don't read from the tokens and need a manual swap.
+ * Same for some PrimeReact internals (recharts, calendars).
+ * ================================================================ */
+
+/* Body font now Manrope; display Archivo; mono JetBrains Mono. */
+@theme {
+    --font-sans:
+        'Manrope', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+}
+
+:root {
+    /* shadcn surfaces → ink */
+    --background: var(--cg-ink);
+    --foreground: var(--cg-fg-1);
+    --card: var(--cg-ink-card);
+    --card-foreground: var(--cg-fg-1);
+    --popover: var(--cg-ink-elevated);
+    --popover-foreground: var(--cg-fg-1);
+
+    /* primary / secondary → brass + ink-elevated */
+    --primary: var(--cg-brass);
+    --primary-foreground: var(--cg-ink);
+    --secondary: var(--cg-ink-elevated);
+    --secondary-foreground: var(--cg-fg-2);
+
+    /* muted / accent → quiet variants */
+    --muted: var(--cg-ink-elevated);
+    --muted-foreground: var(--cg-fg-3);
+    --accent: var(--cg-brass-wash-2);
+    --accent-foreground: var(--cg-brass-hi);
+
+    /* destructive → semantic neg */
+    --destructive: var(--cg-neg);
+    --destructive-foreground: var(--cg-fg-1);
+
+    /* hairlines + focus ring */
+    --border: var(--cg-rule-strong);
+    --input: var(--cg-rule-strong);
+    --ring: var(--cg-brass);
+
+    /* Sidebar variables match the brass rail */
+    --sidebar: var(--cg-ink-rail);
+    --sidebar-foreground: var(--cg-fg-2);
+    --sidebar-primary: var(--cg-brass);
+    --sidebar-primary-foreground: var(--cg-ink);
+    --sidebar-accent: var(--cg-brass-wash-2);
+    --sidebar-accent-foreground: var(--cg-brass-hi);
+    --sidebar-border: var(--cg-rule);
+    --sidebar-ring: var(--cg-brass);
+
+    /* Acumatica tokens → brass */
+    --acu-primary: var(--cg-brass);
+    --acu-primary-hover: var(--cg-brass-hi);
+    --acu-primary-glow: var(--cg-brass-wash-2);
+
+    --acu-success: var(--cg-pos);
+    --acu-warning: var(--cg-warn);
+    --acu-danger: var(--cg-neg);
+    --acu-info: var(--cg-info);
+
+    --acu-sidebar: var(--cg-ink-rail);
+    --acu-sidebar-hover: rgba(242, 237, 227, 0.04);
+    --acu-surface: var(--cg-ink);
+    --acu-surface-card: var(--cg-ink-card);
+    --acu-surface-elevated: var(--cg-ink-elevated);
+    --acu-surface-hover: rgba(242, 237, 227, 0.025);
+    --acu-border: var(--cg-rule);
+    --acu-border-strong: var(--cg-rule-strong);
+    --acu-text: var(--cg-fg-1);
+    --acu-text-muted: var(--cg-fg-3);
+    --acu-text-light: var(--cg-fg-4);
+
+    /* Acumatica display + body fonts → match brass system */
+    --font-display: var(--cg-display);
+    --font-body: var(--cg-body);
+}
+
+/* The .dark scope is no-op now — both modes resolve to the same
+ * brass-on-ink values — but keep an explicit override so any
+ * `.dark` selector elsewhere still inherits the new palette. */
+.dark {
+    --background: var(--cg-ink);
+    --foreground: var(--cg-fg-1);
+    --card: var(--cg-ink-card);
+    --card-foreground: var(--cg-fg-1);
+    --popover: var(--cg-ink-elevated);
+    --popover-foreground: var(--cg-fg-1);
+    --primary: var(--cg-brass);
+    --primary-foreground: var(--cg-ink);
+    --secondary: var(--cg-ink-elevated);
+    --secondary-foreground: var(--cg-fg-2);
+    --muted: var(--cg-ink-elevated);
+    --muted-foreground: var(--cg-fg-3);
+    --accent: var(--cg-brass-wash-2);
+    --accent-foreground: var(--cg-brass-hi);
+    --destructive: var(--cg-neg);
+    --destructive-foreground: var(--cg-fg-1);
+    --border: var(--cg-rule-strong);
+    --input: var(--cg-rule-strong);
+    --ring: var(--cg-brass);
+    --sidebar: var(--cg-ink-rail);
+    --sidebar-foreground: var(--cg-fg-2);
+    --sidebar-primary: var(--cg-brass);
+    --sidebar-primary-foreground: var(--cg-ink);
+    --sidebar-accent: var(--cg-brass-wash-2);
+    --sidebar-accent-foreground: var(--cg-brass-hi);
+    --sidebar-border: var(--cg-rule);
+    --sidebar-ring: var(--cg-brass);
+
+    --acu-sidebar: var(--cg-ink-rail);
+    --acu-sidebar-hover: rgba(242, 237, 227, 0.04);
+    --acu-surface: var(--cg-ink);
+    --acu-surface-card: var(--cg-ink-card);
+    --acu-surface-elevated: var(--cg-ink-elevated);
+    --acu-surface-hover: rgba(242, 237, 227, 0.025);
+    --acu-border: var(--cg-rule);
+    --acu-border-strong: var(--cg-rule-strong);
+    --acu-text: var(--cg-fg-1);
+    --acu-text-muted: var(--cg-fg-3);
+    --acu-text-light: var(--cg-fg-4);
+}
+
+/* The body keeps reading from --background / --foreground via
+ * Tailwind's @apply bg-background text-foreground in the @layer base
+ * block above — no extra rule needed. */
+

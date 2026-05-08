@@ -1,13 +1,14 @@
 // resources/js/layouts/operator/operator-console-layout.tsx
 //
-// Layout shell for the Chinga Games Operator Console.
-// Built per design_handoff_operator_console/README.md — a 248px brass-on-ink
-// sidebar plus a 64px topbar, wrapping every operator-console screen.
+// Layout shell originally built for the Operator Console Live Wagers
+// Monitor (per design_handoff_operator_console/README.md) and now
+// promoted to the system-wide admin shell. A 248px brass-on-ink rail +
+// a 64px topbar wraps every admin / platform / operator screen.
 //
-// All visual styling lives in resources/css/operator-console.css and the
-// design tokens in resources/css/colors_and_type.css. This component is
-// pure structure: brand mark, nav groups, footer, topbar (breadcrumb +
-// search + icon buttons), and a slot for the page body.
+// Visual styling lives in resources/css/operator-console.css. Design
+// tokens in resources/css/colors_and_type.css. The component is pure
+// structure: brand mark, configurable nav groups, footer, topbar
+// (breadcrumb + search + icon buttons), and a slot for page content.
 
 import { Link, usePage } from '@inertiajs/react';
 import {
@@ -24,7 +25,21 @@ import {
     Coins,
     CheckCircle2,
 } from 'lucide-react';
-import { type ReactNode } from 'react';
+import { type ComponentType, type ReactNode, type SVGProps } from 'react';
+
+export type LucideIcon = ComponentType<SVGProps<SVGSVGElement>>;
+
+export interface NavLink {
+    label: string;
+    href: string;
+    icon: LucideIcon;
+    badge?: number;
+}
+
+export interface NavGroup {
+    label: string;
+    items: NavLink[];
+}
 
 interface BreadcrumbCrumb {
     label: string;
@@ -34,21 +49,20 @@ interface BreadcrumbCrumb {
 interface OperatorConsoleLayoutProps {
     children: ReactNode;
     breadcrumbs?: BreadcrumbCrumb[];
+    /**
+     * Override the sidebar nav. Falls back to the Operator Console
+     * trading-desk groups so /operator/* screens keep their old
+     * behavior with no consumer changes.
+     */
+    navGroups?: NavGroup[];
+    /**
+     * Override the brand subtitle (e.g. "Operator Console" vs
+     * "Admin Console"). Defaults to "Operator Console".
+     */
+    brandSubtitle?: string;
 }
 
-interface NavLink {
-    label: string;
-    href: string;
-    icon: typeof Gauge;
-    badge?: number;
-}
-
-interface NavGroup {
-    label: string;
-    items: NavLink[];
-}
-
-const navGroups: NavGroup[] = [
+export const operatorConsoleNav: NavGroup[] = [
     {
         label: 'Trading',
         items: [
@@ -77,15 +91,19 @@ const navGroups: NavGroup[] = [
 ];
 
 function isActive(currentPath: string, href: string): boolean {
-    // Exact match for the dashboard root, prefix match otherwise so
-    // /operator/wagers?status=flagged still highlights "Live wagers".
-    if (href === '/operator') return currentPath === '/operator';
+    // Exact match for top-level roots (e.g. '/operator', '/dashboard')
+    // and prefix match otherwise so '/operator/wagers?status=flagged'
+    // still highlights "Live wagers".
+    const segments = href.split('/').filter(Boolean);
+    if (segments.length <= 1) return currentPath === href;
     return currentPath === href || currentPath.startsWith(href + '/');
 }
 
 export default function OperatorConsoleLayout({
     children,
     breadcrumbs = [],
+    navGroups = operatorConsoleNav,
+    brandSubtitle = 'Operator Console',
 }: OperatorConsoleLayoutProps) {
     const { url, props } = usePage<{ auth?: { user?: { name?: string; role?: string; initials?: string } } }>();
     const currentPath = url.split('?')[0];
@@ -101,7 +119,7 @@ export default function OperatorConsoleLayout({
                     <div className="cgo-brand-mark">C</div>
                     <div>
                         <div className="cgo-brand-name">Chinga Games</div>
-                        <div className="cgo-brand-sub">Operator Console</div>
+                        <div className="cgo-brand-sub">{brandSubtitle}</div>
                     </div>
                 </div>
 

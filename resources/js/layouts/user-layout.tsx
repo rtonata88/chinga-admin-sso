@@ -1,51 +1,21 @@
-import AppLayout from '@/components/acumatica/Layout/AppLayout';
-import type { SidebarNavGroup } from '@/components/acumatica/Layout/Sidebar';
+// resources/js/layouts/user-layout.tsx
+//
+// Re-routed to the brass-on-ink Operator Console shell so the whole
+// admin/platform/fantasy surface gets the new design language. Nav
+// groups are computed from the auth role so tenant admins see the
+// Administration group, platform admins additionally see Platform /
+// Fantasy / Operator.
+//
+// The previous Acumatica AppLayout still exists at
+// components/acumatica/Layout/AppLayout.tsx but is no longer referenced
+// from anywhere — leaving it in place for now in case any one-off
+// page imports it directly.
+
 import { FantasyHealthBanner } from '@/components/fantasy/FantasyHealthBanner';
+import OperatorConsoleLayout from '@/layouts/operator/operator-console-layout';
+import { buildSystemNav } from '@/layouts/operator/system-nav';
 import { usePage } from '@inertiajs/react';
 import { type PropsWithChildren, useMemo } from 'react';
-
-const accountGroup: SidebarNavGroup = {
-    title: 'Account',
-    items: [
-        { label: 'Dashboard', icon: 'pi pi-home', href: '/dashboard' },
-    ],
-};
-
-
-const adminGroup: SidebarNavGroup = {
-    title: 'Administration',
-    items: [
-        { label: 'Admin Dashboard', icon: 'pi pi-th-large', href: '/admin' },
-        { label: 'Users', icon: 'pi pi-users', href: '/admin/users' },
-        { label: 'Wallets', icon: 'pi pi-credit-card', href: '/admin/wallets' },
-        { label: 'Wallet Transactions', icon: 'pi pi-arrow-right-arrow-left', href: '/admin/wallet-transactions' },
-        { label: 'Withdrawals', icon: 'pi pi-money-bill', href: '/admin/withdrawals' },
-        { label: 'Voucher Codes', icon: 'pi pi-ticket', href: '/admin/voucher-codes' },
-        { label: 'Revenue', icon: 'pi pi-dollar', href: '/admin/revenue' },
-        { label: 'Reports', icon: 'pi pi-chart-bar', href: '/admin/reports' },
-        { label: 'Audit Logs', icon: 'pi pi-list', href: '/admin/audit-logs' },
-    ],
-};
-
-const platformGroup: SidebarNavGroup = {
-    title: 'Platform',
-    items: [
-        { label: 'Platform', icon: 'pi pi-globe', href: '/platform' },
-        { label: 'Users', icon: 'pi pi-users', href: '/platform/users' },
-        { label: 'Tenants', icon: 'pi pi-building', href: '/platform/tenants' },
-        { label: 'Games', icon: 'pi pi-play', href: '/platform/games' },
-        { label: 'Revenue', icon: 'pi pi-dollar', href: '/platform/revenue' },
-    ],
-};
-
-const fantasyGroup: SidebarNavGroup = {
-    title: 'Chinga Fantasy',
-    items: [
-        { label: 'Teams', icon: 'pi pi-th-large', href: '/fantasy/teams' },
-        { label: 'Rounds', icon: 'pi pi-chart-bar', href: '/fantasy/rounds' },
-        { label: 'Settings', icon: 'pi pi-cog', href: '/fantasy/settings' },
-    ],
-};
 
 interface AuthProps {
     user: unknown;
@@ -58,31 +28,20 @@ interface Props {
     title?: string;
 }
 
-export default function UserLayout({ children, title }: PropsWithChildren<Props>) {
+export default function UserLayout({ children, title: _title }: PropsWithChildren<Props>) {
     const { auth } = usePage<{ auth: AuthProps }>().props;
-    const isPlatformAdmin = auth?.is_platform_admin || false;
-    const isTenantAdmin = auth?.is_tenant_admin || false;
-    const isAdmin = isPlatformAdmin || isTenantAdmin;
+    const isPlatformAdmin = !!auth?.is_platform_admin;
+    const isTenantAdmin = !!auth?.is_tenant_admin;
 
-    const navigation = useMemo(() => {
-        const groups: SidebarNavGroup[] = [accountGroup];
-
-        if (isAdmin) {
-            groups.push(adminGroup);
-        }
-
-        if (isPlatformAdmin) {
-            groups.push(platformGroup);
-            groups.push(fantasyGroup);
-        }
-
-        return groups;
-    }, [isAdmin, isPlatformAdmin]);
+    const navGroups = useMemo(
+        () => buildSystemNav({ isTenantAdmin, isPlatformAdmin }),
+        [isTenantAdmin, isPlatformAdmin],
+    );
 
     return (
-        <AppLayout title={title} navigation={navigation}>
-            {isAdmin && <FantasyHealthBanner />}
+        <OperatorConsoleLayout navGroups={navGroups} brandSubtitle="Admin Console">
+            {(isTenantAdmin || isPlatformAdmin) && <FantasyHealthBanner />}
             {children}
-        </AppLayout>
+        </OperatorConsoleLayout>
     );
 }
