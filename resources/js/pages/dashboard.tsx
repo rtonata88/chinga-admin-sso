@@ -209,11 +209,6 @@ export default function Dashboard(props: DashboardProps) {
                             {props.last_updated ?? '—'}.
                         </div>
                     </div>
-                    <div className="cgo-head-actions">
-                        <Link href="/operator/wagers" className="cg-btn cg-btn--primary cg-btn--sm">
-                            Open wagers monitor
-                        </Link>
-                    </div>
                 </div>
 
                 {/* KPI strip — five cards: players, bets, wagered, wins, GGR. */}
