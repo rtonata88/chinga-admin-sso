@@ -30,6 +30,30 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  /* The rail itself does NOT scroll — its background must paint
+   * the entire viewport. The middle .cgo-rail-scroll region scrolls
+   * internally instead, so brand at top + footer at bottom stay
+   * pinned and the nav doesn't spill out under the page content. */
+  overflow: hidden;
+}
+
+/* Middle nav region — takes the remaining height after brand + footer
+ * and scrolls when nav groups overflow. min-height: 0 is the standard
+ * fix to allow a flex child to shrink below its content height. */
+.cgo-rail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.cgo-rail-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.cgo-rail-scroll::-webkit-scrollbar-thumb {
+  background: var(--cg-rule-strong);
+  border-radius: 3px;
+}
+.cgo-rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 .cgo-brand {
   display: flex;

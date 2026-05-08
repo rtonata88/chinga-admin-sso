@@ -123,28 +123,30 @@ export default function OperatorConsoleLayout({
                     </div>
                 </div>
 
-                {navGroups.map((group) => (
-                    <div className="cgo-nav-group" key={group.label}>
-                        <div className="cgo-nav-label">{group.label}</div>
-                        {group.items.map((item) => {
-                            const Icon = item.icon;
-                            const active = isActive(currentPath, item.href);
-                            return (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    className={`cgo-nav-item${active ? ' active' : ''}`}
-                                >
-                                    <Icon className="cgo-ico" strokeWidth={1.5} />
-                                    {item.label}
-                                    {item.badge ? (
-                                        <span className="cgo-badge">{item.badge}</span>
-                                    ) : null}
-                                </Link>
-                            );
-                        })}
-                    </div>
-                ))}
+                <div className="cgo-rail-scroll">
+                    {navGroups.map((group) => (
+                        <div className="cgo-nav-group" key={group.label}>
+                            <div className="cgo-nav-label">{group.label}</div>
+                            {group.items.map((item) => {
+                                const Icon = item.icon;
+                                const active = isActive(currentPath, item.href);
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={`cgo-nav-item${active ? ' active' : ''}`}
+                                    >
+                                        <Icon className="cgo-ico" strokeWidth={1.5} />
+                                        {item.label}
+                                        {item.badge ? (
+                                            <span className="cgo-badge">{item.badge}</span>
+                                        ) : null}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
 
                 <div className="cgo-rail-foot">
                     <div className="cgo-avatar">{meInitials}</div>
