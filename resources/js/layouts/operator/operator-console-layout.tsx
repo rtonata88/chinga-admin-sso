@@ -25,7 +25,13 @@ import {
     Coins,
     CheckCircle2,
 } from 'lucide-react';
-import { type ComponentType, type ReactNode, type SVGProps } from 'react';
+import { useEffect, useRef, type ComponentType, type ReactNode, type SVGProps } from 'react';
+
+// Inertia re-mounts the layout on every navigation, which resets the
+// rail's internal scrollTop. Stash the last position in sessionStorage
+// and restore it on mount so clicking a menu item halfway down the
+// rail doesn't jump the user back to the top.
+const RAIL_SCROLL_STORAGE_KEY = 'cgo-rail-scroll';
 
 export type LucideIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -112,6 +118,32 @@ export default function OperatorConsoleLayout({
     const meRole = me?.role ?? 'Trading · L1';
     const meInitials = me?.initials ?? meName.slice(0, 2).toUpperCase();
 
+    // Restore the rail's internal scroll position across Inertia navigations.
+    const railScrollRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const el = railScrollRef.current;
+        if (!el || typeof window === 'undefined') return;
+
+        const saved = window.sessionStorage.getItem(RAIL_SCROLL_STORAGE_KEY);
+        if (saved !== null) {
+            const top = parseInt(saved, 10);
+            if (Number.isFinite(top) && top > 0) {
+                // Defer one frame so the browser has laid out the rail
+                // before we set scrollTop — otherwise on cold mounts
+                // the scroll target may not exist yet.
+                requestAnimationFrame(() => {
+                    el.scrollTop = top;
+                });
+            }
+        }
+
+        const handleScroll = () => {
+            window.sessionStorage.setItem(RAIL_SCROLL_STORAGE_KEY, String(el.scrollTop));
+        };
+        el.addEventListener('scroll', handleScroll, { passive: true });
+        return () => el.removeEventListener('scroll', handleScroll);
+    }, []);
+
     return (
         <div className="cgo-app">
             <aside className="cgo-rail">
@@ -123,7 +155,7 @@ export default function OperatorConsoleLayout({
                     </div>
                 </div>
 
-                <div className="cgo-rail-scroll">
+                <div className="cgo-rail-scroll" ref={railScrollRef}>
                     {navGroups.map((group) => (
                         <div className="cgo-nav-group" key={group.label}>
                             <div className="cgo-nav-label">{group.label}</div>
