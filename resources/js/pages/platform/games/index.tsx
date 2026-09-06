@@ -76,6 +76,8 @@ export default function GamesIndex() {
         status: 'development',
         version: '',
         thumbnail_url: '',
+        backend_url: '',
+        launch_url: '',
     });
 
     const getCsrfToken = () =>
@@ -130,7 +132,12 @@ export default function GamesIndex() {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    thumbnail_url: formData.thumbnail_url || null,
+                    backend_url: formData.backend_url || null,
+                    launch_url: formData.launch_url || null,
+                }),
             });
             const data = await response.json();
             if (data.data) {
@@ -138,6 +145,7 @@ export default function GamesIndex() {
                 setFormData({
                     name: '', slug: '', description: '', type: 'slots',
                     status: 'development', version: '', thumbnail_url: '',
+                    backend_url: '', launch_url: '',
                 });
                 fetchGames();
                 toast.current?.show({ severity: 'success', summary: 'Created', detail: 'Game added to catalog.' });
@@ -422,6 +430,28 @@ export default function GamesIndex() {
                             placeholder="https://…"
                             className="w-full"
                         />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="game-backend-url" style={{ fontSize: 12, fontWeight: 500 }}>Backend URL</label>
+                            <InputText
+                                id="game-backend-url"
+                                value={formData.backend_url}
+                                onChange={(e) => setFormData({ ...formData, backend_url: e.target.value })}
+                                placeholder="https://engine.example.com"
+                                className="w-full"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="game-launch-url" style={{ fontSize: 12, fontWeight: 500 }}>Launch URL</label>
+                            <InputText
+                                id="game-launch-url"
+                                value={formData.launch_url}
+                                onChange={(e) => setFormData({ ...formData, launch_url: e.target.value })}
+                                placeholder="https://play.example.com"
+                                className="w-full"
+                            />
+                        </div>
                     </div>
                 </div>
             </Dialog>

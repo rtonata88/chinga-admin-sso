@@ -35,6 +35,9 @@ return [
         ],
     ],
 
+    // DEPRECATED: the fantasy backend URL now lives in games.backend_url
+    // (see the 2026_09_06 platform-columns migration, which backfills it from
+    // this value). Kept only as a fallback for rows that predate the column.
     'chinga_fantasy' => [
         'api_url' => env('CHINGA_FANTASY_API_URL', 'http://localhost:3001'),
     ],

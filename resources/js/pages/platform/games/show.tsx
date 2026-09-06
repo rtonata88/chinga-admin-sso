@@ -32,6 +32,8 @@ interface Game {
     status: string;
     version: string;
     thumbnail_url: string;
+    backend_url: string | null;
+    launch_url: string | null;
     settings: Record<string, unknown>;
     tenants_count: number;
     tenants: GameTenant[];
@@ -128,6 +130,8 @@ export default function GameShow() {
         status: 'development',
         version: '',
         thumbnail_url: '',
+        backend_url: '',
+        launch_url: '',
     });
     const toast = useRef<Toast>(null);
 
@@ -166,6 +170,8 @@ export default function GameShow() {
             status: game.status,
             version: game.version || '',
             thumbnail_url: game.thumbnail_url || '',
+            backend_url: game.backend_url || '',
+            launch_url: game.launch_url || '',
         });
         setEditOpen(true);
     };
@@ -180,7 +186,12 @@ export default function GameShow() {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
                 },
-                body: JSON.stringify(editForm),
+                body: JSON.stringify({
+                    ...editForm,
+                    thumbnail_url: editForm.thumbnail_url || null,
+                    backend_url: editForm.backend_url || null,
+                    launch_url: editForm.launch_url || null,
+                }),
             });
             const data = await response.json();
             if (data.data) {
@@ -213,6 +224,20 @@ export default function GameShow() {
         { label: 'Type', value: <span style={{ textTransform: 'capitalize' }}>{game.type}</span>, span: 6 },
         { label: 'Version', value: game.version || '—', mono: true, span: 6 },
         { label: 'Created', value: DATE_FMT.format(new Date(game.created_at)), mono: true, span: 6 },
+        { label: 'Backend URL', value: game.backend_url || '—', mono: true, span: 6 },
+        {
+            label: 'Launch URL',
+            value: game.launch_url ? (
+                <a href={game.launch_url} target="_blank" rel="noreferrer" style={{ color: 'var(--cg-brass)' }}>
+                    {game.launch_url}
+                    <i className="pi pi-external-link" style={{ fontSize: 10, marginLeft: 6 }} />
+                </a>
+            ) : (
+                '—'
+            ),
+            mono: true,
+            span: 6,
+        },
         {
             label: 'Description',
             value: game.description || '—',
@@ -251,6 +276,18 @@ export default function GameShow() {
                         >
                             Refresh
                         </button>
+                        {game.launch_url && (
+                            <a
+                                href={game.launch_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="cg-btn cg-btn--ghost cg-btn--sm"
+                                title={game.launch_url}
+                            >
+                                Open game
+                                <i className="pi pi-external-link" style={{ fontSize: 10, marginLeft: 6 }} />
+                            </a>
+                        )}
                         <button
                             type="button"
                             className="cg-btn cg-btn--primary cg-btn--sm"
@@ -487,6 +524,34 @@ export default function GameShow() {
                             placeholder="https://…"
                             className="w-full"
                         />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="edit-backend-url" style={{ fontSize: 12, fontWeight: 500 }}>Backend URL</label>
+                            <InputText
+                                id="edit-backend-url"
+                                value={editForm.backend_url}
+                                onChange={(e) => setEditForm({ ...editForm, backend_url: e.target.value })}
+                                placeholder="https://engine.example.com"
+                                className="w-full"
+                            />
+                            <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>
+                                Admin API base. Health, stats and rounds are read from here.
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="edit-launch-url" style={{ fontSize: 12, fontWeight: 500 }}>Launch URL</label>
+                            <InputText
+                                id="edit-launch-url"
+                                value={editForm.launch_url}
+                                onChange={(e) => setEditForm({ ...editForm, launch_url: e.target.value })}
+                                placeholder="https://play.example.com"
+                                className="w-full"
+                            />
+                            <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>
+                                Player-facing entry point, used by "Open game".
+                            </span>
+                        </div>
                     </div>
                 </div>
             </Dialog>

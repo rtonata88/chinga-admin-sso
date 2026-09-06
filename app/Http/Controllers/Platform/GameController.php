@@ -46,7 +46,10 @@ class GameController extends Controller
             'status' => [Rule::in(['active', 'inactive', 'development'])],
             'version' => ['nullable', 'string', 'max:50'],
             'thumbnail_url' => ['nullable', 'url', 'max:500'],
+            'backend_url' => ['nullable', 'url', 'max:500'],
+            'launch_url' => ['nullable', 'url', 'max:500'],
             'settings' => ['nullable', 'array'],
+            'settings_schema' => ['nullable', 'array'],
         ]);
 
         $game = Game::create($validated);
@@ -71,7 +74,10 @@ class GameController extends Controller
             'status' => [Rule::in(['active', 'inactive', 'development'])],
             'version' => ['nullable', 'string', 'max:50'],
             'thumbnail_url' => ['nullable', 'url', 'max:500'],
+            'backend_url' => ['nullable', 'url', 'max:500'],
+            'launch_url' => ['nullable', 'url', 'max:500'],
             'settings' => ['nullable', 'array'],
+            'settings_schema' => ['nullable', 'array'],
         ]);
 
         $game->update($validated);

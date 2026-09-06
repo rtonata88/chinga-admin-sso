@@ -2,18 +2,67 @@
 
 namespace App\Services;
 
+use App\Models\Game;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Thin client for chinga-fantasy's /api/admin/* endpoints. Uses a cached
  * client_credentials token from our own Passport so the target service can
  * verify the JWT via JWKS without a shared secret.
+ *
+ * The backend base URL comes from games.backend_url (P1). The legacy
+ * CHINGA_FANTASY_API_URL config key is a deprecated fallback for rows that
+ * predate the column; it logs a warning so it can be retired.
  */
 class FantasyAdminClient
 {
     private const TOKEN_CACHE_KEY = 'sso_internal_access_token';
     private const TOKEN_SCOPE = 'gaming:read';
+    private const GAME_SLUG = 'chinga-fantasy';
+
+    private ?Game $game;
+    private bool $gameResolved = false;
+    private ?string $baseUrl = null;
+
+    /**
+     * No database access here: this class is constructor-injected into
+     * controllers that serve pages with no game rows (and tests that hit
+     * them), so resolution is deferred to the first request.
+     */
+    public function __construct(?Game $game = null)
+    {
+        $this->game = $game;
+        $this->gameResolved = $game !== null;
+    }
+
+    protected function game(): ?Game
+    {
+        if (!$this->gameResolved) {
+            $this->game = Game::query()->where('slug', self::GAME_SLUG)->first();
+            $this->gameResolved = true;
+        }
+
+        return $this->game;
+    }
+
+    /** Base URL without a trailing slash, resolved once per instance. */
+    protected function baseUrl(): string
+    {
+        if ($this->baseUrl !== null) {
+            return $this->baseUrl;
+        }
+
+        $url = $this->game()?->backend_url;
+
+        if (!is_string($url) || $url === '') {
+            $url = (string) config('services.chinga_fantasy.api_url');
+            Log::warning('FantasyAdminClient: games.backend_url is empty for chinga-fantasy; falling back to services.chinga_fantasy.api_url (deprecated).');
+        }
+
+        return $this->baseUrl = rtrim($url, '/');
+    }
 
     /**
      * Probe the fantasy backend's /api/health endpoint. Does NOT require auth.
@@ -23,7 +72,7 @@ class FantasyAdminClient
     public function health(): array
     {
         return Cache::remember('fantasy_health_probe', 15, function () {
-            $baseUrl = rtrim((string) config('services.chinga_fantasy.api_url'), '/');
+            $baseUrl = $this->baseUrl();
             try {
                 $response = Http::acceptJson()->timeout(3)->get($baseUrl.'/api/health');
                 if (!$response->successful()) {
@@ -122,7 +171,7 @@ class FantasyAdminClient
 
     private function get(string $path, array $query = []): array
     {
-        $baseUrl = rtrim((string) config('services.chinga_fantasy.api_url'), '/');
+        $baseUrl = $this->baseUrl();
 
         $response = Http::withToken($this->getAccessToken())
             ->acceptJson()
