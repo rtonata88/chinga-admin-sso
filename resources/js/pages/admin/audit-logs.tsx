@@ -1,19 +1,17 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
+// resources/js/pages/admin/audit-logs.tsx
+//
+// Security audit trail, brass-on-ink to match /tenant-overview.
+// Page head → quick-category chips + search → table → pager.
+// Detail row (old/new values) is collapsed by default and toggled
+// per-row to keep the index dense.
+
 import UserLayout from '@/layouts/user-layout';
 import { Head } from '@inertiajs/react';
-import { Button } from 'primereact/button';
-import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
-import { InputText } from 'primereact/inputtext';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 interface AuditLog {
     id: number;
-    user: {
-        uuid: string;
-        name: string;
-        email: string;
-    } | null;
+    user: { uuid: string; name: string; email: string } | null;
     action: string;
     description: string;
     ip_address: string;
@@ -29,27 +27,66 @@ interface Meta {
     total: number;
 }
 
+const QUICK_FILTERS = [
+    { label: 'All', value: '' },
+    { label: 'Auth', value: 'auth' },
+    { label: 'Login', value: 'login' },
+    { label: 'KYC', value: 'kyc' },
+    { label: 'Admin', value: 'admin' },
+    { label: 'Wallet', value: 'wallet' },
+    { label: 'Security', value: 'security' },
+];
+
+const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
+});
+
+function formatDateTime(iso: string): string {
+    return DATETIME_FMT.format(new Date(iso));
+}
+
+function actionColor(action: string | null | undefined): string {
+    if (!action) return 'var(--cg-fg-3)';
+    if (action.startsWith('security') || action.includes('.failed') || action.includes('.locked')) {
+        return 'var(--cg-neg)';
+    }
+    if (action.startsWith('admin') || action.includes('.deleted') || action.includes('.banned')) {
+        return 'var(--cg-warn)';
+    }
+    if (action.startsWith('auth') || action.includes('.login') || action.includes('.created')) {
+        return 'var(--cg-pos)';
+    }
+    return 'var(--cg-fg-2)';
+}
+
+function formatAction(action: string | null | undefined): string {
+    if (!action) return '—';
+    return action.split('.').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' › ');
+}
+
 export default function AuditLogs() {
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [meta, setMeta] = useState<Meta | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [quickFilter, setQuickFilter] = useState('');
     const [page, setPage] = useState(1);
-    const [first, setFirst] = useState(0);
-    const rowsPerPage = 15;
+    const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
     const fetchLogs = async (pageNum?: number) => {
         setLoading(true);
         const fetchPage = pageNum ?? page;
         try {
             const params = new URLSearchParams();
-            if (search) params.append('action', search);
+            // Quick-filter chips set the action prefix; the free-text input
+            // adds further substring filtering.
+            const action = [quickFilter, search].filter(Boolean).join('.');
+            if (action) params.append('action', action);
             params.append('page', fetchPage.toString());
 
-            const response = await fetch(
-                `/api/v1/admin/audit-logs?${params}`,
-                { headers: { Accept: 'application/json' } },
-            );
+            const response = await fetch(`/api/v1/admin/audit-logs?${params}`, {
+                headers: { Accept: 'application/json' },
+            });
             const data = await response.json();
             if (data.success) {
                 setLogs(data.data);
@@ -64,230 +101,287 @@ export default function AuditLogs() {
 
     useEffect(() => {
         fetchLogs();
-    }, [page]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, quickFilter]);
 
-    const handleSearch = () => {
-        setPage(1);
-        setFirst(0);
-        fetchLogs(1);
+    const submitSearch = () => { setPage(1); fetchLogs(1); };
+
+    const toggleExpand = (id: number) => {
+        setExpanded((curr) => ({ ...curr, [id]: !curr[id] }));
     };
 
-    const onPageChange = (e: { first: number; page: number }) => {
-        setFirst(e.first);
-        setPage(e.page + 1);
-    };
-
-    const formatAction = (action: string) => {
-        return action
-            .split('.')
-            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(' > ');
-    };
-
-    const timestampTemplate = (rowData: AuditLog) => (
-        <span
-            style={{
-                fontSize: '0.875rem',
-                whiteSpace: 'nowrap',
-                color: 'var(--acu-text-muted)',
-                fontFamily: 'var(--font-body)',
-            }}
-        >
-            {new Date(rowData.created_at).toLocaleString()}
-        </span>
-    );
-
-    const userTemplate = (rowData: AuditLog) => {
-        if (rowData.user) {
-            return (
-                <div>
-                    <div
-                        style={{
-                            fontSize: '0.875rem',
-                            fontWeight: 500,
-                            color: 'var(--acu-text)',
-                            fontFamily: 'var(--font-body)',
-                        }}
-                    >
-                        {rowData.user.name}
-                    </div>
-                    <div
-                        style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--acu-text-light)',
-                            fontFamily: 'var(--font-body)',
-                        }}
-                    >
-                        {rowData.user.email}
-                    </div>
-                </div>
-            );
-        }
-        return (
-            <span
-                style={{
-                    fontSize: '0.875rem',
-                    color: 'var(--acu-text-muted)',
-                    fontFamily: 'var(--font-body)',
-                }}
-            >
-                System
-            </span>
-        );
-    };
-
-    const actionTemplate = (rowData: AuditLog) => (
-        <code
-            style={{
-                background: 'var(--acu-surface-elevated)',
-                color: 'var(--acu-primary)',
-                border: '1px solid var(--acu-border)',
-                borderRadius: '6px',
-                padding: '2px 8px',
-                fontSize: '0.75rem',
-                fontFamily: 'var(--font-body)',
-            }}
-        >
-            {formatAction(rowData.action)}
-        </code>
-    );
-
-    const descriptionTemplate = (rowData: AuditLog) => (
-        <span
-            style={{
-                fontSize: '0.875rem',
-                color: 'var(--acu-text)',
-                fontFamily: 'var(--font-body)',
-                maxWidth: '300px',
-                display: 'block',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-            }}
-        >
-            {rowData.description}
-        </span>
-    );
-
-    const ipTemplate = (rowData: AuditLog) => (
-        <span
-            style={{
-                fontSize: '0.875rem',
-                color: 'var(--acu-text-muted)',
-                fontFamily: 'var(--font-body)',
-            }}
-        >
-            {rowData.ip_address}
-        </span>
-    );
+    const hasDetails = (log: AuditLog) =>
+        (log.old_values && Object.keys(log.old_values).length > 0) ||
+        (log.new_values && Object.keys(log.new_values).length > 0);
 
     return (
-        <UserLayout title="Audit Logs">
-            <Head title="Audit Logs" />
+        <UserLayout title="Audit logs">
+            <Head title="Audit logs · Admin" />
 
-            <div className="space-y-8">
-                <PageHeader title="Audit Logs" subtitle="Security and activity audit trail">
-                    <Button
-                        label="Refresh"
-                        icon="pi pi-refresh"
-                        severity="secondary"
-                        outlined
-                        size="small"
-                        onClick={() => fetchLogs()}
-                    />
-                </PageHeader>
-
-                {/* Search / Filter */}
-                <div
-                    className="rounded-xl p-4"
-                    style={{
-                        background: 'var(--acu-surface-card)',
-                        border: '1px solid var(--acu-border)',
-                    }}
-                >
-                    <div className="flex gap-3 items-center">
-                        <InputText
-                            placeholder="Filter by action (e.g., login, kyc, admin)..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                            className="w-full max-w-sm"
-                        />
-                        <Button
-                            label="Filter"
-                            icon="pi pi-search"
-                            size="small"
-                            onClick={handleSearch}
-                        />
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Admin</div>
+                        <h1 className="cgo-title">Audit logs</h1>
+                        <div className="cgo-subtitle">
+                            Security and activity audit trail — every privileged action.
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={() => fetchLogs()}
+                        >
+                            Refresh
+                        </button>
                     </div>
                 </div>
 
-                {/* Logs Table */}
+                {/* Filter bar */}
+                <div className="cgo-filterbar">
+                    {QUICK_FILTERS.map((f) => (
+                        <button
+                            key={f.value || 'all'}
+                            type="button"
+                            className={`cgo-chip${quickFilter === f.value ? ' active' : ''}`}
+                            onClick={() => { setQuickFilter(f.value); setPage(1); }}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                    <div className="cgo-right">
+                        <label className="cgo-input">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
+                                placeholder="Filter by action substring (e.g., reset, lock)…"
+                                style={{ minWidth: 260 }}
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={submitSearch}
+                        >
+                            Filter
+                        </button>
+                    </div>
+                </div>
+
+                {/* Logs table */}
                 <div
-                    className="acu-fieldset"
-                    style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}
                 >
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-list" />
-                            <span style={{ fontFamily: 'var(--font-display)' }}>Activity Log</span>
-                            {meta?.total != null && (
-                                <span
-                                    style={{
-                                        fontSize: '0.75rem',
-                                        fontWeight: 400,
-                                        color: 'var(--acu-text-light)',
-                                        marginLeft: '0.25rem',
-                                        fontFamily: 'var(--font-body)',
-                                    }}
-                                >
-                                    ({meta.total} total events)
-                                </span>
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 180 }}>Timestamp</th>
+                                <th style={{ minWidth: 200 }}>User</th>
+                                <th style={{ width: 200 }}>Action</th>
+                                <th>Description</th>
+                                <th style={{ width: 130 }}>IP</th>
+                                <th style={{ width: 60 }} />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        Loading…
+                                    </td>
+                                </tr>
+                            ) : logs.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No log entries match the current filter.
+                                    </td>
+                                </tr>
+                            ) : (
+                                logs.map((log) => (
+                                    <Fragment key={log.id}>
+                                        <tr>
+                                            <td>
+                                                <span className="cgo-uid">{formatDateTime(log.created_at)}</span>
+                                            </td>
+                                            <td style={{ maxWidth: 240 }}>
+                                                {log.user ? (
+                                                    <>
+                                                        <div className="cgo-name cgo-cell-clip" title={log.user.name}>
+                                                            {log.user.name}
+                                                        </div>
+                                                        <div className="cgo-uid">{log.user.email}</div>
+                                                    </>
+                                                ) : (
+                                                    <span style={{ fontStyle: 'italic', color: 'var(--cg-fg-3)' }}>
+                                                        System
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <span
+                                                    style={{
+                                                        display: 'inline-block',
+                                                        padding: '2px 8px',
+                                                        border: `1px solid ${actionColor(log.action)}`,
+                                                        borderRadius: 4,
+                                                        fontSize: 11,
+                                                        color: actionColor(log.action),
+                                                        fontFamily: 'var(--cg-mono)',
+                                                        letterSpacing: '0.02em',
+                                                    }}
+                                                >
+                                                    {formatAction(log.action)}
+                                                </span>
+                                            </td>
+                                            <td style={{ maxWidth: 360 }}>
+                                                <div className="cgo-cell-clip" style={{ fontSize: 12, color: 'var(--cg-fg-1)' }}>
+                                                    {log.description}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
+                                                    {log.ip_address || '—'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {hasDetails(log) ? (
+                                                    <button
+                                                        type="button"
+                                                        className="cgo-row-action"
+                                                        aria-label={expanded[log.id] ? 'Hide details' : 'Show details'}
+                                                        title={expanded[log.id] ? 'Hide details' : 'Show details'}
+                                                        onClick={() => toggleExpand(log.id)}
+                                                    >
+                                                        {expanded[log.id] ? '−' : '+'}
+                                                    </button>
+                                                ) : null}
+                                            </td>
+                                        </tr>
+                                        {expanded[log.id] && hasDetails(log) && (
+                                            <tr>
+                                                <td
+                                                    colSpan={6}
+                                                    style={{
+                                                        background: 'var(--cg-ink-elevated)',
+                                                        padding: 16,
+                                                    }}
+                                                >
+                                                    <div
+                                                        style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: '1fr 1fr',
+                                                            gap: 16,
+                                                            fontSize: 11,
+                                                            fontFamily: 'var(--cg-mono)',
+                                                        }}
+                                                    >
+                                                        <div>
+                                                            <div className="cgo-uid" style={{ marginBottom: 4 }}>Old values</div>
+                                                            <pre
+                                                                style={{
+                                                                    margin: 0,
+                                                                    padding: 8,
+                                                                    background: 'var(--cg-ink-card)',
+                                                                    border: '1px solid var(--cg-rule)',
+                                                                    borderRadius: 4,
+                                                                    color: 'var(--cg-fg-2)',
+                                                                    overflow: 'auto',
+                                                                    maxHeight: 200,
+                                                                }}
+                                                            >
+                                                                {log.old_values
+                                                                    ? JSON.stringify(log.old_values, null, 2)
+                                                                    : '—'}
+                                                            </pre>
+                                                        </div>
+                                                        <div>
+                                                            <div className="cgo-uid" style={{ marginBottom: 4 }}>New values</div>
+                                                            <pre
+                                                                style={{
+                                                                    margin: 0,
+                                                                    padding: 8,
+                                                                    background: 'var(--cg-ink-card)',
+                                                                    border: '1px solid var(--cg-rule)',
+                                                                    borderRadius: 4,
+                                                                    color: 'var(--cg-fg-2)',
+                                                                    overflow: 'auto',
+                                                                    maxHeight: 200,
+                                                                }}
+                                                            >
+                                                                {log.new_values
+                                                                    ? JSON.stringify(log.new_values, null, 2)
+                                                                    : '—'}
+                                                            </pre>
+                                                        </div>
+                                                    </div>
+                                                    {log.user_agent && (
+                                                        <div
+                                                            style={{
+                                                                marginTop: 12,
+                                                                paddingTop: 12,
+                                                                borderTop: '1px solid var(--cg-rule)',
+                                                                fontSize: 11,
+                                                                color: 'var(--cg-fg-3)',
+                                                                fontFamily: 'var(--cg-mono)',
+                                                                wordBreak: 'break-all',
+                                                            }}
+                                                        >
+                                                            <strong style={{ color: 'var(--cg-fg-2)' }}>User agent:</strong>{' '}
+                                                            {log.user_agent}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </Fragment>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+
+                    {/* Footer + pager */}
+                    {meta && (
+                        <div className="cgo-table-foot">
+                            <span>
+                                {meta.total > 0 ? (
+                                    <>
+                                        Showing <b className="cgo-mono">{logs.length}</b> of{' '}
+                                        <b className="cgo-mono">{meta.total.toLocaleString()}</b> events
+                                    </>
+                                ) : (
+                                    'No events'
+                                )}
+                            </span>
+                            {meta.last_page > 1 && (
+                                <div className="cgo-pager">
+                                    <button
+                                        type="button"
+                                        disabled={meta.current_page === 1}
+                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                        aria-label="Previous"
+                                    >
+                                        ‹
+                                    </button>
+                                    <button type="button" className="curr" disabled>
+                                        {meta.current_page}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={meta.current_page === meta.last_page}
+                                        onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
+                                        aria-label="Next"
+                                    >
+                                        ›
+                                    </button>
+                                </div>
                             )}
                         </div>
-                    </div>
-                    <div className="acu-fieldset-body p-0">
-                        <DataTable
-                            value={logs}
-                            loading={loading}
-                            size="small"
-                            showGridlines={false}
-                            emptyMessage="No logs found"
-                            paginator
-                            rows={rowsPerPage}
-                            totalRecords={meta?.total || 0}
-                            lazy
-                            first={first}
-                            onPage={onPageChange}
-                            paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
-                            currentPageReportTemplate="Page {currentPage} of {totalPages} ({totalRecords} entries)"
-                        >
-                            <Column
-                                header="Timestamp"
-                                body={timestampTemplate}
-                                style={{ width: '180px' }}
-                            />
-                            <Column
-                                header="User"
-                                body={userTemplate}
-                                style={{ width: '200px' }}
-                            />
-                            <Column
-                                header="Action"
-                                body={actionTemplate}
-                                style={{ width: '180px' }}
-                            />
-                            <Column
-                                header="Description"
-                                body={descriptionTemplate}
-                            />
-                            <Column
-                                header="IP Address"
-                                body={ipTemplate}
-                                style={{ width: '140px' }}
-                            />
-                        </DataTable>
-                    </div>
+                    )}
                 </div>
             </div>
         </UserLayout>

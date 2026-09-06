@@ -169,6 +169,27 @@
   letter-spacing: 0.16em;
   margin-top: 2px;
 }
+.cgo-rail-logout {
+  /* Reset Inertia's `as="button"` defaults so the icon sits on a
+   * transparent square that picks up brass on hover. */
+  all: unset;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--cg-rule);
+  border-radius: 6px;
+  color: var(--cg-fg-3);
+  cursor: pointer;
+  transition: border-color var(--cg-dur-fast) var(--cg-ease),
+              color var(--cg-dur-fast) var(--cg-ease);
+  flex-shrink: 0;
+}
+.cgo-rail-logout:hover,
+.cgo-rail-logout:focus-visible {
+  border-color: var(--cg-neg);
+  color: var(--cg-neg);
+}
 
 /* Main column */
 .cgo-main {
@@ -483,6 +504,32 @@
   gap: 8px;
   align-items: center;
 }
+
+/* Inline text input for filter bars (search, etc). Same hairline-and-
+ * brass-on-focus treatment as .cgo-search but flexible-width. */
+.cgo-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--cg-rule-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cg-fg-1);
+  font-family: var(--cg-body);
+  font-size: 12px;
+  min-width: 220px;
+  transition: border-color var(--cg-dur-fast) var(--cg-ease);
+}
+.cgo-input:focus-within { border-color: var(--cg-brass); }
+.cgo-input input {
+  all: unset;
+  flex: 1;
+  color: inherit;
+  font: inherit;
+}
+.cgo-input input::placeholder { color: var(--cg-fg-3); }
 .cgo-sort-label {
   font-size: 11px;
   color: var(--cg-fg-4);
@@ -494,7 +541,12 @@
 .cgo-table-wrap {
   border: 1px solid var(--cg-rule);
   border-radius: 0 0 8px 8px;
-  overflow: hidden;
+  /* Horizontal scroll on narrow viewports — wide column-rich tables
+   * (wallet transactions, recent bets) would otherwise overflow the
+   * page or clip. Vertical stays clipped here; the --scroll variant
+   * adds vertical scroll separately. */
+  overflow-x: auto;
+  overflow-y: hidden;
   background: var(--cg-ink-card);
 }
 /* Scroll-bounded variant — caps the table body so a long list
@@ -502,7 +554,7 @@
  * place via thead position: sticky. */
 .cgo-table-wrap--scroll {
   max-height: 520px;
-  overflow-y: auto;
+  overflow: auto;
   border-radius: 8px;
 }
 .cgo-table-wrap--scroll thead th {
@@ -512,6 +564,7 @@
 }
 .cgo-table-wrap--scroll::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 .cgo-table-wrap--scroll::-webkit-scrollbar-thumb {
   background: var(--cg-rule-strong);
@@ -781,3 +834,4 @@ table.cgo-wagers {
 .cgo-table-bar-link:hover {
   color: var(--cg-brass-hi);
 }
+

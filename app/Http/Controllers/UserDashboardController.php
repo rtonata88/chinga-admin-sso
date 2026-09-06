@@ -16,7 +16,15 @@ class UserDashboardController extends Controller
         $user = auth()->user();
 
         $isAdmin = $user->isPlatformAdmin() || $user->isTenantAdmin();
-        $tenantUuid = $isAdmin && method_exists($user, 'tenant') ? optional($user->tenant)->uuid : null;
+        // chinga-fantasy stores the SSO tenant slug in its `tenant_uuid`
+        // column (TODO: backfill to real UUID — see DashboardController).
+        // Pass slug here so a tenant admin's dashboard is correctly
+        // scoped. Platform admins keep null → cross-tenant view.
+        $tenantUuid = null;
+        if ($isAdmin && !$user->isPlatformAdmin()) {
+            $tenant = optional($user->tenant);
+            $tenantUuid = $tenant->slug ?: $tenant->uuid;
+        }
 
         // Account overview
         $account = [

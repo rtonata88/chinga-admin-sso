@@ -3,10 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\LoginAttempt;
-use App\Models\User;
-use App\Models\Venue;
-use App\Models\VoucherCode;
+use App\Models\Tenant;
 use App\Services\FantasyAdminClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,60 +16,88 @@ class DashboardController extends Controller
 
     /**
      * Display the admin dashboard.
+     *
+     * Month-to-date scope: KPI strip is cross-tenant aggregates for
+     * the current calendar month; the breakdown table shows per-tenant
+     * rows over the same window.
+     *
+     * Headline (industry-standard) figures: total_wagered and
+     * total_paid_out are full bet/payout amounts. GGR = wagered −
+     * paid_out, regardless of funding source. Deposit-aware accounting
+     * is used only by the jackpot accrual service — it doesn't fit a
+     * per-period operator P&L view because winnings never re-enter the
+     * deposit pool, so deposit-aware GGR collapses to zero for any
+     * long-running account.
      */
     public function index(): Response
     {
-        $today = today();
-        $thisWeek = now()->startOfWeek();
+        $from = now()->startOfMonth()->toIso8601String();
+        $to = now()->toIso8601String();
 
-        $stats = [
-            'users' => [
-                'total' => User::count(),
-                'today' => User::whereDate('created_at', $today)->count(),
-                'this_week' => User::where('created_at', '>=', $thisWeek)->count(),
-                'active' => User::where('status', 'active')->count(),
-            ],
-            'venues' => [
-                'total' => Venue::count(),
-                'active' => Venue::where('status', 'active')->count(),
-            ],
-            'vouchers' => [
-                'active' => VoucherCode::whereIn('status', ['active', 'in_use'])->count(),
-                'total_balance' => VoucherCode::whereIn('status', ['active', 'in_use'])->sum('balance'),
-            ],
-            'security' => [
-                'failed_logins_today' => LoginAttempt::whereDate('created_at', $today)
-                    ->where('successful', false)->count(),
-                'locked_accounts' => User::where('locked_until', '>', now())->count(),
-            ],
-        ];
+        $user = auth()->user();
+        $isPlatformAdmin = $user?->isPlatformAdmin();
+
+        $tenantRows = $this->fetchTenantBreakdown($from, $to);
+        $visibleRows = $this->visibleRows($tenantRows);
+
+        // KPI scope follows the visible rows: a platform admin sees
+        // every row so the totals are cross-tenant; a tenant admin's
+        // visibleRows is just their own, so the totals are
+        // tenant-scoped — no leak.
+        if ($isPlatformAdmin) {
+            $scope = 'platform';
+            $kpis = [
+                'total_tenants' => Tenant::count(),
+                'total_wagered' => array_sum(array_column($visibleRows, 'total_wagered')),
+                'total_wins' => array_sum(array_column($visibleRows, 'total_paid_out')),
+                'platform_profit' => array_sum(array_column($visibleRows, 'platform_profit')),
+            ];
+        } else {
+            // Tenant admin: replace the platform-wide cards with
+            // their-tenant-specific ones. "Total tenants" and
+            // "Platform profit" don't apply.
+            $row = $visibleRows[0] ?? null;
+            $scope = 'tenant';
+            $kpis = [
+                'bets_placed' => (int) ($row['bets_placed'] ?? 0),
+                'total_wagered' => (float) ($row['total_wagered'] ?? 0),
+                'total_wins' => (float) ($row['total_paid_out'] ?? 0),
+                'tenant_profit' => (float) ($row['tenant_profit'] ?? 0),
+            ];
+        }
 
         return Inertia::render('admin/dashboard', [
-            'stats' => $stats,
-            'tenants' => $this->fetchTenantBreakdown(),
+            'period' => ['from' => $from, 'to' => $to],
+            'kpis' => $kpis,
+            'scope' => $scope,
+            'tenant_name' => $isPlatformAdmin ? null : ($user?->tenant?->name),
+            'tenants' => $visibleRows,
         ]);
     }
 
     /**
-     * Per-tenant breakdown for the admin dashboard tenants table.
-     *
-     * Pulls the last-30-day cross-tenant aggregates from chinga-fantasy
-     * (statsByTenant), resolves each row's tenant_uuid back to a local
-     * Tenant model so we can show a real name and apply the commercial
-     * split:
+     * Cross-tenant aggregates from chinga-fantasy over [from, to],
+     * with each row's tenant_uuid resolved back to a local Tenant
+     * model so we can show a real name and apply the commercial
+     * split. Headline figures throughout — see the index() docblock.
      *
      *   GGR  = total_wagered - total_paid_out
-     *   tax  = GGR * tax_pct / 100               (jurisdictional)
+     *   tax  = max(GGR, 0) * tax_pct / 100        (no tax on losses)
      *   NGR  = GGR - tax
-     *   reseller: tenant_profit = NGR * revenue_share_pct / 100
+     *   reseller: tenant_profit  = max(NGR, 0) * revenue_share_pct / 100
      *             platform_profit = NGR - tenant_profit
-     *   direct:   tenant_profit = 0
+     *   direct:   tenant_profit  = 0
      *             platform_profit = NGR
      *
-     * Tenant admins only see their own tenant's row; platform admins
-     * see every tenant. Returns [] on upstream failure.
+     * The reseller share is floored at zero — losing periods don't
+     * carry to the tenant. This matches standard rev-share contracts:
+     * the platform absorbs the downside.
+     *
+     * Returns the full unfiltered set so the controller can both
+     * aggregate cross-tenant KPIs and apply per-user visibility for
+     * the breakdown table. Returns [] on upstream failure.
      */
-    private function fetchTenantBreakdown(): array
+    private function fetchTenantBreakdown(string $from, string $to): array
     {
         $user = auth()->user();
         if (!$user->isPlatformAdmin() && !$user->isTenantAdmin()) {
@@ -80,8 +105,6 @@ class DashboardController extends Controller
         }
 
         try {
-            $from = now()->subDays(30)->startOfDay()->toIso8601String();
-            $to = now()->toIso8601String();
             $resp = $this->fantasyAdminClient->statsByTenant($from, $to);
         } catch (\Throwable $e) {
             Log::warning('statsByTenant fetch failed', ['error' => $e->getMessage()]);
@@ -96,11 +119,8 @@ class DashboardController extends Controller
         // chinga-fantasy stores SSO tenant slug in its tenant_uuid columns
         // (TODO: backfill to use UUID). Try slug first, fall back to uuid.
         $keys = collect($rows)->pluck('tenant_uuid')->filter()->unique()->values()->all();
-        $tenantsBySlug = \App\Models\Tenant::whereIn('slug', $keys)->get()->keyBy('slug');
-        $tenantsByUuid = \App\Models\Tenant::whereIn('uuid', $keys)->get()->keyBy('uuid');
-
-        $isPlatformAdmin = $user->isPlatformAdmin();
-        $myTenantId = $user->tenant_id;
+        $tenantsBySlug = Tenant::whereIn('slug', $keys)->get()->keyBy('slug');
+        $tenantsByUuid = Tenant::whereIn('uuid', $keys)->get()->keyBy('uuid');
 
         return collect($rows)
             ->map(function ($r) use ($tenantsBySlug, $tenantsByUuid) {
@@ -122,7 +142,7 @@ class DashboardController extends Controller
                     $tenantProfit = 0.0;
                     $platformProfit = $ngr;
                 } else {
-                    $tenantProfit = $ngr * ($sharePct / 100);
+                    $tenantProfit = $ngr > 0 ? $ngr * ($sharePct / 100) : 0.0;
                     $platformProfit = $ngr - $tenantProfit;
                 }
 
@@ -142,9 +162,22 @@ class DashboardController extends Controller
                     'platform_profit' => $platformProfit,
                 ];
             })
-            ->when(!$isPlatformAdmin, fn ($c) => $c->filter(fn ($r) => $r['tenant_id'] === $myTenantId))
             ->values()
             ->all();
+    }
+
+    /**
+     * Tenant admins only see their own tenant's row in the table;
+     * platform admins see every tenant.
+     */
+    private function visibleRows(array $rows): array
+    {
+        $user = auth()->user();
+        if ($user->isPlatformAdmin()) {
+            return $rows;
+        }
+        $myTenantId = $user->tenant_id;
+        return array_values(array_filter($rows, fn ($r) => $r['tenant_id'] === $myTenantId));
     }
 
     /**

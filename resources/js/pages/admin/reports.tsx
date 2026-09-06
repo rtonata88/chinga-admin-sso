@@ -1,5 +1,12 @@
+// resources/js/pages/admin/reports.tsx
+//
+// Platform reports & analytics, brass-on-ink to match
+// /tenant-overview. KPI strip → two side-by-side detail panels
+// (Registrations / Login activity). Window is fixed to last 30 days
+// to match the controller — add a date range later if needed.
+
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import PageHeader from '@/components/acumatica/Common/PageHeader';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
@@ -15,50 +22,52 @@ interface LoginStats {
     active_sessions_24h: number;
 }
 
-interface StatRow {
+interface InfoItem {
     label: string;
-    value: string | number;
-    color?: string;
-    icon?: string;
+    value: React.ReactNode;
 }
 
-function StatList({ items }: { items: StatRow[] }) {
+function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
     return (
-        <div className="space-y-4">
-            {items.map((item) => (
-                <div
-                    key={item.label}
-                    className="flex items-center justify-between rounded-lg px-4 py-3"
-                    style={{
-                        background: 'linear-gradient(135deg, rgba(201, 168, 76, 0.04) 0%, transparent 100%)',
-                        border: '1px solid var(--acu-border)',
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        {item.icon && (
-                            <i
-                                className={`${item.icon} text-sm`}
-                                style={{ color: item.color || 'var(--acu-text-muted)' }}
-                            />
-                        )}
-                        <span
-                            className="text-sm"
-                            style={{ color: 'var(--acu-text-muted)', fontFamily: 'var(--font-body)' }}
-                        >
-                            {item.label}
-                        </span>
-                    </div>
-                    <span
-                        className="text-base font-bold tracking-wide"
+        <div
+            style={{
+                border: '1px solid var(--cg-rule)',
+                borderRadius: 8,
+                overflow: 'hidden',
+                background: 'var(--cg-ink-card)',
+            }}
+        >
+            <div className="cgo-table-bar">
+                <div className="cgo-table-bar-title">{title}</div>
+            </div>
+            <div style={{ padding: 4 }}>
+                {items.map((it, i) => (
+                    <div
+                        key={i}
                         style={{
-                            color: item.color || 'var(--acu-text)',
-                            fontFamily: 'var(--font-display)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'baseline',
+                            padding: '12px 16px',
+                            borderBottom:
+                                i === items.length - 1 ? 'none' : '1px solid var(--cg-rule)',
                         }}
                     >
-                        {item.value}
-                    </span>
-                </div>
-            ))}
+                        <span style={{ fontSize: 12, color: 'var(--cg-fg-3)' }}>{it.label}</span>
+                        <span
+                            style={{
+                                fontSize: 14,
+                                color: 'var(--cg-fg-1)',
+                                fontFamily: 'var(--cg-mono)',
+                                fontFeatureSettings: "'tnum' 1",
+                                fontWeight: 600,
+                            }}
+                        >
+                            {it.value}
+                        </span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -98,170 +107,146 @@ export default function Reports() {
         fetchReports();
     }, []);
 
+    const verifiedRate = registrations?.email_verified_rate ?? 0;
+    const verifiedColor =
+        verifiedRate >= 70 ? 'var(--cg-pos)'
+        : verifiedRate >= 40 ? 'var(--cg-warn)'
+        : 'var(--cg-neg)';
+
+    const failureRate = logins && logins.total_attempts > 0
+        ? (logins.failed / logins.total_attempts) * 100
+        : 0;
+
     return (
         <UserLayout title="Reports">
-            <Head title="Reports" />
+            <Head title="Reports · Admin" />
 
-            <div className="space-y-8">
-                <PageHeader
-                    title="Reports & Analytics"
-                    subtitle="Platform statistics and insights (last 30 days)"
-                />
-
-                {loading ? (
-                    <div
-                        className="text-center py-16 text-base"
-                        style={{ color: 'var(--acu-text-muted)', fontFamily: 'var(--font-body)' }}
-                    >
-                        Loading reports...
-                    </div>
-                ) : (
-                    <div className="grid gap-5 md:grid-cols-2">
-                        {/* Registrations */}
-                        <div
-                            className="rounded-xl overflow-hidden transition-all duration-300"
-                            style={{
-                                background: 'var(--acu-surface-card)',
-                                border: '1px solid var(--acu-border)',
-                                boxShadow: '0 0 0 0 rgba(201, 168, 76, 0)',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.boxShadow = '0 0 20px rgba(201, 168, 76, 0.08)';
-                                e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.3)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.boxShadow = '0 0 0 0 rgba(201, 168, 76, 0)';
-                                e.currentTarget.style.borderColor = 'var(--acu-border)';
-                            }}
-                        >
-                            <div
-                                className="px-5 py-4 flex items-center gap-3"
-                                style={{
-                                    background: 'linear-gradient(135deg, rgba(88, 166, 255, 0.08) 0%, transparent 100%)',
-                                    borderBottom: '1px solid var(--acu-border)',
-                                }}
-                            >
-                                <i
-                                    className="pi pi-users text-lg"
-                                    style={{ color: '#58A6FF' }}
-                                />
-                                <h3
-                                    className="text-base font-semibold tracking-wide"
-                                    style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}
-                                >
-                                    Registrations
-                                </h3>
-                            </div>
-                            <div className="p-5">
-                                {registrations ? (
-                                    <StatList
-                                        items={[
-                                            {
-                                                label: 'Total Registrations',
-                                                value: registrations.total.toLocaleString(),
-                                                icon: 'pi pi-user-plus',
-                                                color: '#58A6FF',
-                                            },
-                                            {
-                                                label: 'Email Verification Rate',
-                                                value: `${registrations.email_verified_rate.toFixed(1)}%`,
-                                                icon: 'pi pi-check-circle',
-                                                color: registrations.email_verified_rate >= 70
-                                                    ? '#3FB950'
-                                                    : registrations.email_verified_rate >= 40
-                                                        ? '#D29922'
-                                                        : '#F85149',
-                                            },
-                                        ]}
-                                    />
-                                ) : (
-                                    <p
-                                        className="text-sm text-center py-4"
-                                        style={{ color: 'var(--acu-text-muted)', fontFamily: 'var(--font-body)' }}
-                                    >
-                                        No data available
-                                    </p>
-                                )}
-                            </div>
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Admin</div>
+                        <h1 className="cgo-title">Reports</h1>
+                        <div className="cgo-subtitle">
+                            Platform statistics for the last 30 days.
                         </div>
-
-                        {/* Login Activity */}
-                        <div
-                            className="rounded-xl overflow-hidden transition-all duration-300"
-                            style={{
-                                background: 'var(--acu-surface-card)',
-                                border: '1px solid var(--acu-border)',
-                                boxShadow: '0 0 0 0 rgba(201, 168, 76, 0)',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.boxShadow = '0 0 20px rgba(201, 168, 76, 0.08)';
-                                e.currentTarget.style.borderColor = 'rgba(201, 168, 76, 0.3)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.boxShadow = '0 0 0 0 rgba(201, 168, 76, 0)';
-                                e.currentTarget.style.borderColor = 'var(--acu-border)';
-                            }}
-                        >
-                            <div
-                                className="px-5 py-4 flex items-center gap-3"
-                                style={{
-                                    background: 'linear-gradient(135deg, rgba(63, 185, 80, 0.08) 0%, transparent 100%)',
-                                    borderBottom: '1px solid var(--acu-border)',
-                                }}
-                            >
-                                <i
-                                    className="pi pi-sign-in text-lg"
-                                    style={{ color: '#3FB950' }}
-                                />
-                                <h3
-                                    className="text-base font-semibold tracking-wide"
-                                    style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}
-                                >
-                                    Login Activity
-                                </h3>
-                            </div>
-                            <div className="p-5">
-                                {logins ? (
-                                    <StatList
-                                        items={[
-                                            {
-                                                label: 'Total Attempts',
-                                                value: logins.total_attempts.toLocaleString(),
-                                                icon: 'pi pi-arrow-right-arrow-left',
-                                            },
-                                            {
-                                                label: 'Successful',
-                                                value: logins.successful.toLocaleString(),
-                                                icon: 'pi pi-check',
-                                                color: '#3FB950',
-                                            },
-                                            {
-                                                label: 'Failed',
-                                                value: logins.failed.toLocaleString(),
-                                                icon: 'pi pi-times',
-                                                color: '#F85149',
-                                            },
-                                            {
-                                                label: 'Active Sessions (24h)',
-                                                value: logins.active_sessions_24h.toLocaleString(),
-                                                icon: 'pi pi-bolt',
-                                                color: '#C9A84C',
-                                            },
-                                        ]}
-                                    />
-                                ) : (
-                                    <p
-                                        className="text-sm text-center py-4"
-                                        style={{ color: 'var(--acu-text-muted)', fontFamily: 'var(--font-body)' }}
-                                    >
-                                        No data available
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
                     </div>
-                )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={fetchReports}
+                            disabled={loading}
+                        >
+                            {loading ? 'Loading…' : 'Refresh'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* KPI strip · 5-up. */}
+                <div className="cgo-kpis cgo-kpis--5">
+                    <KpiCard
+                        label="Registrations"
+                        value={registrations ? formatCount(registrations.total) : '—'}
+                        brass
+                        meta="last 30 days"
+                    />
+                    <KpiCard
+                        label="Email verified"
+                        value={
+                            registrations
+                                ? `${registrations.email_verified_rate.toFixed(1)}%`
+                                : '—'
+                        }
+                        meta={
+                            verifiedRate >= 70
+                                ? 'healthy'
+                                : verifiedRate >= 40
+                                ? 'review'
+                                : 'low'
+                        }
+                    />
+                    <KpiCard
+                        label="Logins · successful"
+                        value={logins ? formatCount(logins.successful) : '—'}
+                        meta="last 30 days"
+                    />
+                    <KpiCard
+                        label="Logins · failed"
+                        value={logins ? formatCount(logins.failed) : '—'}
+                        meta={
+                            logins && logins.failed > 0
+                                ? `${failureRate.toFixed(1)}% of attempts`
+                                : 'all clear'
+                        }
+                    />
+                    <KpiCard
+                        label="Active sessions"
+                        value={logins ? formatCount(logins.active_sessions_24h) : '—'}
+                        meta="last 24 hours"
+                    />
+                </div>
+
+                {/* Detail panels */}
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 16,
+                        marginBottom: 24,
+                    }}
+                >
+                    <InfoPanel
+                        title="Registrations · last 30 days"
+                        items={[
+                            {
+                                label: 'Total new accounts',
+                                value: registrations ? formatCount(registrations.total) : '—',
+                            },
+                            {
+                                label: 'Email verified rate',
+                                value: registrations ? (
+                                    <span style={{ color: verifiedColor }}>
+                                        {registrations.email_verified_rate.toFixed(1)}%
+                                    </span>
+                                ) : '—',
+                            },
+                        ]}
+                    />
+                    <InfoPanel
+                        title="Login activity · last 30 days"
+                        items={[
+                            {
+                                label: 'Total attempts',
+                                value: logins ? formatCount(logins.total_attempts) : '—',
+                            },
+                            {
+                                label: 'Successful',
+                                value: logins ? (
+                                    <span style={{ color: 'var(--cg-pos)' }}>
+                                        {formatCount(logins.successful)}
+                                    </span>
+                                ) : '—',
+                            },
+                            {
+                                label: 'Failed',
+                                value: logins && logins.failed > 0 ? (
+                                    <span style={{ color: 'var(--cg-neg)' }}>
+                                        {formatCount(logins.failed)}
+                                    </span>
+                                ) : (logins ? '0' : '—'),
+                            },
+                            {
+                                label: 'Active sessions (24h)',
+                                value: logins ? (
+                                    <span style={{ color: 'var(--cg-brass-hi)' }}>
+                                        {formatCount(logins.active_sessions_24h)}
+                                    </span>
+                                ) : '—',
+                            },
+                        ]}
+                    />
+                </div>
             </div>
         </UserLayout>
     );

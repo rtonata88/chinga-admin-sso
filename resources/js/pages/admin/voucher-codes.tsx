@@ -1,11 +1,14 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import StatusBadge from '@/components/acumatica/Common/StatusBadge';
+// resources/js/pages/admin/voucher-codes.tsx
+//
+// Voucher codes, brass-on-ink to match /tenant-overview. Page head
+// → filter bar (status chips + venue select + search) → table with
+// Print + Void row actions. The Create-voucher dialog stays on
+// PrimeReact (multi-step form with success state). The thermal-
+// receipt print window logic is unchanged — it's its own document.
+
 import UserLayout from '@/layouts/user-layout';
-import type { StatusVariant } from '@/types/acumatica';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
-import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
@@ -19,10 +22,7 @@ interface Venue {
 interface VoucherCode {
     uuid: string;
     code: string;
-    venue: {
-        uuid: string;
-        name: string;
-    };
+    venue: { uuid: string; name: string };
     tenant_name: string | null;
     balance: number;
     currency: string;
@@ -40,27 +40,111 @@ interface Meta {
     total: number;
 }
 
-function formatCurrency(amount: number, currency: string = 'NAD'): string {
-    return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-}
+const STATUS_FILTERS = [
+    { label: 'All', value: '' },
+    { label: 'Active', value: 'active' },
+    { label: 'In use', value: 'in_use' },
+    { label: 'Expired', value: 'expired' },
+    { label: 'Voided', value: 'voided' },
+];
 
-function mapCodeStatus(status: string): StatusVariant {
+function statusPill(status: string): string {
     switch (status) {
-        case 'active':
-            return 'active';
-        case 'in_use':
-            return 'pending';
-        case 'expired':
-            return 'inactive';
-        case 'voided':
-            return 'error';
-        default:
-            return 'inactive';
+        case 'active': return 'live';
+        case 'in_use': return 'pending';
+        case 'expired': return 'void';
+        case 'voided': return 'flagged';
+        default: return 'void';
     }
 }
 
+function formatNAD(amount: number): string {
+    return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const DATE_FMT = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+function formatDate(iso: string): string {
+    return DATE_FMT.format(new Date(iso));
+}
+
+interface PrintableVoucher {
+    code: string;
+    balance: number;
+    currency: string;
+    tenantName: string | null;
+    venueName: string;
+    pin?: string;
+    expiresAt?: string | null;
+    createdAt: string;
+}
+
+function printVoucherReceipts(vouchers: PrintableVoucher[]) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const doc = printWindow.document;
+    doc.title = 'Voucher Receipts';
+
+    const style = doc.createElement('style');
+    style.textContent = [
+        '@page { margin: 10mm; }',
+        'body { font-family: "Courier New", monospace; margin: 0; padding: 0; }',
+        '.receipt { width: 80mm; padding: 5mm 0; page-break-after: always; }',
+        '.receipt:last-child { page-break-after: auto; }',
+        '.divider { font-size: 12px; text-align: center; margin: 4px 0; }',
+        '.venue { font-size: 14px; font-weight: bold; text-align: center; margin: 8px 0; }',
+        '.section { margin: 8px 0; padding: 0 4px; }',
+        '.label { font-size: 11px; color: #666; }',
+        '.code { font-size: 16px; font-weight: bold; letter-spacing: 2px; margin-top: 2px; }',
+        '.value { font-size: 13px; font-weight: bold; margin-top: 2px; }',
+    ].join('\n');
+    doc.head.appendChild(style);
+
+    const createTextDiv = (className: string, text: string): HTMLDivElement => {
+        const div = doc.createElement('div');
+        div.className = className;
+        div.textContent = text;
+        return div;
+    };
+
+    const createSection = (label: string, value: string, valueClass: string = 'value'): HTMLDivElement => {
+        const section = doc.createElement('div');
+        section.className = 'section';
+        section.appendChild(createTextDiv('label', label));
+        section.appendChild(createTextDiv(valueClass, value));
+        return section;
+    };
+
+    for (const v of vouchers) {
+        const receipt = doc.createElement('div');
+        receipt.className = 'receipt';
+
+        const formatBalance = `${v.currency} ${v.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        receipt.appendChild(createTextDiv('divider', '================================'));
+        if (v.tenantName) {
+            receipt.appendChild(createTextDiv('venue', v.tenantName));
+        }
+        receipt.appendChild(createTextDiv('venue', v.venueName));
+        receipt.appendChild(createTextDiv('divider', '================================'));
+        receipt.appendChild(createSection('Voucher Code:', v.code, 'code'));
+        receipt.appendChild(createSection('Balance:', formatBalance));
+        if (v.pin) receipt.appendChild(createSection('PIN:', v.pin));
+        if (v.expiresAt) {
+            receipt.appendChild(createSection('Expires:', new Date(v.expiresAt).toLocaleDateString()));
+        }
+        receipt.appendChild(createSection('Created:', new Date(v.createdAt).toLocaleDateString()));
+        receipt.appendChild(createTextDiv('divider', '================================'));
+
+        doc.body.appendChild(receipt);
+    }
+
+    doc.close();
+    setTimeout(() => printWindow.print(), 200);
+}
+
 export default function VoucherCodes() {
-    // Get initial venue filter from URL query parameter
     const initialVenueFilter = useMemo(() => {
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
@@ -78,7 +162,6 @@ export default function VoucherCodes() {
     const [statusFilter, setStatusFilter] = useState('');
     const [page, setPage] = useState(1);
 
-    // Generate dialog
     const [generateOpen, setGenerateOpen] = useState(false);
     const [selectedVenue, setSelectedVenue] = useState('');
     const [initialBalance, setInitialBalance] = useState('100');
@@ -88,6 +171,9 @@ export default function VoucherCodes() {
         { code: string; balance: number; currency: string } | null
     >(null);
 
+    const getCsrfToken = () =>
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
     const fetchVenues = async () => {
         try {
             const response = await fetch('/api/v1/admin/venues', {
@@ -95,9 +181,7 @@ export default function VoucherCodes() {
                 credentials: 'same-origin',
             });
             const data = await response.json();
-            if (data.success) {
-                setVenues(data.data);
-            }
+            if (data.success) setVenues(data.data);
         } catch (error) {
             console.error('Failed to fetch venues:', error);
         }
@@ -112,13 +196,10 @@ export default function VoucherCodes() {
             if (statusFilter) params.append('status', statusFilter);
             params.append('page', page.toString());
 
-            const response = await fetch(
-                `/api/v1/admin/voucher-codes?${params}`,
-                {
-                    headers: { Accept: 'application/json' },
-                    credentials: 'same-origin',
-                },
-            );
+            const response = await fetch(`/api/v1/admin/voucher-codes?${params}`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
             const data = await response.json();
             if (data.success) {
                 setCodes(data.data);
@@ -131,50 +212,36 @@ export default function VoucherCodes() {
         }
     };
 
-    useEffect(() => {
-        fetchVenues();
-    }, []);
-
+    useEffect(() => { fetchVenues(); }, []);
     useEffect(() => {
         fetchCodes();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, venueFilter, statusFilter]);
 
-    const handleSearch = () => {
-        setPage(1);
-        fetchCodes();
-    };
-
-    const getCsrfToken = () => {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    };
+    const submitSearch = () => { setPage(1); fetchCodes(); };
 
     const handleGenerate = async () => {
         if (!selectedVenue) return;
-
         setGenerating(true);
         try {
-            const response = await fetch(
-                `/api/v1/admin/venues/${selectedVenue}/codes/generate`,
-                {
-                    method: 'POST',
-                    headers: {
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({
-                        initial_balance: parseFloat(initialBalance),
-                        pin: pin || undefined,
-                    }),
+            const response = await fetch(`/api/v1/admin/venues/${selectedVenue}/codes/generate`, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
                 },
-            );
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    initial_balance: parseFloat(initialBalance),
+                    pin: pin || undefined,
+                }),
+            });
             const data = await response.json();
             if (data.success) {
                 setGeneratedCode(data.data);
                 fetchCodes();
 
-                // Auto-open print receipt
                 const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
                 printVoucherReceipts([{
                     code: data.data.code,
@@ -194,203 +261,22 @@ export default function VoucherCodes() {
     };
 
     const handleVoidCode = async (venueUuid: string, codeUuid: string) => {
-        if (!confirm('Are you sure you want to void this code? This cannot be undone.')) {
-            return;
-        }
-
+        if (!confirm('Void this code? This cannot be undone.')) return;
         try {
-            const response = await fetch(
-                `/api/v1/admin/venues/${venueUuid}/codes/${codeUuid}/void`,
-                {
-                    method: 'POST',
-                    headers: {
-                        Accept: 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
-                    },
-                    credentials: 'same-origin',
+            const response = await fetch(`/api/v1/admin/venues/${venueUuid}/codes/${codeUuid}/void`, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
                 },
-            );
+                credentials: 'same-origin',
+            });
             const data = await response.json();
-            if (data.success) {
-                fetchCodes();
-            }
+            if (data.success) fetchCodes();
         } catch (error) {
             console.error('Failed to void code:', error);
         }
     };
-
-    interface PrintableVoucher {
-        code: string;
-        balance: number;
-        currency: string;
-        tenantName: string | null;
-        venueName: string;
-        pin?: string;
-        expiresAt?: string | null;
-        createdAt: string;
-    }
-
-    const printVoucherReceipts = (vouchers: PrintableVoucher[]) => {
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) return;
-
-        const doc = printWindow.document;
-        doc.title = 'Voucher Receipts';
-
-        const style = doc.createElement('style');
-        style.textContent = [
-            '@page { margin: 10mm; }',
-            'body { font-family: "Courier New", monospace; margin: 0; padding: 0; }',
-            '.receipt { width: 80mm; padding: 5mm 0; page-break-after: always; }',
-            '.receipt:last-child { page-break-after: auto; }',
-            '.divider { font-size: 12px; text-align: center; margin: 4px 0; }',
-            '.venue { font-size: 14px; font-weight: bold; text-align: center; margin: 8px 0; }',
-            '.section { margin: 8px 0; padding: 0 4px; }',
-            '.label { font-size: 11px; color: #666; }',
-            '.code { font-size: 16px; font-weight: bold; letter-spacing: 2px; margin-top: 2px; }',
-            '.value { font-size: 13px; font-weight: bold; margin-top: 2px; }',
-        ].join('\n');
-        doc.head.appendChild(style);
-
-        const createTextDiv = (className: string, text: string): HTMLDivElement => {
-            const div = doc.createElement('div');
-            div.className = className;
-            div.textContent = text;
-            return div;
-        };
-
-        const createSection = (label: string, value: string, valueClass: string = 'value'): HTMLDivElement => {
-            const section = doc.createElement('div');
-            section.className = 'section';
-            section.appendChild(createTextDiv('label', label));
-            section.appendChild(createTextDiv(valueClass, value));
-            return section;
-        };
-
-        for (const v of vouchers) {
-            const receipt = doc.createElement('div');
-            receipt.className = 'receipt';
-
-            const formatBalance = `${v.currency} ${v.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-            receipt.appendChild(createTextDiv('divider', '================================'));
-            if (v.tenantName) {
-                receipt.appendChild(createTextDiv('venue', v.tenantName));
-            }
-            receipt.appendChild(createTextDiv('venue', v.venueName));
-            receipt.appendChild(createTextDiv('divider', '================================'));
-            receipt.appendChild(createSection('Voucher Code:', v.code, 'code'));
-            receipt.appendChild(createSection('Balance:', formatBalance));
-            if (v.pin) {
-                receipt.appendChild(createSection('PIN:', v.pin));
-            }
-            if (v.expiresAt) {
-                receipt.appendChild(createSection('Expires:', new Date(v.expiresAt).toLocaleDateString()));
-            }
-            receipt.appendChild(createSection('Created:', new Date(v.createdAt).toLocaleDateString()));
-            receipt.appendChild(createTextDiv('divider', '================================'));
-
-            doc.body.appendChild(receipt);
-        }
-
-        doc.close();
-        setTimeout(() => printWindow.print(), 200);
-    };
-
-    // Dropdown options
-    const venueOptions = [
-        { label: 'All venues', value: '' },
-        ...venues.map((v) => ({ label: v.name, value: v.uuid })),
-    ];
-
-    const statusOptions = [
-        { label: 'All statuses', value: '' },
-        { label: 'Active', value: 'active' },
-        { label: 'In Use', value: 'in_use' },
-        { label: 'Expired', value: 'expired' },
-        { label: 'Voided', value: 'voided' },
-    ];
-
-    const generateVenueOptions = venues.map((v) => ({ label: v.name, value: v.uuid }));
-
-    // Column body templates
-    const codeTemplate = (rowData: VoucherCode) => (
-        <code style={{
-            background: 'var(--acu-surface-elevated)',
-            color: 'var(--acu-primary)',
-            border: '1px solid var(--acu-border)',
-            borderRadius: '6px',
-            padding: '3px 10px',
-            fontSize: '0.8125rem',
-            fontFamily: 'monospace',
-            letterSpacing: '0.04em',
-        }}>
-            {rowData.code}
-        </code>
-    );
-
-    const venueTemplate = (rowData: VoucherCode) => (
-        <span style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>
-            {rowData.venue.name}
-        </span>
-    );
-
-    const balanceTemplate = (rowData: VoucherCode) => (
-        <span style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: 500 }}>
-            {formatCurrency(rowData.balance, rowData.currency)}
-        </span>
-    );
-
-    const statusTemplate = (rowData: VoucherCode) => (
-        <StatusBadge status={mapCodeStatus(rowData.status)} label={rowData.status} />
-    );
-
-    const loadedCashedTemplate = (rowData: VoucherCode) => (
-        <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>
-            {formatCurrency(rowData.total_loaded, rowData.currency)} / {formatCurrency(rowData.total_cashed_out, rowData.currency)}
-        </span>
-    );
-
-    const createdTemplate = (rowData: VoucherCode) => (
-        <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>
-            {new Date(rowData.created_at).toLocaleDateString()}
-        </span>
-    );
-
-    const actionsTemplate = (rowData: VoucherCode) => (
-        <div className="flex gap-1">
-            <Button
-                icon="pi pi-print"
-                text
-                severity="info"
-                size="small"
-                tooltip="Print receipt"
-                onClick={() =>
-                    printVoucherReceipts([
-                        {
-                            code: rowData.code,
-                            balance: rowData.balance,
-                            currency: rowData.currency,
-                            tenantName: rowData.tenant_name,
-                            venueName: rowData.venue.name,
-                            expiresAt: rowData.expires_at,
-                            createdAt: rowData.created_at,
-                        },
-                    ])
-                }
-            />
-            {rowData.status === 'active' && (
-                <Button
-                    icon="pi pi-times-circle"
-                    severity="danger"
-                    text
-                    size="small"
-                    tooltip="Void code"
-                    onClick={() => handleVoidCode(rowData.venue.uuid, rowData.uuid)}
-                />
-            )}
-        </div>
-    );
 
     const closeGenerateDialog = () => {
         setGenerateOpen(false);
@@ -398,188 +284,312 @@ export default function VoucherCodes() {
         setSelectedVenue('');
         setPin('');
         setInitialBalance('100');
-        setPrefix('');
     };
 
-    const generateDialogFooter = (
-        <div className="flex justify-end gap-2">
-            <Button
-                label={generatedCode ? 'Close' : 'Cancel'}
-                icon="pi pi-times"
-                severity="secondary"
-                outlined
-                onClick={closeGenerateDialog}
-            />
-            {!generatedCode && (
-                <Button
-                    label={generating ? 'Creating...' : 'Create'}
-                    icon="pi pi-cog"
-                    onClick={handleGenerate}
-                    disabled={!selectedVenue || generating}
-                    loading={generating}
-                />
-            )}
-        </div>
-    );
+    const generateVenueOptions = venues.map((v) => ({ label: v.name, value: v.uuid }));
 
     return (
-        <UserLayout title="Voucher Codes">
-            <Head title="Voucher Codes" />
+        <UserLayout title="Voucher codes">
+            <Head title="Voucher codes · Admin" />
 
-            <div className="space-y-8">
-                <PageHeader title="Voucher Codes" subtitle="Generate and manage voucher codes">
-                    <Button
-                        label="Refresh"
-                        icon="pi pi-refresh"
-                        severity="secondary"
-                        outlined
-                        onClick={fetchCodes}
-                    />
-                    <Button
-                        label="Create Voucher"
-                        icon="pi pi-plus"
-                        onClick={() => {
-                            setSelectedVenue(venueFilter);
-                            setGenerateOpen(true);
-                        }}
-                    />
-                </PageHeader>
-
-                {/* Filters */}
-                <div className="rounded-xl p-4" style={{ background: 'var(--acu-surface-card)', border: '1px solid var(--acu-border)' }}>
-                    <div className="flex flex-wrap gap-5">
-                        <div className="flex gap-2">
-                            <span className="p-input-icon-left">
-                                <i className="pi pi-search" />
-                                <InputText
-                                    placeholder="Search by code..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                    style={{ width: '16rem' }}
-                                />
-                            </span>
-                            <Button
-                                icon="pi pi-search"
-                                onClick={handleSearch}
-                                tooltip="Search"
-                            />
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Admin</div>
+                        <h1 className="cgo-title">Voucher codes</h1>
+                        <div className="cgo-subtitle">
+                            Issue, monitor and void voucher codes per venue.
                         </div>
-                        <Dropdown
-                            value={venueFilter}
-                            options={venueOptions}
-                            onChange={(e) => setVenueFilter(e.value)}
-                            placeholder="All venues"
-                            style={{ width: '12rem' }}
-                        />
-                        <Dropdown
-                            value={statusFilter}
-                            options={statusOptions}
-                            onChange={(e) => setStatusFilter(e.value)}
-                            placeholder="All statuses"
-                            style={{ width: '10rem' }}
-                        />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={fetchCodes}
+                        >
+                            Refresh
+                        </button>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--primary cg-btn--sm"
+                            onClick={() => {
+                                setSelectedVenue(venueFilter);
+                                setGenerateOpen(true);
+                            }}
+                        >
+                            + New voucher
+                        </button>
                     </div>
                 </div>
 
-                {/* Codes Table */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-credit-card" />
-                            <span style={{ fontFamily: 'var(--font-display)' }}>Voucher Codes</span>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--acu-text-light)', marginLeft: '0.25rem' }}>
-                                ({meta?.total ? `${meta.total} total` : 'Loading...'})
-                            </span>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset-body p-0">
-                        <DataTable
-                            value={codes}
-                            loading={loading}
-                            size="small"
-                            emptyMessage="No voucher codes found"
-                            showGridlines={false}
-                            dataKey="uuid"
+                {/* Filter bar — status chips, venue select, search */}
+                <div className="cgo-filterbar">
+                    {STATUS_FILTERS.map((f) => (
+                        <button
+                            key={f.value || 'all'}
+                            type="button"
+                            className={`cgo-chip${statusFilter === f.value ? ' active' : ''}`}
+                            onClick={() => { setStatusFilter(f.value); setPage(1); }}
                         >
-                            <Column header="Code" body={codeTemplate} />
-                            <Column header="Venue" body={venueTemplate} />
-                            <Column header="Balance" body={balanceTemplate} />
-                            <Column header="Status" body={statusTemplate} />
-                            <Column header="Loaded / Cashed Out" body={loadedCashedTemplate} />
-                            <Column header="Created" body={createdTemplate} />
-                            <Column header="Actions" body={actionsTemplate} style={{ width: '7rem' }} />
-                        </DataTable>
+                            {f.label}
+                        </button>
+                    ))}
+                    <div className="cgo-right" style={{ flexWrap: 'wrap' }}>
+                        <label className="cgo-input" style={{ minWidth: 180 }}>
+                            <select
+                                value={venueFilter}
+                                onChange={(e) => { setVenueFilter(e.target.value); setPage(1); }}
+                                style={{
+                                    all: 'unset', flex: 1,
+                                    color: 'inherit', font: 'inherit', cursor: 'pointer',
+                                }}
+                            >
+                                <option value="">All venues</option>
+                                {venues.map((v) => (
+                                    <option key={v.uuid} value={v.uuid}>{v.name}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="cgo-input">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
+                                placeholder="Search by code…"
+                                style={{ minWidth: 220 }}
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={submitSearch}
+                        >
+                            Search
+                        </button>
+                    </div>
+                </div>
 
-                        {/* Pagination */}
-                        {meta && meta.last_page > 1 && (
-                            <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--acu-border)' }}>
-                                <p style={{ fontSize: '0.875rem', color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>
-                                    Page {meta.current_page} of {meta.last_page}
-                                </p>
-                                <div className="flex gap-2">
-                                    <Button
-                                        label="Previous"
-                                        icon="pi pi-chevron-left"
-                                        severity="secondary"
-                                        outlined
-                                        size="small"
+                {/* Voucher codes table */}
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 180 }}>Code</th>
+                                <th style={{ minWidth: 160 }}>Venue</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Balance</th>
+                                <th style={{ width: 100 }}>Status</th>
+                                <th className="cgo-r" style={{ width: 200 }}>Loaded / Cashed</th>
+                                <th style={{ width: 110 }}>Created</th>
+                                <th style={{ width: 100 }} />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        Loading…
+                                    </td>
+                                </tr>
+                            ) : codes.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No voucher codes match the current filters.
+                                    </td>
+                                </tr>
+                            ) : (
+                                codes.map((c) => (
+                                    <tr key={c.uuid}>
+                                        <td>
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    padding: '3px 10px',
+                                                    border: '1px solid var(--cg-rule-strong)',
+                                                    borderRadius: 4,
+                                                    background: 'var(--cg-ink-elevated)',
+                                                    color: 'var(--cg-brass-hi)',
+                                                    fontFamily: 'var(--cg-mono)',
+                                                    fontSize: 12,
+                                                    letterSpacing: '0.04em',
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                {c.code}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                                                {c.venue.name}
+                                            </span>
+                                            {c.tenant_name && (
+                                                <div className="cgo-uid">{c.tenant_name}</div>
+                                            )}
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-stake">
+                                                <span className="cgo-ccy">{c.currency}</span>
+                                                {formatNAD(c.balance)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`cgo-pill ${statusPill(c.status)}`}>
+                                                {c.status.replace('_', ' ')}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
+                                                {formatNAD(c.total_loaded)} / {formatNAD(c.total_cashed_out)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className="cgo-uid">{formatDate(c.created_at)}</span>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                                <button
+                                                    type="button"
+                                                    className="cgo-row-action"
+                                                    aria-label="Print receipt"
+                                                    title="Print receipt"
+                                                    onClick={() =>
+                                                        printVoucherReceipts([{
+                                                            code: c.code,
+                                                            balance: c.balance,
+                                                            currency: c.currency,
+                                                            tenantName: c.tenant_name,
+                                                            venueName: c.venue.name,
+                                                            expiresAt: c.expires_at,
+                                                            createdAt: c.created_at,
+                                                        }])
+                                                    }
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                                                </button>
+                                                {c.status === 'active' && (
+                                                    <button
+                                                        type="button"
+                                                        className="cgo-row-action"
+                                                        aria-label="Void code"
+                                                        title="Void code"
+                                                        style={{ color: 'var(--cg-neg)', borderColor: 'var(--cg-neg)' }}
+                                                        onClick={() => handleVoidCode(c.venue.uuid, c.uuid)}
+                                                    >
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+
+                    {/* Footer + pager */}
+                    {meta && (
+                        <div className="cgo-table-foot">
+                            <span>
+                                {meta.total > 0 ? (
+                                    <>
+                                        Showing <b className="cgo-mono">{codes.length}</b> of{' '}
+                                        <b className="cgo-mono">{meta.total.toLocaleString()}</b> codes
+                                    </>
+                                ) : (
+                                    'No codes'
+                                )}
+                            </span>
+                            {meta.last_page > 1 && (
+                                <div className="cgo-pager">
+                                    <button
+                                        type="button"
                                         disabled={meta.current_page === 1}
                                         onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                    />
-                                    <Button
-                                        label="Next"
-                                        icon="pi pi-chevron-right"
-                                        iconPos="right"
-                                        severity="secondary"
-                                        outlined
-                                        size="small"
+                                        aria-label="Previous"
+                                    >
+                                        ‹
+                                    </button>
+                                    <button type="button" className="curr" disabled>
+                                        {meta.current_page}
+                                    </button>
+                                    <button
+                                        type="button"
                                         disabled={meta.current_page === meta.last_page}
                                         onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-                                    />
+                                        aria-label="Next"
+                                    >
+                                        ›
+                                    </button>
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Generate Codes Dialog */}
+            {/* Create voucher dialog */}
             <Dialog
-                header="Create Voucher"
+                header="Create voucher"
                 visible={generateOpen}
                 style={{ width: '32rem' }}
                 onHide={closeGenerateDialog}
-                footer={generateDialogFooter}
                 modal
                 draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            label={generatedCode ? 'Close' : 'Cancel'}
+                            severity="secondary"
+                            outlined
+                            onClick={closeGenerateDialog}
+                        />
+                        {!generatedCode && (
+                            <Button
+                                label={generating ? 'Creating…' : 'Create'}
+                                onClick={handleGenerate}
+                                disabled={!selectedVenue || generating}
+                                loading={generating}
+                            />
+                        )}
+                    </div>
+                }
             >
-                <p style={{ fontSize: '0.875rem', color: 'var(--acu-text-muted)', marginBottom: '1rem', fontFamily: 'var(--font-body)' }}>
-                    Create a voucher for a player
-                </p>
-
                 {generatedCode ? (
                     <div className="space-y-4">
-                        <div className="rounded-lg p-4" style={{ background: 'var(--acu-surface-elevated)', border: '1px solid var(--acu-border)' }}>
-                            <p className="mb-3" style={{ fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                Voucher created:
-                            </p>
+                        <div
+                            style={{
+                                background: 'var(--cg-ink-elevated)',
+                                border: '1px solid var(--cg-rule)',
+                                borderRadius: 6,
+                                padding: 14,
+                            }}
+                        >
+                            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
+                                Voucher created
+                            </div>
                             <div className="flex justify-between items-center">
-                                <code style={{
-                                    fontFamily: 'monospace',
-                                    color: 'var(--acu-primary)',
-                                    letterSpacing: '0.04em',
-                                    fontSize: '1.2rem',
-                                }}>
+                                <code
+                                    style={{
+                                        fontFamily: 'var(--cg-mono)',
+                                        color: 'var(--cg-brass-hi)',
+                                        letterSpacing: '0.06em',
+                                        fontSize: '1.2rem',
+                                        fontWeight: 600,
+                                    }}
+                                >
                                     {generatedCode.code}
                                 </code>
-                                <span style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)', fontSize: '1.1rem' }}>
-                                    {formatCurrency(generatedCode.balance, generatedCode.currency || 'NAD')}
+                                <span style={{ fontFamily: 'var(--cg-mono)', fontSize: '1.1rem' }}>
+                                    {generatedCode.currency || 'NAD'} {formatNAD(generatedCode.balance)}
                                 </span>
                             </div>
                         </div>
                         <Button
-                            label="Print Receipt"
+                            label="Print receipt"
                             icon="pi pi-print"
                             onClick={() => {
                                 const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
@@ -598,9 +608,7 @@ export default function VoucherCodes() {
                 ) : (
                     <div className="space-y-4">
                         <div className="flex flex-col gap-1">
-                            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                Venue
-                            </label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Venue</label>
                             <Dropdown
                                 value={selectedVenue}
                                 options={generateVenueOptions}
@@ -610,9 +618,7 @@ export default function VoucherCodes() {
                             />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                Amount (NAD)
-                            </label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Amount (NAD)</label>
                             <InputText
                                 type="number"
                                 min={0.01}
@@ -623,13 +629,11 @@ export default function VoucherCodes() {
                             />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--acu-text)', fontFamily: 'var(--font-body)' }}>
-                                PIN (optional, 4 digits)
-                            </label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>PIN (optional · 4 digits)</label>
                             <InputText
                                 type="text"
                                 maxLength={4}
-                                placeholder="e.g., 1234"
+                                placeholder="e.g. 1234"
                                 value={pin}
                                 onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
                                 className="w-full"

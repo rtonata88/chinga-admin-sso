@@ -1,126 +1,215 @@
-import InputError from '@/components/input-error';
-import TextLink from '@/components/text-link';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Spinner } from '@/components/ui/spinner';
+// resources/js/pages/auth/login.tsx
+//
+// Sign-in form, brass-on-ink. Uses the auth-premium-layout shell
+// (which carries the tenant logo + dot-pattern background) and
+// renders the form with native inputs styled in brass tokens. The
+// shadcn UI primitives are deliberately not used here so the form
+// blends with the operator console aesthetic.
+
 import AuthLayout from '@/layouts/auth-layout';
-import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, Link } from '@inertiajs/react';
 
 interface LoginProps {
     status?: string;
     canResetPassword: boolean;
-    canRegister: boolean;
 }
 
-export default function Login({
-    status,
-    canResetPassword,
-    canRegister,
-}: LoginProps) {
+export default function Login({ status, canResetPassword }: LoginProps) {
     return (
-        <AuthLayout
-            title="Log in to your account"
-            description="Enter your credentials below"
-        >
+        <AuthLayout title="Sign in" description="Enter your credentials to continue">
             <Head title="Log in" />
 
             <Form
                 {...store.form()}
                 resetOnSuccess={['password']}
-                className="flex flex-col gap-6"
+                style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
             >
                 {({ processing, errors }) => (
                     <>
-                        <div className="grid gap-6">
-                            <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    name="email"
-                                    required
-                                    autoFocus
-                                    tabIndex={1}
-                                    autoComplete="email"
-                                    placeholder="email@example.com"
-                                    className="h-10"
-                                />
-                                <InputError message={errors.email} />
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="password">Password</Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    name="password"
-                                    required
-                                    tabIndex={2}
-                                    autoComplete="current-password"
-                                    placeholder="Password"
-                                    className="h-10"
-                                />
-                                <InputError message={errors.password} />
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <Checkbox
-                                        id="remember"
-                                        name="remember"
-                                        tabIndex={3}
-                                    />
-                                    <Label htmlFor="remember">Remember me</Label>
-                                </div>
-                                {canResetPassword && (
-                                    <TextLink
-                                        href={request()}
-                                        className="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                                        tabIndex={5}
-                                    >
-                                        Forgot password?
-                                    </TextLink>
-                                )}
-                            </div>
-
-                            <Button
-                                type="submit"
-                                className="mt-2 h-10 w-full bg-[var(--auth-accent)] text-white shadow-lg shadow-[var(--auth-glow-color-strong)] hover:bg-[var(--auth-accent-hover)] hover:shadow-xl hover:shadow-[var(--auth-glow-color-strong)]"
-                                tabIndex={4}
-                                disabled={processing}
-                                data-test="login-button"
+                        {/* Email */}
+                        <div>
+                            <label
+                                htmlFor="email"
+                                style={{
+                                    display: 'block',
+                                    fontSize: 10,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.18em',
+                                    color: 'var(--cg-fg-3)',
+                                    fontWeight: 600,
+                                    marginBottom: 6,
+                                }}
                             >
-                                {processing && <Spinner />}
-                                Log in
-                            </Button>
+                                Email
+                            </label>
+                            <input
+                                id="email"
+                                type="email"
+                                name="email"
+                                required
+                                autoFocus
+                                tabIndex={1}
+                                autoComplete="email"
+                                placeholder="you@example.com"
+                                className="cgo-auth-field"
+                            />
+                            {errors.email && (
+                                <div className="cgo-auth-error">{errors.email}</div>
+                            )}
                         </div>
 
-                        {canRegister && (
-                            <div className="text-center text-sm text-slate-500 dark:text-slate-400">
-                                Don't have an account?{' '}
-                                <TextLink
-                                    href={register()}
-                                    className="font-medium text-[var(--auth-accent)] decoration-[var(--auth-accent)]/30 hover:decoration-[var(--auth-accent)]"
+                        {/* Password */}
+                        <div>
+                            <label
+                                htmlFor="password"
+                                style={{
+                                    display: 'block',
+                                    fontSize: 10,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.18em',
+                                    color: 'var(--cg-fg-3)',
+                                    fontWeight: 600,
+                                    marginBottom: 6,
+                                }}
+                            >
+                                Password
+                            </label>
+                            <input
+                                id="password"
+                                type="password"
+                                name="password"
+                                required
+                                tabIndex={2}
+                                autoComplete="current-password"
+                                placeholder="••••••••"
+                                className="cgo-auth-field"
+                            />
+                            {errors.password && (
+                                <div className="cgo-auth-error">{errors.password}</div>
+                            )}
+                        </div>
+
+                        {/* Remember + forgot */}
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 12,
+                            }}
+                        >
+                            <label
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    fontSize: 13,
+                                    color: 'var(--cg-fg-2)',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    name="remember"
+                                    tabIndex={3}
+                                    style={{
+                                        width: 14,
+                                        height: 14,
+                                        accentColor: 'var(--cg-brass)',
+                                        cursor: 'pointer',
+                                    }}
+                                />
+                                Remember me
+                            </label>
+                            {canResetPassword && (
+                                <Link
+                                    href={request()}
+                                    style={{
+                                        fontSize: 13,
+                                        color: 'var(--cg-fg-3)',
+                                        textDecoration: 'none',
+                                    }}
                                     tabIndex={5}
+                                    onMouseOver={(e) => { e.currentTarget.style.color = 'var(--cg-brass-hi)'; }}
+                                    onMouseOut={(e) => { e.currentTarget.style.color = 'var(--cg-fg-3)'; }}
                                 >
-                                    Sign up
-                                </TextLink>
+                                    Forgot password?
+                                </Link>
+                            )}
+                        </div>
+
+                        {/* Submit */}
+                        <button
+                            type="submit"
+                            tabIndex={4}
+                            disabled={processing}
+                            data-test="login-button"
+                            className="cg-btn cg-btn--primary"
+                            style={{
+                                width: '100%',
+                                justifyContent: 'center',
+                                marginTop: 4,
+                                opacity: processing ? 0.7 : 1,
+                                cursor: processing ? 'wait' : 'pointer',
+                            }}
+                        >
+                            {processing ? 'Signing in…' : 'Sign in'}
+                        </button>
+
+                        {/* Status / register link */}
+                        {status && (
+                            <div
+                                style={{
+                                    fontSize: 12,
+                                    color: 'var(--cg-pos)',
+                                    textAlign: 'center',
+                                }}
+                            >
+                                {status}
                             </div>
                         )}
+
                     </>
                 )}
             </Form>
 
-            {status && (
-                <div className="mt-4 text-center text-sm font-medium text-emerald-600">
-                    {status}
-                </div>
-            )}
+            {/* Local field styling — scoped via the .cgo-auth-field class
+                so it doesn't bleed into other forms. */}
+            <style>{`
+                .cgo-auth-field {
+                    width: 100%;
+                    height: 40px;
+                    padding: 0 12px;
+                    background: var(--cg-ink-elevated);
+                    border: 1px solid var(--cg-rule-strong);
+                    border-radius: 6px;
+                    color: var(--cg-fg-1);
+                    font-family: var(--cg-body);
+                    font-size: 14px;
+                    transition: border-color 120ms ease, box-shadow 120ms ease;
+                    outline: none;
+                }
+                .cgo-auth-field::placeholder { color: var(--cg-fg-4); }
+                .cgo-auth-field:focus {
+                    border-color: var(--cg-brass);
+                    box-shadow: 0 0 0 3px var(--cg-brass-wash);
+                }
+                .cgo-auth-field:autofill,
+                .cgo-auth-field:-webkit-autofill {
+                    -webkit-text-fill-color: var(--cg-fg-1);
+                    -webkit-box-shadow: 0 0 0 1000px var(--cg-ink-elevated) inset;
+                    box-shadow: 0 0 0 1000px var(--cg-ink-elevated) inset;
+                    caret-color: var(--cg-fg-1);
+                }
+                .cgo-auth-error {
+                    margin-top: 6px;
+                    font-size: 12px;
+                    color: var(--cg-neg);
+                }
+            `}</style>
         </AuthLayout>
     );
 }

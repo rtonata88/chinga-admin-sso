@@ -16,18 +16,18 @@ import {
     DollarSign,
     Gamepad2,
     Gauge,
-    Globe,
     History,
     LayoutGrid,
     LineChart,
     ListChecks,
+    MapPin,
     Ticket,
     Trophy,
     Users,
     Wallet,
 } from 'lucide-react';
 
-import type { NavGroup } from './operator-console-layout';
+import type { NavGroup, NavLink } from './operator-console-layout';
 
 interface BuildSystemNavInput {
     isTenantAdmin?: boolean;
@@ -42,35 +42,37 @@ export function buildSystemNav({ isTenantAdmin, isPlatformAdmin }: BuildSystemNa
         items: [{ label: 'Dashboard', href: '/dashboard', icon: Gauge }],
     });
 
+    // Administration — items flow in order of data dependence: the
+    // entities at the top are foundational (tenants, games, users),
+    // the ones at the bottom are derived/aggregate views (revenue,
+    // reports, audit). Tenant Overview leads off as the dashboard
+    // entry point. Tenants + Games are platform-admin only since
+    // they're cross-tenant entities.
     if (isTenantAdmin || isPlatformAdmin) {
-        groups.push({
-            label: 'Administration',
-            items: [
-                { label: 'Tenant Overview', href: '/tenant-overview', icon: LayoutGrid },
-                { label: 'Users', href: '/admin/users', icon: Users },
-                { label: 'Wallets', href: '/admin/wallets', icon: Wallet },
-                { label: 'Wallet Transactions', href: '/admin/wallet-transactions', icon: History },
-                { label: 'Withdrawals', href: '/admin/withdrawals', icon: Coins },
-                { label: 'Voucher Codes', href: '/admin/voucher-codes', icon: Ticket },
-                { label: 'Revenue', href: '/admin/revenue', icon: DollarSign },
-                { label: 'Reports', href: '/admin/reports', icon: BarChart3 },
-                { label: 'Audit Logs', href: '/admin/audit-logs', icon: ListChecks },
-            ],
-        });
+        const adminItems: NavLink[] = [
+            { label: 'Tenant Overview', href: '/tenant-overview', icon: LayoutGrid },
+        ];
+        if (isPlatformAdmin) {
+            adminItems.push(
+                { label: 'Tenants', href: '/platform/tenants', icon: Building2 },
+                { label: 'Games', href: '/platform/games', icon: Gamepad2 },
+            );
+        }
+        adminItems.push(
+            { label: 'Users', href: '/admin/users', icon: Users },
+            { label: 'Venues', href: '/admin/venues', icon: MapPin },
+            { label: 'Voucher Codes', href: '/admin/voucher-codes', icon: Ticket },
+            { label: 'Wallets', href: '/admin/wallets', icon: Wallet },
+            { label: 'Wallet Transactions', href: '/admin/wallet-transactions', icon: History },
+            { label: 'Withdrawals', href: '/admin/withdrawals', icon: Coins },
+            { label: 'Revenue', href: '/admin/revenue', icon: DollarSign },
+            { label: 'Reports', href: '/admin/reports', icon: BarChart3 },
+            { label: 'Audit Logs', href: '/admin/audit-logs', icon: ListChecks },
+        );
+        groups.push({ label: 'Administration', items: adminItems });
     }
 
     if (isPlatformAdmin) {
-        groups.push({
-            label: 'Platform',
-            items: [
-                { label: 'Platform', href: '/platform', icon: Globe },
-                { label: 'Users', href: '/platform/users', icon: Users },
-                { label: 'Tenants', href: '/platform/tenants', icon: Building2 },
-                { label: 'Games', href: '/platform/games', icon: Gamepad2 },
-                { label: 'Revenue', href: '/platform/revenue', icon: DollarSign },
-            ],
-        });
-
         groups.push({
             label: 'Chinga Fantasy',
             items: [

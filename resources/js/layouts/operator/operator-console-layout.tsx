@@ -16,6 +16,7 @@ import {
     Clock,
     Gauge,
     LineChart,
+    LogOut,
     Receipt,
     ShieldCheck,
     UserSquare2,
@@ -25,6 +26,7 @@ import {
     Coins,
     CheckCircle2,
 } from 'lucide-react';
+import { logout } from '@/routes';
 import { useEffect, useRef, type ComponentType, type ReactNode, type SVGProps } from 'react';
 
 // Inertia re-mounts the layout on every navigation, which resets the
@@ -182,10 +184,20 @@ export default function OperatorConsoleLayout({
 
                 <div className="cgo-rail-foot">
                     <div className="cgo-avatar">{meInitials}</div>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="cgo-me-name">{meName}</div>
                         <div className="cgo-me-role">{meRole}</div>
                     </div>
+                    <Link
+                        href={logout()}
+                        as="button"
+                        className="cgo-rail-logout"
+                        title="Sign out"
+                        aria-label="Sign out"
+                        data-test="logout-button"
+                    >
+                        <LogOut size={16} strokeWidth={1.5} />
+                    </Link>
                 </div>
             </aside>
 

@@ -1,9 +1,10 @@
-// resources/js/pages/platform/tenants/venues/show.tsx
+// resources/js/pages/admin/venues/show.tsx
 //
-// Venue detail, brass-on-ink to match /platform/tenants/{uuid}.
-// Header → KPI strip → Address + Contact info panels → Staff /
-// Terminals tabs (each with their own table). Add-staff and
-// add-terminal dialogs stay on PrimeReact.
+// Tenant-admin venue detail. Tenant context is implicit — the
+// /api/v1/admin/venues/{uuid} endpoints auto-scope via Venue's
+// BelongsToTenant trait, so a tenant admin can never load another
+// tenant's venue from here. Add-staff and add-terminal dialogs stay
+// on PrimeReact for their multi-field form state.
 
 import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
@@ -125,20 +126,15 @@ function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
                     <div key={i} style={{ gridColumn: `span ${it.span ?? 6}` }}>
                         <div
                             style={{
-                                fontSize: 10,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.16em',
-                                color: 'var(--cg-fg-3)',
-                                fontWeight: 600,
-                                marginBottom: 4,
+                                fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em',
+                                color: 'var(--cg-fg-3)', fontWeight: 600, marginBottom: 4,
                             }}
                         >
                             {it.label}
                         </div>
                         <div
                             style={{
-                                fontSize: 13,
-                                color: 'var(--cg-fg-1)',
+                                fontSize: 13, color: 'var(--cg-fg-1)',
                                 fontFamily: it.mono ? 'var(--cg-mono)' : undefined,
                                 fontFeatureSettings: it.mono ? "'tnum' 1" : undefined,
                                 wordBreak: 'break-word',
@@ -154,7 +150,8 @@ function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
 }
 
 export default function VenueShow() {
-    const { tenantUuid, uuid } = usePage<{ tenantUuid: string; uuid: string }>().props;
+    const { uuid } = usePage<{ uuid: string }>().props;
+    const apiBase = `/api/v1/admin/venues/${uuid}`;
 
     const [venue, setVenue] = useState<VenueDetails | null>(null);
     const [staff, setStaff] = useState<Staff[]>([]);
@@ -166,25 +163,16 @@ export default function VenueShow() {
     const [addStaffOpen, setAddStaffOpen] = useState(false);
     const [savingStaff, setSavingStaff] = useState(false);
     const [staffForm, setStaffForm] = useState({
-        username: '',
-        password: '',
-        display_name: '',
-        email: '',
-        phone: '',
-        role: 'staff',
-        pin: '',
+        username: '', password: '', display_name: '',
+        email: '', phone: '', role: 'staff', pin: '',
     });
 
     const [addTerminalOpen, setAddTerminalOpen] = useState(false);
     const [savingTerminal, setSavingTerminal] = useState(false);
     const [terminalForm, setTerminalForm] = useState({
-        terminal_code: '',
-        name: '',
-        type: 'terminal',
+        terminal_code: '', name: '', type: 'terminal',
     });
     const [newTerminalApiKey, setNewTerminalApiKey] = useState<string | null>(null);
-
-    const apiBase = `/api/v1/platform/tenants/${tenantUuid}/venues/${uuid}`;
 
     const getCsrfToken = () =>
         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -235,7 +223,7 @@ export default function VenueShow() {
         fetchStaff();
         fetchTerminals();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tenantUuid, uuid]);
+    }, [uuid]);
 
     const refreshAll = () => { fetchVenue(); fetchStaff(); fetchTerminals(); };
 
@@ -262,7 +250,7 @@ export default function VenueShow() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to add staff.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to add staff.' });
         } finally {
             setSavingStaff(false);
@@ -291,7 +279,7 @@ export default function VenueShow() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to add terminal.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to add terminal.' });
         } finally {
             setSavingTerminal(false);
@@ -318,7 +306,7 @@ export default function VenueShow() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || `Failed to ${action} venue.` });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: `Failed to ${action} venue.` });
         }
     };
@@ -341,16 +329,16 @@ export default function VenueShow() {
                 <div className="cgo-page">
                     <div className="cgo-page-head">
                         <div>
-                            <div className="cgo-eyebrow">Platform · Venue</div>
+                            <div className="cgo-eyebrow">Admin · Venue</div>
                             <h1 className="cgo-title">Venue not found</h1>
-                            <div className="cgo-subtitle">This venue does not exist.</div>
+                            <div className="cgo-subtitle">This venue does not exist or doesn't belong to your tenant.</div>
                         </div>
                         <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
-                            onClick={() => router.visit(`/platform/tenants/${tenantUuid}`)}
+                            onClick={() => router.visit('/admin/venues')}
                         >
-                            ← Back to tenant
+                            ← Back to venues
                         </button>
                     </div>
                 </div>
@@ -371,9 +359,7 @@ export default function VenueShow() {
             span: 12,
             value: addressLines.length ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {addressLines.map((line, i) => (
-                        <span key={i}>{line}</span>
-                    ))}
+                    {addressLines.map((line, i) => (<span key={i}>{line}</span>))}
                 </div>
             ) : '—',
         },
@@ -402,20 +388,18 @@ export default function VenueShow() {
                 {/* Page header */}
                 <div className="cgo-page-head">
                     <div>
-                        <div className="cgo-eyebrow">Platform · Tenant · Venue</div>
+                        <div className="cgo-eyebrow">Admin · Venue</div>
                         <h1 className="cgo-title">{venue.name}</h1>
                         <div className="cgo-subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                             <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>{venue.slug}</span>
-                            <span className={`cgo-pill ${statusPill(venue.status)}`}>
-                                {venue.status}
-                            </span>
+                            <span className={`cgo-pill ${statusPill(venue.status)}`}>{venue.status}</span>
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
-                            onClick={() => router.visit(`/platform/tenants/${tenantUuid}`)}
+                            onClick={() => router.visit('/admin/venues')}
                         >
                             ← Back
                         </button>
@@ -463,10 +447,8 @@ export default function VenueShow() {
                 {/* Address + Business */}
                 <div
                     style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 16,
-                        marginBottom: 24,
+                        display: 'grid', gridTemplateColumns: '1fr 1fr',
+                        gap: 16, marginBottom: 24,
                     }}
                 >
                     <InfoPanel title="Location" items={addressItems} />
@@ -541,9 +523,7 @@ export default function VenueShow() {
                                                 {s.email && <div className="cgo-uid">{s.email}</div>}
                                             </td>
                                             <td>
-                                                <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
-                                                    {s.username}
-                                                </span>
+                                                <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>{s.username}</span>
                                             </td>
                                             <td>
                                                 <span style={{ fontSize: 12, color: 'var(--cg-fg-2)', textTransform: 'capitalize' }}>
@@ -551,9 +531,7 @@ export default function VenueShow() {
                                                 </span>
                                             </td>
                                             <td>
-                                                <span className={`cgo-pill ${statusPill(s.status)}`}>
-                                                    {s.status}
-                                                </span>
+                                                <span className={`cgo-pill ${statusPill(s.status)}`}>{s.status}</span>
                                             </td>
                                             <td>
                                                 <span className="cgo-uid">
@@ -593,16 +571,11 @@ export default function VenueShow() {
                                             <td>
                                                 <span
                                                     style={{
-                                                        display: 'inline-block',
-                                                        padding: '2px 8px',
-                                                        border: '1px solid var(--cg-rule-strong)',
-                                                        borderRadius: 4,
-                                                        background: 'var(--cg-ink-elevated)',
-                                                        color: 'var(--cg-brass-hi)',
-                                                        fontFamily: 'var(--cg-mono)',
-                                                        fontSize: 11,
-                                                        letterSpacing: '0.04em',
-                                                        fontWeight: 600,
+                                                        display: 'inline-block', padding: '2px 8px',
+                                                        border: '1px solid var(--cg-rule-strong)', borderRadius: 4,
+                                                        background: 'var(--cg-ink-elevated)', color: 'var(--cg-brass-hi)',
+                                                        fontFamily: 'var(--cg-mono)', fontSize: 11,
+                                                        letterSpacing: '0.04em', fontWeight: 600,
                                                     }}
                                                 >
                                                     {t.terminal_code}
@@ -614,9 +587,7 @@ export default function VenueShow() {
                                                 </span>
                                             </td>
                                             <td>
-                                                <span className={`cgo-pill ${statusPill(t.status)}`}>
-                                                    {t.status}
-                                                </span>
+                                                <span className={`cgo-pill ${statusPill(t.status)}`}>{t.status}</span>
                                             </td>
                                             <td>
                                                 <span className="cgo-uid">
@@ -762,25 +733,19 @@ export default function VenueShow() {
             >
                 {newTerminalApiKey ? (
                     <div className="space-y-4">
-                        <p style={{ fontSize: 13 }}>
-                            Save the API key below — it will only be shown once.
-                        </p>
+                        <p style={{ fontSize: 13 }}>Save the API key below — it will only be shown once.</p>
                         <div
                             style={{
                                 background: 'var(--cg-ink-elevated)',
                                 border: '1px solid var(--cg-rule)',
-                                borderRadius: 6,
-                                padding: 14,
+                                borderRadius: 6, padding: 14,
                             }}
                         >
                             <div className="cgo-uid" style={{ marginBottom: 4 }}>API key</div>
                             <code
                                 style={{
-                                    display: 'block',
-                                    fontFamily: 'var(--cg-mono)',
-                                    fontSize: 12,
-                                    color: 'var(--cg-brass-hi)',
-                                    wordBreak: 'break-all',
+                                    display: 'block', fontFamily: 'var(--cg-mono)', fontSize: 12,
+                                    color: 'var(--cg-brass-hi)', wordBreak: 'break-all',
                                 }}
                             >
                                 {newTerminalApiKey}

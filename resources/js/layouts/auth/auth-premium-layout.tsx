@@ -1,4 +1,3 @@
-import AppLogoIcon from '@/components/app-logo-icon';
 import { home } from '@/routes';
 import { Link, usePage } from '@inertiajs/react';
 import { type CSSProperties, type PropsWithChildren } from 'react';
@@ -21,6 +20,12 @@ interface AuthPremiumLayoutProps {
     description?: string;
 }
 
+/**
+ * Auth shell — brass-on-ink to match the operator console. Tenant
+ * branding (logo, name, primary_color) still customises the page;
+ * a tenant `primary_color` overrides the brass accent so resellers
+ * can keep their visual identity on the login flow.
+ */
 export default function AuthPremiumLayout({
     children,
     title,
@@ -30,110 +35,162 @@ export default function AuthPremiumLayout({
 
     const tenantColor = tenant?.branding?.primary_color;
 
-    const bgStyle: CSSProperties = {
-        ...(tenantColor
-            ? {
-                  '--auth-glow-color': hexToRgba(tenantColor, 0.15),
-                  '--auth-glow-color-strong': hexToRgba(tenantColor, 0.25),
-                  '--auth-accent': tenantColor,
-              } as CSSProperties
-            : {}),
-    };
+    const accentStyle: CSSProperties = tenantColor
+        ? ({
+              // Tenant-supplied accent overrides the brass scale on the
+              // login page only — operator console keeps brass.
+              '--cg-brass': tenantColor,
+              '--cg-brass-hi': tenantColor,
+              '--cg-brass-wash': hexToRgba(tenantColor, 0.12),
+              '--auth-accent': tenantColor,
+              '--auth-glow': hexToRgba(tenantColor, 0.18),
+          } as CSSProperties)
+        : ({} as CSSProperties);
 
     return (
         <div
-            className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden p-4 sm:p-6 md:p-10"
-            style={bgStyle}
+            className="cgo-auth-shell"
+            style={{
+                position: 'relative',
+                minHeight: '100svh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '32px 16px',
+                background: 'var(--cg-ink)',
+                color: 'var(--cg-fg-1)',
+                overflow: 'hidden',
+                fontFamily: 'var(--cg-body)',
+                ...accentStyle,
+            }}
         >
-            {/* Dark gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[var(--auth-bg-from)] to-[var(--auth-bg-to)]" />
-
-            {/* Subtle dot pattern overlay */}
+            {/* Subtle dot pattern */}
             <div
-                className="absolute inset-0 opacity-[0.03]"
+                aria-hidden
                 style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: 0.045,
                     backgroundImage:
                         'radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)',
-                    backgroundSize: '24px 24px',
+                    backgroundSize: '22px 22px',
+                    pointerEvents: 'none',
                 }}
             />
 
-            {/* Radial glow behind card */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full bg-[var(--auth-glow-color)] blur-[120px]" />
+            {/* Brass radial glow behind the card */}
+            <div
+                aria-hidden
+                style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 560,
+                    height: 560,
+                    borderRadius: '50%',
+                    background: 'var(--auth-glow, rgba(201, 168, 76, 0.12))',
+                    filter: 'blur(120px)',
+                    pointerEvents: 'none',
+                }}
+            />
 
-            {/* Card */}
-            <div className="relative z-10 w-full max-w-md">
-                <div className="rounded-2xl border border-white/10 bg-white/95 px-8 py-10 shadow-2xl backdrop-blur-xl dark:bg-slate-900/90">
-                    {/* Logo + branding */}
-                    <div className="flex flex-col items-center gap-4">
+            <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 420 }}>
+                <div
+                    style={{
+                        background: 'var(--cg-ink-card)',
+                        border: '1px solid var(--cg-rule)',
+                        borderRadius: 12,
+                        padding: '36px 32px 32px',
+                        boxShadow:
+                            '0 1px 0 rgba(255,255,255,0.02) inset, 0 12px 40px rgba(0,0,0,0.4)',
+                    }}
+                >
+                    {/* Wordmark + title */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 18,
+                            marginBottom: 24,
+                        }}
+                    >
                         <Link
                             href={home()}
-                            className="flex flex-col items-center gap-2 font-medium"
+                            style={{
+                                fontFamily: 'var(--cg-condensed)',
+                                fontSize: 22,
+                                fontWeight: 700,
+                                letterSpacing: '0.06em',
+                                textTransform: 'uppercase',
+                                color: 'var(--cg-brass-hi)',
+                                textDecoration: 'none',
+                            }}
                         >
-                            {tenant?.logo_url ? (
-                                <img
-                                    src={tenant.logo_url}
-                                    alt={tenant.name}
-                                    className="h-12 w-auto object-contain"
-                                />
-                            ) : (
-                                <div className="flex h-12 w-12 items-center justify-center">
-                                    <AppLogoIcon className="size-12 fill-[var(--auth-accent)]" />
-                                </div>
-                            )}
-                            {tenant && (
-                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                                    {tenant.name}
-                                </span>
-                            )}
-                            <span className="sr-only">{title}</span>
+                            {tenant?.name ?? 'Chinga Games'}
                         </Link>
 
-                        <div className="space-y-1.5 text-center">
-                            <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
-                                {title}
-                            </h1>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                {description}
-                            </p>
+                        <div style={{ textAlign: 'center' }}>
+                            {title && (
+                                <h1
+                                    style={{
+                                        margin: 0,
+                                        fontFamily: 'var(--cg-condensed)',
+                                        fontSize: 20,
+                                        fontWeight: 600,
+                                        letterSpacing: '-0.005em',
+                                        color: 'var(--cg-fg-1)',
+                                    }}
+                                >
+                                    {title}
+                                </h1>
+                            )}
+                            {description && (
+                                <p
+                                    style={{
+                                        margin: '6px 0 0',
+                                        fontSize: 13,
+                                        color: 'var(--cg-fg-3)',
+                                    }}
+                                >
+                                    {description}
+                                </p>
+                            )}
                         </div>
                     </div>
 
                     {/* Form content */}
-                    <div className="mt-8">{children}</div>
+                    <div>{children}</div>
                 </div>
 
-                {/* Powered by footer (tenant context only) */}
-                {tenant && (
-                    <div className="mt-4 text-center text-xs text-slate-400/60">
-                        Powered by Chinga Games
-                    </div>
-                )}
+                {/* Footer */}
+                <div
+                    style={{
+                        marginTop: 16,
+                        textAlign: 'center',
+                        fontSize: 11,
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: 'var(--cg-fg-4)',
+                    }}
+                >
+                    {tenant ? 'Powered by Chinga Games' : 'Chinga Games'}
+                </div>
             </div>
         </div>
     );
 }
 
-/**
- * Convert a hex color to rgba string.
- * Handles both 3-char (#abc) and 6-char (#aabbcc) hex values.
- * Falls back to default blue accent for invalid input.
- */
 function hexToRgba(hex: string, alpha: number): string {
     const cleanHex = hex.replace('#', '');
-
     const fullHex =
         cleanHex.length === 3
-            ? cleanHex
-                  .split('')
-                  .map((c) => c + c)
-                  .join('')
+            ? cleanHex.split('').map((c) => c + c).join('')
             : cleanHex;
-
     if (!/^[0-9a-fA-F]{6}$/.test(fullHex)) {
-        return `rgba(37, 99, 235, ${alpha})`;
+        return `rgba(201, 168, 76, ${alpha})`;
     }
-
     const r = parseInt(fullHex.substring(0, 2), 16);
     const g = parseInt(fullHex.substring(2, 4), 16);
     const b = parseInt(fullHex.substring(4, 6), 16);

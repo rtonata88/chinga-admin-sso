@@ -1,9 +1,11 @@
 // resources/js/pages/admin/dashboard.tsx
 //
-// Admin overview, brass-on-ink redesign mirroring /dashboard.
-// Different metrics — this page surfaces tenant-admin operations
-// (players, venues, vouchers, security) instead of live trading
-// activity. Same KPI card pattern + hairline-row table.
+// Tenant overview, brass-on-ink. The KPI strip is scope-aware:
+// platform admins see cross-tenant aggregates (Total Tenants, Total
+// Wagered, Total Wins, Platform Profit); tenant admins see their
+// tenant's slice (Bets Placed, Total Wagered, Total Wins, Your
+// share). Server decides scope so a tenant admin can never accidentally
+// be shown platform-wide numbers.
 
 import {
     KpiCard,
@@ -14,33 +16,23 @@ import {
 import UserLayout from '@/layouts/user-layout';
 import { Head } from '@inertiajs/react';
 
-interface UserStats {
-    total: number;
-    today: number;
-    this_week: number;
-    active: number;
+interface PlatformKpis {
+    total_tenants: number;
+    total_wagered: number;
+    total_wins: number;
+    platform_profit: number;
 }
 
-interface VenueStats {
-    total: number;
-    active: number;
+interface TenantKpis {
+    bets_placed: number;
+    total_wagered: number;
+    total_wins: number;
+    tenant_profit: number;
 }
 
-interface VoucherStats {
-    active: number;
-    total_balance: number;
-}
-
-interface SecurityStats {
-    failed_logins_today: number;
-    locked_accounts: number;
-}
-
-interface Stats {
-    users: UserStats;
-    venues: VenueStats;
-    vouchers: VoucherStats;
-    security: SecurityStats;
+interface Period {
+    from: string;
+    to: string;
 }
 
 interface TenantBreakdown {
@@ -60,76 +52,96 @@ interface TenantBreakdown {
 }
 
 interface AdminDashboardProps {
-    stats: Stats;
+    period: Period;
+    kpis: PlatformKpis | TenantKpis;
+    scope: 'platform' | 'tenant';
+    tenant_name?: string | null;
     tenants?: TenantBreakdown[];
 }
 
-export default function AdminDashboard({ stats, tenants = [] }: AdminDashboardProps) {
-    const playersDelta =
-        stats.users.today > 0
-            ? { sign: 'pos' as const, text: `+${stats.users.today} today` }
-            : undefined;
+const MONTH_FORMATTER = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
 
-    const securityFailures = stats.security.failed_logins_today;
-    const securityLocked = stats.security.locked_accounts;
+export default function AdminDashboard({ period, kpis, scope, tenant_name, tenants = [] }: AdminDashboardProps) {
+    const monthLabel = MONTH_FORMATTER.format(new Date(period.from));
+    const isTenantScope = scope === 'tenant';
+
+    // Narrow union per scope so TS lets us read scope-specific keys.
+    const platformKpis = isTenantScope ? null : (kpis as PlatformKpis);
+    const tenantKpis = isTenantScope ? (kpis as TenantKpis) : null;
 
     return (
-        <UserLayout title="Admin">
-            <Head title="Admin · Dashboard" />
+        <UserLayout title={isTenantScope ? 'Overview' : 'Admin'}>
+            <Head title={isTenantScope ? `${tenant_name ?? 'Tenant'} · Overview` : 'Admin · Dashboard'} />
             <div className="cgo-page">
                 {/* Page header */}
                 <div className="cgo-page-head">
                     <div>
-                        <div className="cgo-eyebrow">Admin</div>
-                        <h1 className="cgo-title">Tenant overview</h1>
+                        <div className="cgo-eyebrow">{isTenantScope ? 'Tenant' : 'Admin'}</div>
+                        <h1 className="cgo-title">
+                            {isTenantScope ? (tenant_name ?? 'Tenant overview') : 'Tenant overview'}
+                        </h1>
                         <div className="cgo-subtitle">
-                            Players, venues, voucher pool and security signals for your tenant.
+                            {isTenantScope
+                                ? `Activity for ${monthLabel}.`
+                                : `Cross-tenant activity for ${monthLabel}.`}
                         </div>
                     </div>
                 </div>
 
-                {/* KPI strip — five admin-flavoured cards. */}
-                <div className="cgo-kpis cgo-kpis--5">
-                    <KpiCard
-                        label="Players · total"
-                        value={formatCount(stats.users.total)}
-                        delta={playersDelta}
-                        meta={`${formatCount(stats.users.active)} active`}
-                    />
-                    <KpiCard
-                        label="Active venues"
-                        value={formatCount(stats.venues.active)}
-                        meta={`${stats.venues.total} total`}
-                    />
-                    <KpiCard
-                        label="Outstanding vouchers"
-                        value={formatCurrencyCompact(stats.vouchers.total_balance)}
-                        brass
-                        meta={`${formatCount(stats.vouchers.active)} active codes`}
-                    />
-                    <KpiCard
-                        label="Failed logins · today"
-                        value={formatCount(securityFailures)}
-                        delta={
-                            securityFailures > 0
-                                ? { sign: 'neg', text: `${securityFailures} attempts` }
-                                : undefined
-                        }
-                        meta={securityFailures === 0 ? 'all clear' : 'review'}
-                    />
-                    <KpiCard
-                        label="Locked accounts"
-                        value={formatCount(securityLocked)}
-                        delta={
-                            securityLocked > 0
-                                ? { sign: 'neg', text: `${securityLocked} held` }
-                                : undefined
-                        }
-                        meta={securityLocked === 0 ? 'none held' : 'awaiting unlock'}
-                    />
+                {/* KPI strip — month-to-date, scope-aware. */}
+                <div className="cgo-kpis">
+                    {isTenantScope ? (
+                        <>
+                            <KpiCard
+                                label="Bets placed"
+                                value={formatCount(tenantKpis!.bets_placed)}
+                                meta={monthLabel}
+                            />
+                            <KpiCard
+                                label="Total wagered"
+                                value={formatCurrencyCompact(tenantKpis!.total_wagered)}
+                                meta="staked by your players"
+                            />
+                            <KpiCard
+                                label="Total wins"
+                                value={formatCurrencyCompact(tenantKpis!.total_wins)}
+                                meta="paid out to winners"
+                            />
+                            <KpiCard
+                                label="Your share"
+                                value={formatCurrencyCompact(tenantKpis!.tenant_profit)}
+                                brass
+                                meta="after tax + platform split"
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <KpiCard
+                                label="Total tenants"
+                                value={formatCount(platformKpis!.total_tenants)}
+                                meta="all tenants on platform"
+                            />
+                            <KpiCard
+                                label="Total wagered"
+                                value={formatCurrencyCompact(platformKpis!.total_wagered)}
+                                meta={monthLabel}
+                            />
+                            <KpiCard
+                                label="Total wins"
+                                value={formatCurrencyCompact(platformKpis!.total_wins)}
+                                meta={monthLabel}
+                            />
+                            <KpiCard
+                                label="Platform profit"
+                                value={formatCurrencyCompact(platformKpis!.platform_profit)}
+                                brass
+                                meta={monthLabel}
+                            />
+                        </>
+                    )}
                 </div>
 
-                {/* Tenant breakdown (last 30 days) */}
+                {/* Tenant breakdown · month-to-date */}
                 <div
                     className="cgo-table-bar"
                     style={{
@@ -140,7 +152,9 @@ export default function AdminDashboard({ stats, tenants = [] }: AdminDashboardPr
                         marginTop: 0,
                     }}
                 >
-                    <div className="cgo-table-bar-title">Tenants · last 30 days</div>
+                    <div className="cgo-table-bar-title">
+                        {isTenantScope ? `Breakdown · ${monthLabel}` : `Tenants · ${monthLabel}`}
+                    </div>
                 </div>
                 <div
                     className="cgo-table-wrap cgo-table-wrap--scroll"
@@ -155,13 +169,14 @@ export default function AdminDashboard({ stats, tenants = [] }: AdminDashboardPr
                                 <th className="cgo-r" style={{ width: 130 }}>Wins</th>
                                 <th className="cgo-r" style={{ width: 140 }}>Tenant profit</th>
                                 <th className="cgo-r" style={{ width: 140 }}>Platform profit</th>
+                                <th className="cgo-r" style={{ width: 110 }}></th>
                             </tr>
                         </thead>
                         <tbody>
                             {tenants.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
-                                        No tenant activity in the last 30 days.
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No tenant activity in {monthLabel}.
                                     </td>
                                 </tr>
                             ) : (
@@ -211,6 +226,18 @@ export default function AdminDashboard({ stats, tenants = [] }: AdminDashboardPr
                                             >
                                                 {formatNAD(t.platform_profit)}
                                             </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            {t.business_model === 'reseller' && t.tenant_uuid ? (
+                                                <a
+                                                    href={`/tenant-overview/${t.tenant_uuid}/invoice?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`}
+                                                    target="_blank"
+                                                    rel="noopener"
+                                                    className="cg-btn cg-btn--ghost cg-btn--sm"
+                                                >
+                                                    Invoice
+                                                </a>
+                                            ) : null}
                                         </td>
                                     </tr>
                                 ))

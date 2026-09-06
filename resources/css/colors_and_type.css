@@ -206,6 +206,7 @@
     border-radius: var(--cg-r-3);
     border: 1px solid transparent;
     cursor: pointer;
+    text-decoration: none;
     transition: background var(--cg-dur) var(--cg-ease),
                 border-color var(--cg-dur) var(--cg-ease),
                 color var(--cg-dur) var(--cg-ease),
