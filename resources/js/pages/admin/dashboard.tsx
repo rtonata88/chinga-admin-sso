@@ -51,17 +51,31 @@ interface TenantBreakdown {
     platform_profit: number;
 }
 
+interface GameBreakdown {
+    game_uuid: string;
+    game_name: string;
+    bets_placed: number;
+    active_players: number;
+    total_wagered: number;
+    total_paid_out: number;
+    ggr: number;
+    ngr: number;
+    tenant_profit: number;
+    platform_profit: number;
+}
+
 interface AdminDashboardProps {
     period: Period;
     kpis: PlatformKpis | TenantKpis;
     scope: 'platform' | 'tenant';
     tenant_name?: string | null;
     tenants?: TenantBreakdown[];
+    by_game?: GameBreakdown[];
 }
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
 
-export default function AdminDashboard({ period, kpis, scope, tenant_name, tenants = [] }: AdminDashboardProps) {
+export default function AdminDashboard({ period, kpis, scope, tenant_name, tenants = [], by_game = [] }: AdminDashboardProps) {
     const monthLabel = MONTH_FORMATTER.format(new Date(period.from));
     const isTenantScope = scope === 'tenant';
 
@@ -139,6 +153,97 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                             />
                         </>
                     )}
+                </div>
+
+                {/* By game · month-to-date. One row per game backend in the
+                    catalogue, summed over the tenants visible to this user. */}
+                <div
+                    className="cgo-table-bar"
+                    style={{
+                        borderRadius: '8px 8px 0 0',
+                        borderTop: '1px solid var(--cg-rule)',
+                        borderLeft: '1px solid var(--cg-rule)',
+                        borderRight: '1px solid var(--cg-rule)',
+                        marginTop: 0,
+                    }}
+                >
+                    <div className="cgo-table-bar-title">By game · {monthLabel}</div>
+                </div>
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', marginBottom: 24 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 200 }}>Game</th>
+                                <th className="cgo-r" style={{ width: 100 }}>Total bets</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Players</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Total wagered</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Wins</th>
+                                <th className="cgo-r" style={{ width: 130 }}>GGR</th>
+                                <th className="cgo-r" style={{ width: 140 }}>
+                                    {isTenantScope ? 'Your share' : 'Platform profit'}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {by_game.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No game activity in {monthLabel}.
+                                    </td>
+                                </tr>
+                            ) : (
+                                by_game.map((g) => {
+                                    const profit = isTenantScope ? g.tenant_profit : g.platform_profit;
+                                    return (
+                                        <tr key={g.game_uuid}>
+                                            <td style={{ maxWidth: 240 }}>
+                                                <div className="cgo-name cgo-cell-clip" title={g.game_name}>
+                                                    {g.game_name}
+                                                </div>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">{formatCount(g.bets_placed)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">{formatCount(g.active_players)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-stake">
+                                                    <span className="cgo-ccy">NAD</span>
+                                                    {formatNAD(g.total_wagered)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-stake">
+                                                    <span className="cgo-ccy">NAD</span>
+                                                    {formatNAD(g.total_paid_out)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span
+                                                    className="cgo-payout"
+                                                    style={{ color: g.ggr < 0 ? 'var(--cg-neg)' : undefined }}
+                                                >
+                                                    {formatNAD(g.ggr)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span
+                                                    className="cgo-payout"
+                                                    style={{ color: profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                                >
+                                                    {formatNAD(profit)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
                 </div>
 
                 {/* Tenant breakdown · month-to-date */}

@@ -13,9 +13,11 @@ use App\Models\UserSession;
 use App\Models\Venue;
 use App\Models\VoucherCode;
 use App\Models\VoucherTransaction;
-use App\Services\FantasyAdminClient;
+use App\Services\LiveGameStats;
+use App\Support\GameCatalogue;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 class ReportController extends Controller
@@ -244,7 +246,7 @@ class ReportController extends Controller
         }
 
         $query = TenantRevenueRecord::with('game:id,uuid,name', 'tenant:id,slug,name');
-        if (!empty($tenantIds)) {
+        if (! empty($tenantIds)) {
             $query->whereIn('tenant_id', $tenantIds);
         }
 
@@ -285,19 +287,24 @@ class ReportController extends Controller
      */
     private function resolveTenantScope(Request $request, ?User $user): ?array
     {
-        if (! $user) return null;
+        if (! $user) {
+            return null;
+        }
 
         if ($user->isPlatformAdmin()) {
             $param = $request->input('tenant') ?: $request->input('tenant_uuid');
             if ($param) {
                 $tenant = Tenant::where('slug', $param)->orWhere('uuid', $param)->first();
+
                 return $tenant ? [$tenant->id] : [];
             }
+
             // Empty array = no filter, see everything.
             return [];
         }
 
         $tenant = app('current_tenant') ?? $user->tenant;
+
         return $tenant ? [$tenant->id] : null;
     }
 
@@ -320,7 +327,7 @@ class ReportController extends Controller
      *   direct:   tenant_share  = 0
      *             chinga_share  = NGR
      */
-    public function revenueSummary(Request $request, FantasyAdminClient $fantasyAdmin): JsonResponse
+    public function revenueSummary(Request $request, LiveGameStats $stats): JsonResponse
     {
         $user = $request->user();
         $tenantIds = $this->resolveTenantScope($request, $user);
@@ -334,15 +341,17 @@ class ReportController extends Controller
         $fromIso = \Carbon\Carbon::parse($from)->startOfDay()->toIso8601String();
         $toIso = \Carbon\Carbon::parse($to)->endOfDay()->toIso8601String();
 
+        // One call per game in the caller's catalogue (PRD §4 P6).
         // Platform admin viewing the whole platform: aggregate across
         // all tenants via statsByTenant, applying each tenant's
         // commercial split (matches DashboardController). Tenant admin:
         // straight statsSummary call for one tenant.
+        $games = GameCatalogue::withBackendForUser($user);
         if (empty($tenantIds)) {
-            [$totals, $perGame] = $this->aggregateAllTenants($fantasyAdmin, $fromIso, $toIso);
+            [$totals, $perGame] = $this->aggregateAllTenants($stats, $games, $fromIso, $toIso);
         } else {
             $tenant = Tenant::find($tenantIds[0]);
-            [$totals, $perGame] = $this->aggregateOneTenant($fantasyAdmin, $tenant, $fromIso, $toIso);
+            [$totals, $perGame] = $this->aggregateOneTenant($stats, $games, $tenant, $fromIso, $toIso);
         }
 
         return response()->json([
@@ -356,114 +365,100 @@ class ReportController extends Controller
     }
 
     /**
-     * Live summary for a single tenant. chinga-fantasy stores SSO
-     * tenant slug in its `tenant_uuid` column (TODO: backfill to UUID
-     * — see DashboardController). Slug-first, UUID-fallback.
+     * Live summary for a single tenant, one backend call per game, each
+     * game's figures run through the tenant's commercial split and summed.
      */
-    private function aggregateOneTenant(FantasyAdminClient $client, Tenant $tenant, string $fromIso, string $toIso): array
+    private function aggregateOneTenant(LiveGameStats $stats, Collection $games, Tenant $tenant, string $fromIso, string $toIso): array
     {
-        $stats = null;
-        try {
-            $stats = $client->statsSummary($tenant->slug, $fromIso, $toIso);
-            if ((int) ($stats['bets_placed'] ?? 0) === 0 && $tenant->uuid) {
-                $stats = $client->statsSummary($tenant->uuid, $fromIso, $toIso);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('revenueSummary single-tenant fetch failed', ['error' => $e->getMessage()]);
-        }
-
-        $wagered = (float) ($stats['total_wagered'] ?? 0);
-        $paidOut = (float) ($stats['total_paid_out'] ?? 0);
-        [$ggr, $tenantShare, $chingaShare] = $this->computeShares($tenant, $wagered, $paidOut);
-
-        $totals = [
-            'total_bets' => $wagered,
-            'total_wins' => $paidOut,
-            'gross_gaming_revenue' => $ggr,
-            'chinga_share' => $chingaShare,
-            'tenant_share' => $tenantShare,
-        ];
-
+        $totals = self::emptyTotals();
         $perGame = [];
-        $game = Game::where('slug', 'chinga-fantasy')->first();
-        if ($game && $wagered > 0) {
-            $perGame[] = [
-                'game_id' => $game->id,
-                'game' => ['uuid' => $game->uuid, 'name' => $game->name],
-                'total_bets' => $wagered,
-                'total_wins' => $paidOut,
-                'gross_gaming_revenue' => $ggr,
-                'tenant_share' => $tenantShare,
-            ];
+
+        foreach ($stats->summaryForTenant($games, $tenant, $fromIso, $toIso) as $entry) {
+            $wagered = (float) ($entry['stats']['total_wagered'] ?? 0);
+            $paidOut = (float) ($entry['stats']['total_paid_out'] ?? 0);
+            [$ggr, $tenantShare, $chingaShare] = $this->computeShares($tenant, $wagered, $paidOut);
+
+            $totals['total_bets'] += $wagered;
+            $totals['total_wins'] += $paidOut;
+            $totals['gross_gaming_revenue'] += $ggr;
+            $totals['chinga_share'] += $chingaShare;
+            $totals['tenant_share'] += $tenantShare;
+
+            if ($wagered > 0 || $entry['error'] !== null) {
+                $perGame[] = self::perGameRow($entry['game'], $wagered, $paidOut, $ggr, $tenantShare, $entry['error']);
+            }
         }
 
         return [$totals, $perGame];
     }
 
     /**
-     * Cross-tenant live aggregate for platform admins. Calls
-     * statsByTenant once and applies each row's tenant-specific
-     * commercial split, then sums.
+     * Cross-tenant live aggregate for platform admins. Calls statsByTenant
+     * once per game and applies each row's tenant-specific commercial
+     * split, then sums, keeping a per-game subtotal.
      */
-    private function aggregateAllTenants(FantasyAdminClient $client, string $fromIso, string $toIso): array
+    private function aggregateAllTenants(LiveGameStats $stats, Collection $games, string $fromIso, string $toIso): array
     {
-        $rows = [];
-        try {
-            $resp = $client->statsByTenant($fromIso, $toIso);
-            $rows = $resp['tenants'] ?? [];
-        } catch (\Throwable $e) {
-            Log::warning('revenueSummary all-tenants fetch failed', ['error' => $e->getMessage()]);
-        }
-
-        // Resolve each fantasy-side tenant_uuid (which is actually the
-        // slug — see comment on aggregateOneTenant) back to a Tenant.
-        $keys = collect($rows)->pluck('tenant_uuid')->filter()->unique()->values()->all();
-        $tenantsBySlug = Tenant::whereIn('slug', $keys)->get()->keyBy('slug');
-        $tenantsByUuid = Tenant::whereIn('uuid', $keys)->get()->keyBy('uuid');
-
-        $totalBets = 0.0;
-        $totalWins = 0.0;
-        $totalGgr = 0.0;
-        $totalTenantShare = 0.0;
-        $totalChingaShare = 0.0;
-
-        foreach ($rows as $r) {
-            $key = $r['tenant_uuid'] ?? null;
-            $tenant = $key ? ($tenantsBySlug->get($key) ?? $tenantsByUuid->get($key)) : null;
-
-            $wagered = (float) ($r['total_wagered'] ?? 0);
-            $paidOut = (float) ($r['total_paid_out'] ?? 0);
-            [$ggr, $tenantShare, $chingaShare] = $this->computeShares($tenant, $wagered, $paidOut);
-
-            $totalBets += $wagered;
-            $totalWins += $paidOut;
-            $totalGgr += $ggr;
-            $totalTenantShare += $tenantShare;
-            $totalChingaShare += $chingaShare;
-        }
-
-        $totals = [
-            'total_bets' => $totalBets,
-            'total_wins' => $totalWins,
-            'gross_gaming_revenue' => $totalGgr,
-            'chinga_share' => $totalChingaShare,
-            'tenant_share' => $totalTenantShare,
-        ];
-
+        $totals = self::emptyTotals();
         $perGame = [];
-        $game = Game::where('slug', 'chinga-fantasy')->first();
-        if ($game && $totalBets > 0) {
-            $perGame[] = [
-                'game_id' => $game->id,
-                'game' => ['uuid' => $game->uuid, 'name' => $game->name],
-                'total_bets' => $totalBets,
-                'total_wins' => $totalWins,
-                'gross_gaming_revenue' => $totalGgr,
-                'tenant_share' => $totalTenantShare,
-            ];
+
+        $byGame = $stats->byTenant($games, $fromIso, $toIso);
+        $resolve = $stats->tenantResolver(collect($byGame)->flatMap(fn ($e) => collect($e['rows'])->pluck('tenant_uuid'))->all());
+
+        foreach ($byGame as $entry) {
+            $gameBets = 0.0;
+            $gameWins = 0.0;
+            $gameGgr = 0.0;
+            $gameTenantShare = 0.0;
+
+            foreach ($entry['rows'] as $r) {
+                $tenant = $resolve($r['tenant_uuid'] ?? null);
+                $wagered = (float) ($r['total_wagered'] ?? 0);
+                $paidOut = (float) ($r['total_paid_out'] ?? 0);
+                [$ggr, $tenantShare, $chingaShare] = $this->computeShares($tenant, $wagered, $paidOut);
+
+                $totals['total_bets'] += $wagered;
+                $totals['total_wins'] += $paidOut;
+                $totals['gross_gaming_revenue'] += $ggr;
+                $totals['chinga_share'] += $chingaShare;
+                $totals['tenant_share'] += $tenantShare;
+
+                $gameBets += $wagered;
+                $gameWins += $paidOut;
+                $gameGgr += $ggr;
+                $gameTenantShare += $tenantShare;
+            }
+
+            if ($gameBets > 0 || $entry['error'] !== null) {
+                $perGame[] = self::perGameRow($entry['game'], $gameBets, $gameWins, $gameGgr, $gameTenantShare, $entry['error']);
+            }
         }
 
         return [$totals, $perGame];
+    }
+
+    private static function emptyTotals(): array
+    {
+        return [
+            'total_bets' => 0.0,
+            'total_wins' => 0.0,
+            'gross_gaming_revenue' => 0.0,
+            'chinga_share' => 0.0,
+            'tenant_share' => 0.0,
+        ];
+    }
+
+    private static function perGameRow(Game $game, float $wagered, float $paidOut, float $ggr, float $tenantShare, ?string $error): array
+    {
+        return [
+            'game_id' => $game->id,
+            'game' => ['uuid' => $game->uuid, 'name' => $game->name],
+            'total_bets' => $wagered,
+            'total_wins' => $paidOut,
+            'gross_gaming_revenue' => $ggr,
+            'tenant_share' => $tenantShare,
+            'error' => $error,
+        ];
     }
 
     /**
@@ -523,7 +518,7 @@ class ReportController extends Controller
             $like = "%{$action}%";
             $query->where(function ($q) use ($like) {
                 $q->where('event_type', 'like', $like)
-                  ->orWhere('metadata->action', 'like', $like);
+                    ->orWhere('metadata->action', 'like', $like);
             });
         }
 
@@ -561,7 +556,7 @@ class ReportController extends Controller
                 // event_type + severity, or whatever metadata provides.
                 $description = $metadata['reason']
                     ?? $metadata['description']
-                    ?? trim(($log->event_type ?? '') . ($log->severity ? " ({$log->severity})" : ''))
+                    ?? trim(($log->event_type ?? '').($log->severity ? " ({$log->severity})" : ''))
                     ?: '—';
 
                 return [

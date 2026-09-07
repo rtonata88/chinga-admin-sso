@@ -4,15 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
-use App\Services\FantasyAdminClient;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use App\Services\LiveGameStats;
+use App\Support\GameCatalogue;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __construct(protected FantasyAdminClient $fantasyAdminClient) {}
+    public function __construct(protected LiveGameStats $liveStats) {}
 
     /**
      * Display the admin dashboard.
@@ -37,8 +36,12 @@ class DashboardController extends Controller
         $user = auth()->user();
         $isPlatformAdmin = $user?->isPlatformAdmin();
 
-        $tenantRows = $this->fetchTenantBreakdown($from, $to);
-        $visibleRows = $this->visibleRows($tenantRows);
+        // One row per (game, tenant) from every backend in the catalogue,
+        // then folded two ways: per tenant for the breakdown table and per
+        // game for the by-game table (PRD §4 P6).
+        $visibleFlat = $this->visibleRows($this->fetchTenantBreakdown($from, $to));
+        $visibleRows = $this->foldByTenant($visibleFlat);
+        $byGame = $this->foldByGame($visibleFlat);
 
         // KPI scope follows the visible rows: a platform admin sees
         // every row so the totals are cross-tenant; a tenant admin's
@@ -72,6 +75,7 @@ class DashboardController extends Controller
             'scope' => $scope,
             'tenant_name' => $isPlatformAdmin ? null : ($user?->tenant?->name),
             'tenants' => $visibleRows,
+            'by_game' => $byGame,
         ]);
     }
 
@@ -100,32 +104,26 @@ class DashboardController extends Controller
     private function fetchTenantBreakdown(string $from, string $to): array
     {
         $user = auth()->user();
-        if (!$user->isPlatformAdmin() && !$user->isTenantAdmin()) {
+        if (! $user->isPlatformAdmin() && ! $user->isTenantAdmin()) {
             return [];
         }
 
-        try {
-            $resp = $this->fantasyAdminClient->statsByTenant($from, $to);
-        } catch (\Throwable $e) {
-            Log::warning('statsByTenant fetch failed', ['error' => $e->getMessage()]);
-            return [];
-        }
+        $games = GameCatalogue::withBackendForUser($user);
+        $byGame = $this->liveStats->byTenant($games, $from, $to);
 
-        $rows = $resp['tenants'] ?? [];
-        if (empty($rows)) {
-            return [];
-        }
+        // chinga-fantasy stores the SSO tenant slug in its tenant_uuid
+        // columns; other games store real UUIDs. The resolver handles both.
+        $resolve = $this->liveStats->tenantResolver(
+            collect($byGame)->flatMap(fn ($e) => collect($e['rows'])->pluck('tenant_uuid'))->all()
+        );
 
-        // chinga-fantasy stores SSO tenant slug in its tenant_uuid columns
-        // (TODO: backfill to use UUID). Try slug first, fall back to uuid.
-        $keys = collect($rows)->pluck('tenant_uuid')->filter()->unique()->values()->all();
-        $tenantsBySlug = Tenant::whereIn('slug', $keys)->get()->keyBy('slug');
-        $tenantsByUuid = Tenant::whereIn('uuid', $keys)->get()->keyBy('uuid');
-
-        return collect($rows)
-            ->map(function ($r) use ($tenantsBySlug, $tenantsByUuid) {
+        return collect($byGame)
+            ->flatMap(fn ($entry) => collect($entry['rows'])->map(fn ($r) => ['game' => $entry['game'], 'row' => $r]))
+            ->map(function ($item) use ($resolve) {
+                $r = $item['row'];
+                $game = $item['game'];
                 $key = $r['tenant_uuid'] ?? null;
-                $tenant = $key ? ($tenantsBySlug->get($key) ?? $tenantsByUuid->get($key)) : null;
+                $tenant = $resolve($key);
 
                 $wagered = (float) ($r['total_wagered'] ?? 0);
                 $paidOut = (float) ($r['total_paid_out'] ?? 0);
@@ -147,6 +145,8 @@ class DashboardController extends Controller
                 }
 
                 return [
+                    'game_uuid' => $game->uuid,
+                    'game_name' => $game->name,
                     'tenant_id' => $tenant?->id,
                     'tenant_uuid' => $tenant?->uuid ?? $key,
                     'tenant_name' => $tenant?->name ?? $key ?? '—',
@@ -166,8 +166,47 @@ class DashboardController extends Controller
             ->all();
     }
 
+    private const SUMMED = ['bets_placed', 'active_players', 'total_wagered', 'total_paid_out', 'ggr', 'ngr', 'tenant_profit', 'platform_profit'];
+
+    /** One row per tenant, numeric columns summed across games. */
+    private function foldByTenant(array $flat): array
+    {
+        $out = [];
+        foreach ($flat as $r) {
+            $key = $r['tenant_uuid'] ?? $r['tenant_name'];
+            if (! isset($out[$key])) {
+                $out[$key] = array_diff_key($r, array_flip(['game_uuid', 'game_name']));
+
+                continue;
+            }
+            foreach (self::SUMMED as $col) {
+                $out[$key][$col] += $r[$col];
+            }
+        }
+
+        return array_values($out);
+    }
+
+    /** One row per game, numeric columns summed across the visible tenants. */
+    private function foldByGame(array $flat): array
+    {
+        $out = [];
+        foreach ($flat as $r) {
+            $key = $r['game_uuid'];
+            if (! isset($out[$key])) {
+                $out[$key] = ['game_uuid' => $r['game_uuid'], 'game_name' => $r['game_name']]
+                    + array_fill_keys(self::SUMMED, 0);
+            }
+            foreach (self::SUMMED as $col) {
+                $out[$key][$col] += $r[$col];
+            }
+        }
+
+        return array_values($out);
+    }
+
     /**
-     * Tenant admins only see their own tenant's row in the table;
+     * Tenant admins only see their own tenant's rows in the table;
      * platform admins see every tenant.
      */
     private function visibleRows(array $rows): array
@@ -177,6 +216,7 @@ class DashboardController extends Controller
             return $rows;
         }
         $myTenantId = $user->tenant_id;
+
         return array_values(array_filter($rows, fn ($r) => $r['tenant_id'] === $myTenantId));
     }
 

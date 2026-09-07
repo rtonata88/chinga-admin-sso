@@ -69,9 +69,26 @@ class RevenueController extends Controller
             ->groupBy('tenant_id')
             ->get();
 
+        $perGame = TenantRevenueRecord::with('game:id,uuid,name')
+            ->where('period_start', '>=', $from)
+            ->where('period_end', '<=', $to)
+            ->selectRaw('
+                game_id,
+                SUM(total_bets) as total_bets,
+                SUM(total_wins) as total_wins,
+                SUM(gross_gaming_revenue) as gross_gaming_revenue,
+                SUM(tax_amount) as tax_amount,
+                SUM(net_gaming_revenue) as net_gaming_revenue,
+                SUM(chinga_share) as chinga_share,
+                SUM(tenant_share) as tenant_share
+            ')
+            ->groupBy('game_id')
+            ->get();
+
         return response()->json([
             'totals' => $totals,
             'per_tenant' => $perTenant,
+            'by_game' => $perGame,
         ]);
     }
 }
