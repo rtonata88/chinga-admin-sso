@@ -116,6 +116,7 @@ class Tenant extends Model
     public function games(): BelongsToMany
     {
         return $this->belongsToMany(Game::class, 'tenant_games')
+            ->using(TenantGame::class)
             ->withPivot(['enabled', 'custom_settings'])
             ->withTimestamps();
     }

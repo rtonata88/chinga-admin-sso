@@ -10,6 +10,7 @@ use App\Http\Controllers\Platform\TenantVenueController;
 use App\Http\Controllers\Admin\Games\FantasyTeamController;
 use App\Http\Controllers\Admin\Games\FantasySettingsController;
 use App\Http\Controllers\Admin\Games\FantasyRoundController;
+use App\Http\Controllers\Admin\Games\GameSettingsController;
 use App\Http\Controllers\Operator\LiveWagersController;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +34,11 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('pla
     Route::get('tenants/{uuid}/venues/{venueUuid}', fn (string $uuid, string $venueUuid) => Inertia::render('platform/tenants/venues/show', ['tenantUuid' => $uuid, 'uuid' => $venueUuid]))->name('platform.tenants.venues.show');
     Route::get('games', fn () => Inertia::render('platform/games/index'))->name('platform.games');
     Route::get('games/{uuid}', fn (string $uuid) => Inertia::render('platform/games/show', ['uuid' => $uuid]))->name('platform.games.show');
+
+    // Per-game settings, rendered from games.settings_schema (any game).
+    Route::get('games/{game}/settings', [GameSettingsController::class, 'index'])->name('games.settings');
+    Route::put('games/{game}/settings/global', [GameSettingsController::class, 'updateGlobal'])->name('games.settings.global');
+    Route::put('games/{game}/settings/tenant/{tenantUuid}', [GameSettingsController::class, 'updateTenant'])->name('games.settings.tenant');
     Route::get('revenue', fn () => Inertia::render('platform/revenue/index'))->name('platform.revenue');
     Route::get('users', fn () => Inertia::render('platform/users/index'))->name('platform.users');
 
@@ -46,6 +52,7 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('fan
     Route::delete('teams/{team}', [FantasyTeamController::class, 'destroy'])->name('fantasy.teams.destroy');
     Route::post('teams/bulk-toggle', [FantasyTeamController::class, 'bulkToggle'])->name('fantasy.teams.bulk-toggle');
 
+    // Legacy: Fantasy settings moved to the schema-driven /platform/games/{game}/settings.
     Route::get('settings', [FantasySettingsController::class, 'index'])->name('fantasy.settings');
     Route::put('settings/global', [FantasySettingsController::class, 'updateGlobalSettings'])->name('fantasy.settings.global');
     Route::put('settings/tenant/{tenantUuid}', [FantasySettingsController::class, 'updateTenantSettings'])->name('fantasy.settings.tenant');

@@ -37,7 +37,7 @@ class TenantGameController extends Controller
             $game = Game::where('uuid', $gameData['uuid'])->first();
             $syncData[$game->id] = [
                 'enabled' => $gameData['enabled'] ?? true,
-                'custom_settings' => isset($gameData['custom_settings']) ? json_encode($gameData['custom_settings']) : null,
+                'custom_settings' => $gameData['custom_settings'] ?? null,
             ];
         }
 
@@ -58,7 +58,7 @@ class TenantGameController extends Controller
 
         $tenant->games()->updateExistingPivot($game->id, [
             'enabled' => $validated['enabled'] ?? true,
-            'custom_settings' => isset($validated['custom_settings']) ? json_encode($validated['custom_settings']) : null,
+            'custom_settings' => $validated['custom_settings'] ?? null,
         ]);
 
         return response()->json([

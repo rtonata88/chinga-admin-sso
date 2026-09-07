@@ -50,7 +50,10 @@ class GameConfigController extends Controller
             }
         }
 
-        $mergedSettings = array_merge($globalSettings, array_filter($tenantSettings));
+        // Only a null override means "inherit"; false and 0 are real values
+        // (auto_cashout_enabled = false must win over the global true).
+        $overrides = array_filter(is_array($tenantSettings) ? $tenantSettings : [], fn ($value) => $value !== null);
+        $mergedSettings = array_merge($globalSettings, $overrides);
 
         return response()->json([
             'game_uuid' => $game->uuid,
