@@ -22,7 +22,9 @@ use InvalidArgumentException;
 class SettingsSchema
 {
     public const TYPES = ['number', 'integer', 'boolean', 'string', 'array'];
+
     public const GROUPS = ['game', 'commercial'];
+
     public const DEFAULT_GROUP = 'game';
 
     /** @var array<string, array<string, mixed>> */
@@ -51,34 +53,34 @@ class SettingsSchema
             throw new InvalidArgumentException('settings_schema root type must be "object".');
         }
         $properties = $schema['properties'] ?? null;
-        if (!is_array($properties) || $properties === []) {
+        if (! is_array($properties) || $properties === []) {
             throw new InvalidArgumentException('settings_schema must declare at least one property.');
         }
         foreach ($properties as $key => $property) {
-            if (!is_string($key) || $key === '' || !is_array($property)) {
+            if (! is_string($key) || $key === '' || ! is_array($property)) {
                 throw new InvalidArgumentException('settings_schema property keys must be non-empty strings.');
             }
             $type = $property['type'] ?? null;
-            if (!in_array($type, self::TYPES, true)) {
+            if (! in_array($type, self::TYPES, true)) {
                 throw new InvalidArgumentException("settings_schema property \"{$key}\": type must be one of ".implode(', ', self::TYPES).'.');
             }
             if ($type === 'array' && ($property['items']['type'] ?? null) !== 'string') {
                 throw new InvalidArgumentException("settings_schema property \"{$key}\": arrays must declare items.type = \"string\".");
             }
-            if (isset($property['x-group']) && !in_array($property['x-group'], self::GROUPS, true)) {
+            if (isset($property['x-group']) && ! in_array($property['x-group'], self::GROUPS, true)) {
                 throw new InvalidArgumentException("settings_schema property \"{$key}\": x-group must be one of ".implode(', ', self::GROUPS).'.');
             }
-            if (isset($property['enum']) && (!is_array($property['enum']) || $property['enum'] === [])) {
+            if (isset($property['enum']) && (! is_array($property['enum']) || $property['enum'] === [])) {
                 throw new InvalidArgumentException("settings_schema property \"{$key}\": enum must be a non-empty list.");
             }
             foreach (['minimum', 'maximum', 'multipleOf'] as $bound) {
-                if (isset($property[$bound]) && !is_numeric($property[$bound])) {
+                if (isset($property[$bound]) && ! is_numeric($property[$bound])) {
                     throw new InvalidArgumentException("settings_schema property \"{$key}\": {$bound} must be numeric.");
                 }
             }
         }
         foreach ($schema['required'] ?? [] as $key) {
-            if (!isset($properties[$key])) {
+            if (! isset($properties[$key])) {
                 throw new InvalidArgumentException("settings_schema requires unknown property \"{$key}\".");
             }
         }
@@ -107,7 +109,7 @@ class SettingsSchema
         $groups = [];
         foreach ($this->properties as $property) {
             $group = $property['x-group'] ?? self::DEFAULT_GROUP;
-            if (!in_array($group, $groups, true)) {
+            if (! in_array($group, $groups, true)) {
                 $groups[] = $group;
             }
         }
@@ -163,10 +165,10 @@ class SettingsSchema
     {
         $rules = [];
         foreach ($this->properties as $key => $property) {
-            if ($tenantOverride && !$this->isOverridable($key)) {
+            if ($tenantOverride && ! $this->isOverridable($key)) {
                 continue;
             }
-            $presence = (!$tenantOverride && in_array($key, $this->required, true)) ? 'required' : 'nullable';
+            $presence = (! $tenantOverride && in_array($key, $this->required, true)) ? 'required' : 'nullable';
             $set = [$presence];
             switch ($property['type']) {
                 case 'number':
@@ -217,7 +219,7 @@ class SettingsSchema
     {
         $clean = [];
         foreach ($this->properties as $key => $property) {
-            if (!array_key_exists($key, $values)) {
+            if (! array_key_exists($key, $values)) {
                 continue;
             }
             $coerced = $this->coerceValue($values[$key], $property);
@@ -260,20 +262,20 @@ class SettingsSchema
 
                 return null;
             case 'string':
-                if (!is_string($value)) {
+                if (! is_string($value)) {
                     return null;
                 }
-                if (isset($property['enum']) && !in_array($value, $property['enum'], true)) {
+                if (isset($property['enum']) && ! in_array($value, $property['enum'], true)) {
                     return null;
                 }
 
                 return $value;
             case 'array':
-                if (!is_array($value)) {
+                if (! is_array($value)) {
                     return null;
                 }
                 foreach ($value as $item) {
-                    if (!is_string($item)) {
+                    if (! is_string($item)) {
                         return null;
                     }
                 }

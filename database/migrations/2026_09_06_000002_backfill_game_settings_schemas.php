@@ -35,7 +35,7 @@ return new class extends Migration
         DB::table('tenant_games')->whereNotNull('custom_settings')->orderBy('id')->each(function ($row) use ($schemasByGame) {
             $values = self::decode($row->custom_settings);
             // Drop the char-indexed garbage the old form produced ("0" => "{", ...).
-            $values = array_filter($values, fn ($v, $k) => is_string($k) && !ctype_digit($k), ARRAY_FILTER_USE_BOTH);
+            $values = array_filter($values, fn ($v, $k) => is_string($k) && ! ctype_digit($k), ARRAY_FILTER_USE_BOTH);
             if (isset($schemasByGame[$row->game_id])) {
                 $values = $schemasByGame[$row->game_id]->coerce($values);
             }
