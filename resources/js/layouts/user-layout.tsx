@@ -11,7 +11,7 @@
 // from anywhere — leaving it in place for now in case any one-off
 // page imports it directly.
 
-import { FantasyHealthBanner } from '@/components/fantasy/FantasyHealthBanner';
+import { GameHealthBanner } from '@/components/games/GameHealthBanner';
 import OperatorConsoleLayout from '@/layouts/operator/operator-console-layout';
 import { buildSystemNav } from '@/layouts/operator/system-nav';
 import { usePage } from '@inertiajs/react';
@@ -40,7 +40,7 @@ export default function UserLayout({ children, title: _title }: PropsWithChildre
 
     return (
         <OperatorConsoleLayout navGroups={navGroups} brandSubtitle="Admin Console">
-            {(isTenantAdmin || isPlatformAdmin) && <FantasyHealthBanner />}
+            {(isTenantAdmin || isPlatformAdmin) && <GameHealthBanner />}
             {children}
         </OperatorConsoleLayout>
     );
