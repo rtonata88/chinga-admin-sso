@@ -5,13 +5,14 @@ namespace Database\Seeders;
 use App\Models\Game;
 use App\Support\FantasySettingsSchema;
 use App\Support\SettingsSchema;
+use Database\Seeders\Concerns\CreatesOAuthClients;
 use Illuminate\Database\Seeder;
-use Laravel\Passport\Client;
 use Laravel\Passport\ClientRepository;
-use Laravel\Passport\Passport;
 
 class ChingaFantasyGameSeeder extends Seeder
 {
+    use CreatesOAuthClients;
+
     public function run(): void
     {
         // 1. Create or find the Chinga Fantasy game record. Settings and their
@@ -51,33 +52,20 @@ class ChingaFantasyGameSeeder extends Seeder
             )
         );
 
-        // 4. Output the results
+        // 4. Authorise the game server for service-level calls (settlement
+        //    credit) against this game's sessions. Production rows were bound
+        //    by the oauth_client_games backfill; fresh installs need this.
+        $this->bindClientToGame($serverClient, $game);
+
+        // 5. Output the results
         $this->command->info('Chinga Fantasy Game seeded successfully.');
         $this->command->newLine();
         $this->command->line("  Game UUID:          {$game->uuid}");
         $this->command->newLine();
         $this->command->line("  Frontend Client ID: {$frontendClient->id}");
-        $this->command->line("  (Public PKCE client — no secret)");
+        $this->command->line('  (Public PKCE client — no secret)');
         $this->command->newLine();
         $this->command->line("  Server Client ID:   {$serverClient->id}");
-        $this->command->line("  Server Client Secret: " . ($serverClient->plainSecret ?? '(already exists — secret not shown again)'));
-    }
-
-    /**
-     * Find an existing non-revoked OAuth client by name, or create one using the given factory.
-     */
-    private function firstOrCreateClient(string $name, callable $factory): Client
-    {
-        $existing = Passport::client()
-            ->newQuery()
-            ->where('name', $name)
-            ->where('revoked', false)
-            ->first();
-
-        if ($existing) {
-            return $existing;
-        }
-
-        return $factory(app(ClientRepository::class));
+        $this->command->line('  Server Client Secret: '.($serverClient->plainSecret ?? '(already exists — secret not shown again)'));
     }
 }

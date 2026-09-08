@@ -42,6 +42,13 @@ return [
         'api_url' => env('CHINGA_FANTASY_API_URL', 'http://localhost:3001'),
     ],
 
+    // Vrrr Pha engine, applied by VrrrPhaGameSeeder to games.backend_url /
+    // games.launch_url. Both null by default: see the seeder for why.
+    'vrrr_pha' => [
+        'backend_url' => env('VRRR_PHA_BACKEND_URL'),
+        'launch_url' => env('VRRR_PHA_LAUNCH_URL'),
+    ],
+
     // SSO-internal OAuth client used to obtain a client_credentials token
     // for calling trusted partner services (e.g. chinga-fantasy admin APIs).
     'sso_internal' => [

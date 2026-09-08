@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(RbacSeeder::class);
         $this->call(ChingaFantasyGameSeeder::class);
+        $this->call(VrrrPhaGameSeeder::class);
 
         User::firstOrCreate(
             ['email' => 'test@example.com'],
