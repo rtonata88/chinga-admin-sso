@@ -14,7 +14,7 @@ class GameConfigController extends Controller
     public function teams(Request $request, string $gameUuid): JsonResponse
     {
         $game = Game::where('uuid', $gameUuid)->first();
-        if (!$game || $game->slug !== 'chinga-fantasy') {
+        if (! $game || $game->slug !== 'chinga-fantasy') {
             return response()->json(['message' => 'Game not found.'], 404);
         }
 
@@ -32,21 +32,26 @@ class GameConfigController extends Controller
     public function config(Request $request, string $gameUuid): JsonResponse
     {
         $game = Game::where('uuid', $gameUuid)->first();
-        if (!$game) {
+        if (! $game) {
             return response()->json(['message' => 'Game not found.'], 404);
         }
 
         $globalSettings = $game->settings ?? [];
         $tenantUuid = $request->input('tenant_uuid');
         $tenantSettings = [];
+        $matchedTenant = null;
 
         if ($tenantUuid) {
-            $tenant = Tenant::where('uuid', $tenantUuid)->first();
-            if ($tenant) {
-                $pivot = $game->tenants()->where('tenants.id', $tenant->id)->first();
-                if ($pivot) {
-                    $tenantSettings = $pivot->pivot->custom_settings ?? [];
-                }
+            // Strict UUID match. An unknown tenant is an error, not "global
+            // settings": an engine must never run a tenant on defaults by
+            // accident (a slug here used to silently fall through).
+            $matchedTenant = Tenant::where('uuid', $tenantUuid)->first();
+            if (! $matchedTenant) {
+                return response()->json(['message' => 'Tenant not found.'], 404);
+            }
+            $pivot = $game->tenants()->where('tenants.id', $matchedTenant->id)->first();
+            if ($pivot) {
+                $tenantSettings = $pivot->pivot->custom_settings ?? [];
             }
         }
 
@@ -57,6 +62,7 @@ class GameConfigController extends Controller
 
         return response()->json([
             'game_uuid' => $game->uuid,
+            'tenant_uuid' => $matchedTenant?->uuid,
             'settings' => $mergedSettings,
         ]);
     }

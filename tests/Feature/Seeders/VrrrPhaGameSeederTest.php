@@ -14,6 +14,8 @@ function engineClient(): Client
 }
 
 test('seeds the Vrrr Pha game with the PRD settings, its schema and no backend by default', function () {
+    // The developer .env may carry VRRR_PHA_* URLs; the default case is no URL.
+    config(['services.vrrr_pha.backend_url' => null, 'services.vrrr_pha.launch_url' => null]);
     $this->seed(VrrrPhaGameSeeder::class);
 
     $game = Game::where('slug', 'vrrr-pha')->firstOrFail();

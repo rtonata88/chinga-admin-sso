@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\OAuthClientGames;
 use App\Models\Game;
 use App\Models\GameSession;
 use App\Models\VoucherCode;
@@ -286,7 +287,7 @@ class GameSessionController extends Controller
         ]);
 
         $sessionToken = $request->input('session_token');
-        $clientId = $this->resolveClientId($request);
+        $clientId = OAuthClientGames::clientIdFromRequest($request);
 
         if (!$clientId) {
             return response()->json([
@@ -301,12 +302,7 @@ class GameSessionController extends Controller
 
         // Enforce per-client game binding: an OAuth client may only credit
         // sessions of games it has been authorized for via oauth_client_games.
-        $allowed = DB::table('oauth_client_games')
-            ->where('oauth_client_id', $clientId)
-            ->where('game_id', $session->game_id)
-            ->exists();
-
-        if (!$allowed) {
+        if (! OAuthClientGames::isBound($clientId, $session->game_id)) {
             return response()->json([
                 'message' => 'OAuth client is not authorized to credit this game.',
             ], 403);
@@ -332,17 +328,6 @@ class GameSessionController extends Controller
         }
     }
 
-    /**
-     * Resolve the OAuth client_id from the current bearer token (client_credentials grant).
-     */
-    private function resolveClientId(Request $request): ?string
-    {
-        $token = $request->user()?->currentAccessToken();
-        if ($token && !empty($token->oauth_client_id)) {
-            return (string) $token->oauth_client_id;
-        }
-        return null;
-    }
 
     /**
      * Get recent transactions for the session.
