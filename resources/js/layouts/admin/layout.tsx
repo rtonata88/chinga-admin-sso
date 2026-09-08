@@ -5,7 +5,7 @@
 // not every admin route in this layout cares about it.
 
 import OperatorConsoleLayout from '@/layouts/operator/operator-console-layout';
-import { buildSystemNav } from '@/layouts/operator/system-nav';
+import { buildSystemNav, type NavGame } from '@/layouts/operator/system-nav';
 import { usePage } from '@inertiajs/react';
 import { type PropsWithChildren, useMemo } from 'react';
 
@@ -21,13 +21,13 @@ interface Props {
 }
 
 export default function AdminLayout({ children, title: _title }: PropsWithChildren<Props>) {
-    const { auth } = usePage<{ auth: AuthProps }>().props;
+    const { auth, games } = usePage<{ auth: AuthProps; games?: NavGame[] }>().props;
     const isPlatformAdmin = !!auth?.is_platform_admin;
     const isTenantAdmin = !!auth?.is_tenant_admin;
 
     const navGroups = useMemo(
-        () => buildSystemNav({ isTenantAdmin, isPlatformAdmin }),
-        [isTenantAdmin, isPlatformAdmin],
+        () => buildSystemNav({ isTenantAdmin, isPlatformAdmin, games: games ?? [] }),
+        [isTenantAdmin, isPlatformAdmin, games],
     );
 
     return (

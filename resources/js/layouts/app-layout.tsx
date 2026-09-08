@@ -7,7 +7,7 @@
 // (which renders them in the topbar).
 
 import OperatorConsoleLayout from '@/layouts/operator/operator-console-layout';
-import { buildSystemNav } from '@/layouts/operator/system-nav';
+import { buildSystemNav, type NavGame } from '@/layouts/operator/system-nav';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/react';
 import { useMemo, type ReactNode } from 'react';
@@ -25,13 +25,13 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children, breadcrumbs }: AppLayoutProps) {
-    const { auth } = usePage<{ auth: AuthProps }>().props;
+    const { auth, games } = usePage<{ auth: AuthProps; games?: NavGame[] }>().props;
     const isPlatformAdmin = !!auth?.is_platform_admin;
     const isTenantAdmin = !!auth?.is_tenant_admin;
 
     const navGroups = useMemo(
-        () => buildSystemNav({ isTenantAdmin, isPlatformAdmin }),
-        [isTenantAdmin, isPlatformAdmin],
+        () => buildSystemNav({ isTenantAdmin, isPlatformAdmin, games: games ?? [] }),
+        [isTenantAdmin, isPlatformAdmin, games],
     );
 
     // BreadcrumbItem in @/types includes optional `href`. Map directly.

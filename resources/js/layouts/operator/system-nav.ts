@@ -7,6 +7,12 @@
 // IMPORTANT: groups + items mirror what UserLayout used pre-retheme,
 // 1:1. Don't add new menu items here without explicit sign-off — the
 // retheme is purely visual; nav structure is owned elsewhere.
+//
+// Game groups are the exception: one group per game in the shared
+// `games` prop (the enabled catalogue), for platform admins. Every game
+// gets its schema-driven Settings page; game-specific pages are listed
+// per slug in GAME_EXTRAS. Tenant admins get no game group, matching the
+// pre-P7 behaviour (the /fantasy/* routes are platform-admin only).
 
 import {
     BarChart3,
@@ -29,12 +35,39 @@ import {
 
 import type { NavGroup, NavLink } from './operator-console-layout';
 
+export interface NavGame {
+    uuid: string;
+    name: string;
+    slug: string;
+    status?: string;
+    launch_url?: string | null;
+}
+
 interface BuildSystemNavInput {
     isTenantAdmin?: boolean;
     isPlatformAdmin?: boolean;
+    games?: NavGame[];
 }
 
-export function buildSystemNav({ isTenantAdmin, isPlatformAdmin }: BuildSystemNavInput): NavGroup[] {
+/** Game-specific admin pages, by slug. Vrrr Pha's consoles register here in M5. */
+const GAME_EXTRAS: Record<string, NavLink[]> = {
+    'chinga-fantasy': [
+        { label: 'Teams', href: '/fantasy/teams', icon: Trophy },
+        { label: 'Rounds', href: '/fantasy/rounds', icon: LineChart },
+    ],
+};
+
+export function gameNavGroup(game: NavGame): NavGroup {
+    return {
+        label: game.name,
+        items: [
+            ...(GAME_EXTRAS[game.slug] ?? []),
+            { label: 'Settings', href: `/platform/games/${game.uuid}/settings`, icon: Cog },
+        ],
+    };
+}
+
+export function buildSystemNav({ isTenantAdmin, isPlatformAdmin, games = [] }: BuildSystemNavInput): NavGroup[] {
     const groups: NavGroup[] = [];
 
     groups.push({
@@ -73,14 +106,9 @@ export function buildSystemNav({ isTenantAdmin, isPlatformAdmin }: BuildSystemNa
     }
 
     if (isPlatformAdmin) {
-        groups.push({
-            label: 'Chinga Fantasy',
-            items: [
-                { label: 'Teams', href: '/fantasy/teams', icon: Trophy },
-                { label: 'Rounds', href: '/fantasy/rounds', icon: LineChart },
-                { label: 'Settings', href: '/fantasy/settings', icon: Cog },
-            ],
-        });
+        for (const game of games) {
+            groups.push(gameNavGroup(game));
+        }
     }
 
     return groups;
