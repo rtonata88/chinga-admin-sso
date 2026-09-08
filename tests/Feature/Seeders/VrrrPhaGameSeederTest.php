@@ -110,3 +110,27 @@ test('the fantasy seeder binds its server client through oauth_client_games too'
     expect(DB::table('oauth_client_games')->where('oauth_client_id', $client->id)->where('game_id', $game->id)->exists())->toBeTrue()
         ->and($client->scopes)->toBeNull();
 });
+
+test('seeds a public web client with the password and refresh grants and no tenant', function () {
+    $this->seed(VrrrPhaGameSeeder::class);
+
+    $web = Client::query()->where('name', 'Vrrr Pha Web')->where('revoked', false)->firstOrFail();
+    expect($web->grant_types)->toBe(['password', 'refresh_token'])
+        ->and($web->confidential())->toBeFalse()
+        ->and($web->tenant_id)->toBeNull();
+
+    // The proxy login works with it: a player token comes back and the refresh cookie is set.
+    // The proxy forwards to /oauth/token over HTTP; in tests route that call back into this app.
+    \Illuminate\Support\Facades\Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        $response = $this->post('/oauth/token', $request->data());
+
+        return \Illuminate\Support\Facades\Http::response($response->json(), $response->getStatusCode());
+    });
+    $tenant = \App\Models\Tenant::factory()->create();
+    $user = \App\Models\User::factory()->create(['password' => 'secret-pass-123', 'status' => 'active', 'tenant_id' => $tenant->id]);
+    $this->withHeader('X-Tenant-ID', $tenant->uuid)
+        ->postJson('/api/v1/auth/login', ['client_id' => $web->id, 'username' => $user->email, 'password' => 'secret-pass-123', 'scope' => 'openid profile wallet'])
+        ->assertOk()
+        ->assertJsonStructure(['access_token', 'expires_in'])
+        ->assertCookie('chinga_refresh');
+});

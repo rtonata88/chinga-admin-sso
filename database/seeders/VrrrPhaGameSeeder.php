@@ -34,6 +34,9 @@ class VrrrPhaGameSeeder extends Seeder
 
     public const SCOPES = ['wallet:write', 'gaming:read'];
 
+    /** Public client the browser SPA logs in with through the auth proxy (password + refresh grants). */
+    public const WEB_CLIENT_NAME = 'Vrrr Pha Web';
+
     public function run(): void
     {
         $schema = VrrrPhaSettingsSchema::definition();
@@ -72,6 +75,18 @@ class VrrrPhaGameSeeder extends Seeder
         $this->restrictClientScopes($client, self::SCOPES);
         $this->bindClientToGame($client, $game);
 
+        // The player frontend: a PUBLIC client (no secret) that the SPA names
+        // in POST /api/v1/auth/login|refresh. The repository has no public
+        // password-client factory, so create an auth-code client and set the
+        // grants explicitly. No tenant_id: one build serves every tenant.
+        $web = $this->firstOrCreateClient(
+            self::WEB_CLIENT_NAME,
+            fn (ClientRepository $clients) => $clients->createAuthorizationCodeGrantClient(self::WEB_CLIENT_NAME, ['http://localhost:5174/oauth/callback'], false),
+        );
+        if ($web->grant_types !== ['password', 'refresh_token']) {
+            $web->forceFill(['grant_types' => ['password', 'refresh_token']])->save();
+        }
+
         $this->command?->info('Vrrr Pha seeded.');
         $this->command?->line("  Game UUID:      {$game->uuid}");
         $this->command?->line('  Backend URL:    '.($game->backend_url ?? '(not set — VRRR_PHA_BACKEND_URL)'));
@@ -79,6 +94,7 @@ class VrrrPhaGameSeeder extends Seeder
         $this->command?->line('  Client scopes:  '.implode(' ', self::SCOPES));
         if ($this->command) {
             $this->describeClient($client, 'Engine');
+            $this->command->line("  Web Client ID (VITE_SSO_CLIENT_ID): {$web->id}  (public, password + refresh_token)");
         }
     }
 }
