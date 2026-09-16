@@ -26,11 +26,13 @@ test('seeds the Vrrr Pha game with the PRD settings, its schema and no backend b
         ->and($game->settings['house_edge'])->toBe(0.04)
         ->and($game->settings['betting_window_seconds'])->toBe(8)
         ->and($game->settings['auto_cashout_enabled'])->toBeTrue()
+        ->and($game->settings['auto_rebet_enabled'])->toBeFalse()
+        ->and($game->settings['max_multiplier'])->toBe(320)
         ->and($game->settings['geo_allowed_countries'])->toBe(['NA'])
         ->and($game->settings['max_total_stake_per_round'])->toBe(25000);
 
     SettingsSchema::assertValid($game->settings_schema);
-    expect((new SettingsSchema($game->settings_schema))->keys())->toHaveCount(12);
+    expect((new SettingsSchema($game->settings_schema))->keys())->toHaveCount(14);
 });
 
 test('seeds a client_credentials engine client restricted to wallet:write and gaming:read, bound to the game', function () {
