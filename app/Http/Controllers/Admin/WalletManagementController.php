@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tenant;
 use App\Models\Wallet;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class WalletManagementController extends Controller
 {
@@ -94,8 +96,41 @@ class WalletManagementController extends Controller
     /**
      * Deposit funds into a wallet.
      */
+
+    /**
+     * Money moves on a wallet only by an admin of the tenant that owns it. A platform admin
+     * has no tenant context, sees every operator's wallets, and must not create or remove
+     * balance on an operator's books: that operator's own admin does it, on their own
+     * ledger. Freezing stays available to everyone as a safety action.
+     */
+    private function refuseUnlessOwnTenant(Request $request, Wallet $wallet): ?JsonResponse
+    {
+        $actor = $request->user();
+        if ($actor && $actor->tenant_id !== null && (int) $actor->tenant_id === (int) $wallet->tenant_id) {
+            return null;
+        }
+        $owner = Tenant::withoutGlobalScopes()->find($wallet->tenant_id);
+        Log::warning('wallet.cross_tenant_money_refused', [
+            'actor_id' => $actor?->id,
+            'actor_tenant_id' => $actor?->tenant_id,
+            'wallet_id' => $wallet->id,
+            'wallet_tenant_id' => $wallet->tenant_id,
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'code' => 'cross_tenant_wallet',
+            'message' => $owner
+                ? "This wallet belongs to {$owner->name}. Only an admin of {$owner->name} can add or remove balance on it."
+                : 'Only an admin of the tenant that owns this wallet can add or remove balance on it.',
+        ], 403);
+    }
+
     public function deposit(Request $request, Wallet $wallet): JsonResponse
     {
+        if ($refused = $this->refuseUnlessOwnTenant($request, $wallet)) {
+            return $refused;
+        }
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',
             'reference' => 'nullable|string|max:255',
@@ -127,6 +162,9 @@ class WalletManagementController extends Controller
      */
     public function withdraw(Request $request, Wallet $wallet): JsonResponse
     {
+        if ($refused = $this->refuseUnlessOwnTenant($request, $wallet)) {
+            return $refused;
+        }
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',
             'reference' => 'nullable|string|max:255',
