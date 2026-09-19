@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -31,6 +34,33 @@ class AuthProxyController extends Controller
             'password' => ['required', 'string'],
             'scope' => ['nullable', 'string'],
         ]);
+
+        // A player plays only on the tenant that owns their account and wallet. When the game
+        // names a tenant (X-Tenant-ID from the client), an account that belongs to another
+        // tenant is refused here, before any token exists, and told which operator it is with.
+        $tenant = app('current_tenant');
+        if ($tenant instanceof Tenant) {
+            $elsewhere = User::withoutGlobalScopes()
+                ->where(fn ($q) => $q->where('email', $validated['username'])->orWhere('username', $validated['username']))
+                ->where('tenant_id', '!=', $tenant->id)
+                ->get()
+                ->first(fn (User $u) => Hash::check($validated['password'], $u->password));
+            $here = User::withoutGlobalScopes()
+                ->where(fn ($q) => $q->where('email', $validated['username'])->orWhere('username', $validated['username']))
+                ->where('tenant_id', $tenant->id)
+                ->exists();
+            if ($elsewhere && ! $here) {
+                $owner = Tenant::find($elsewhere->tenant_id);
+
+                return response()->json([
+                    'message' => $owner
+                        ? "This account belongs to {$owner->name}. Open the game through {$owner->name}'s link."
+                        : 'This account belongs to another operator.',
+                    'code' => 'tenant_mismatch',
+                    'tenant' => $owner ? ['uuid' => $owner->uuid, 'slug' => $owner->slug, 'name' => $owner->name] : null,
+                ], 403);
+            }
+        }
 
         return $this->forwardToken($request, [
             'grant_type' => 'password',
@@ -76,8 +106,11 @@ class AuthProxyController extends Controller
 
     private function forwardToken(Request $request, array $body): JsonResponse
     {
+        // Carry the tenant into the internal token request so the user lookup is scoped to it:
+        // the same email may exist under several tenants, and the tenant's own account must win.
         $response = Http::asForm()
             ->acceptJson()
+            ->withHeaders(array_filter(['X-Tenant-ID' => $request->header('X-Tenant-ID')]))
             ->post($request->root().'/oauth/token', $body);
 
         $payload = $response->json() ?? [];

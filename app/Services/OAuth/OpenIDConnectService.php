@@ -17,6 +17,7 @@ class OpenIDConnectService
             'sub' => $user->uuid,
             'tenant_id' => $user->tenant?->uuid,
             'tenant_name' => $user->tenant?->name,
+            'tenant_slug' => $user->tenant?->slug,
         ];
 
         if (in_array('profile', $scopes)) {
