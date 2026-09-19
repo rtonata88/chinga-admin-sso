@@ -1,6 +1,66 @@
+// resources/js/pages/dashboard.tsx
+//
+// Admin dashboard, retheme + recompose pass.
+// Mirrors the Live Wagers Monitor visual idiom — eyebrow + title +
+// pulsing live pill, brass KPI strip with deltas + sparkline, then a
+// recent-rounds preview using the same hairline-row table pattern.
+//
+// For non-admin users the page falls back to a trimmed account view
+// so it doesn't go blank for player accounts that happen to land here.
+
 import UserLayout from '@/layouts/user-layout';
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import { Head, Link } from '@inertiajs/react';
+import {
+    KpiCard,
+    deltaPct,
+    formatCount,
+    formatCurrencyCompact,
+    formatNAD,
+} from '@/components/operator/kpi-card';
+import { Head, Link, router } from '@inertiajs/react';
+import { useEffect } from 'react';
+
+// Live pill on the page header is the user-facing signal that the
+// numbers are kept fresh. This is the actual refresh — every 5s we
+// ask Inertia to re-fetch ONLY the live-changing props (KPIs,
+// sparkline, recent bets, timestamp). preserveScroll + preserveState
+// mean the page doesn't blink or jump. Polling pauses when the tab
+// is hidden so we don't burn HTTP in the background.
+const POLL_INTERVAL_MS = 5_000;
+const LIVE_PROPS = ['wager_stats', 'wager_spark', 'recent_bets', 'last_updated'];
+
+function useDashboardPoll(enabled: boolean): void {
+    useEffect(() => {
+        if (!enabled || typeof window === 'undefined') return;
+
+        let intervalId: ReturnType<typeof setInterval> | null = null;
+
+        // Inertia v2 router.reload preserves scroll + state implicitly
+        // (it's a partial visit to the current URL), so only `only` is
+        // needed here.
+        const tick = () => {
+            router.reload({ only: LIVE_PROPS });
+        };
+
+        const start = () => {
+            if (intervalId !== null) return;
+            intervalId = setInterval(tick, POLL_INTERVAL_MS);
+        };
+        const stop = () => {
+            if (intervalId !== null) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+        };
+        const onVisibility = () => (document.hidden ? stop() : start());
+
+        if (!document.hidden) start();
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            stop();
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, [enabled]);
+}
 
 interface Account {
     name: string;
@@ -12,17 +72,6 @@ interface Account {
     two_factor_enabled: boolean;
     member_since: string;
     last_login_at: string | null;
-}
-
-interface Session {
-    device_type: string;
-    browser: string;
-    platform: string;
-    ip_address: string;
-    city: string | null;
-    country_code: string | null;
-    is_current: boolean;
-    last_active_at: string | null;
 }
 
 interface WalletTransaction {
@@ -45,363 +94,340 @@ interface WalletData {
     recent_transactions: WalletTransaction[];
 }
 
+interface StatsBucket {
+    bets_placed: number;
+    active_players: number;
+    total_wagered: string | number;
+    total_paid_out: string | number;
+    // GGR fields. `ggr` is the legacy gross figure (wagered - paid_out).
+    // `real_ggr` is deposit-aware: only counts the deposit-funded slice
+    // of activity, so re-staked winnings don't inflate house revenue.
+    ggr?: string | number;
+    deposit_wagered?: string | number;
+    deposit_paid_out?: string | number;
+    real_ggr?: string | number;
+    wins: number;
+    losses: number;
+    pending: number;
+}
+
+interface WagerStats {
+    today: StatsBucket;
+    yesterday: StatsBucket;
+}
+
+type WagerOutcome = 'win' | 'lost' | 'pending';
+
+interface RecentBet {
+    id: number | null;
+    placed_at: string | null;
+    player: { name: string; uuid_short: string | null; initials: string };
+    tenant_uuid: string | null;
+    tenant_name: string | null;
+    round_number: number | null;
+    team_names: string[];
+    bet_amount: number;
+    combined_odds: number;
+    potential_payout: number;
+    outcome: WagerOutcome | string;
+    winning_amount: number;
+}
+
 interface DashboardProps {
-    account: Account;
-    sessions: Session[];
-    active_session_count: number;
-    wallet: WalletData | null;
+    account?: Account;
+    wallet?: WalletData | null;
+    is_admin?: boolean;
+    wager_stats?: WagerStats | null;
+    wager_spark?: number[] | null;
+    recent_bets?: RecentBet[];
+    last_updated?: string;
 }
 
-function getDeviceIcon(deviceType: string): string {
-    switch (deviceType?.toLowerCase()) {
-        case 'mobile': return 'pi pi-mobile';
-        case 'tablet': return 'pi pi-tablet';
-        default: return 'pi pi-desktop';
+function num(value: string | number | null | undefined): number {
+    if (value === null || value === undefined) return 0;
+    const n = typeof value === 'string' ? parseFloat(value) : value;
+    return Number.isFinite(n) ? n : 0;
+}
+
+// Map a numeric series to 0..100 bar heights for the sparkline.
+function sparkBars(series: number[] | null | undefined): number[] {
+    if (!series || series.length === 0) return [];
+    const max = Math.max(...series, 1);
+    return series.map((v) => Math.max(8, Math.round((v / max) * 100)));
+}
+
+export default function Dashboard(props: DashboardProps) {
+    const isAdmin = !!props.is_admin;
+    useDashboardPoll(isAdmin);
+
+    if (!isAdmin) {
+        return <NonAdminDashboard {...props} />;
     }
-}
 
-function formatRelativeTime(dateStr: string): string {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const today = props.wager_stats?.today;
+    const yesterday = props.wager_stats?.yesterday;
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-}
+    // Card 1 — Active players
+    const playersToday = num(today?.active_players);
+    const playersYesterday = num(yesterday?.active_players);
+    const playersDelta = deltaPct(playersToday, playersYesterday);
 
-const defaultAccount: Account = {
-    name: '',
-    email: '',
-    display_name: null,
-    avatar_url: null,
-    status: 'active',
-    email_verified: false,
-    two_factor_enabled: false,
-    member_since: new Date().toISOString(),
-    last_login_at: null,
-};
+    // Card 2 — Bets placed
+    const betsToday = num(today?.bets_placed);
+    const betsYesterday = num(yesterday?.bets_placed);
+    const betsDelta = deltaPct(betsToday, betsYesterday);
 
-function formatCurrency(amount: number, currency: string = 'NAD'): string {
-    return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+    // Card 3 — Total wagered (raw activity; includes re-stakes)
+    const wageredToday = num(today?.total_wagered);
+    const wageredYesterday = num(yesterday?.total_wagered);
+    const wageredDelta = deltaPct(wageredToday, wageredYesterday);
 
-function getTransactionSign(type: string): string {
-    return ['deposit', 'win', 'load'].includes(type) ? '+' : '-';
-}
+    // Card 4 — Total wins (paid out to winners)
+    const winsToday = num(today?.total_paid_out);
+    const winsYesterday = num(yesterday?.total_paid_out);
+    const winsDelta = deltaPct(winsToday, winsYesterday);
 
-function getTransactionColor(type: string): string {
-    return ['deposit', 'win', 'load'].includes(type) ? '#10B981' : '#EF4444';
-}
+    // Card 5 — GGR (deposit-aware). Falls back to gross GGR if the
+    // upstream is too old to expose real_ggr — that path is just
+    // wagered - paid_out, which is what the user is correcting away
+    // from but is the safest fallback.
+    const ggrToday =
+        today?.real_ggr !== undefined
+            ? num(today.real_ggr)
+            : num(today?.ggr) || wageredToday - winsToday;
+    const ggrYesterday =
+        yesterday?.real_ggr !== undefined
+            ? num(yesterday.real_ggr)
+            : num(yesterday?.ggr) || wageredYesterday - winsYesterday;
+    const ggrDelta = deltaPct(ggrToday, ggrYesterday);
 
-export default function Dashboard({
-    account = defaultAccount,
-    sessions = [],
-    active_session_count = 0,
-    wallet = null,
-}: Partial<DashboardProps>) {
-    const verificationChecks = [
-        { label: 'Email verified', done: account.email_verified, icon: 'pi pi-envelope' },
-        { label: 'Two-factor auth', done: account.two_factor_enabled, icon: 'pi pi-shield' },
-    ];
-
-    const completedChecks = verificationChecks.filter(c => c.done).length;
-    const completionPercent = Math.round((completedChecks / verificationChecks.length) * 100);
+    const sparkHeights = sparkBars(props.wager_spark);
+    const recentBets = props.recent_bets ?? [];
 
     return (
         <UserLayout title="Dashboard">
             <Head title="Dashboard" />
-
-            <div className="space-y-6">
-                <PageHeader title={`Welcome back, ${account.display_name || account.name}`} subtitle="Your account overview" />
-
-                {/* Top Stats Row */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {/* Account Status */}
-                    <div className="acu-fieldset">
-                        <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">
-                                    Account Status
-                                </span>
-                                <div
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                    style={{ backgroundColor: '#10B98115', color: '#10B981' }}
-                                >
-                                    <i className="pi pi-user text-sm" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-bold text-[var(--acu-text)] capitalize">{account.status}</div>
-                            <p className="text-xs text-[var(--acu-text-light)] mt-1">
-                                Member since {new Date(account.member_since).toLocaleDateString()}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Wallet Balance */}
-                    <div className="acu-fieldset">
-                        <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">
-                                    Wallet Balance
-                                </span>
-                                <div
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                    style={{ backgroundColor: '#C9A84C15', color: '#C9A84C' }}
-                                >
-                                    <i className="pi pi-wallet text-sm" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-bold text-[var(--acu-text)]">
-                                {wallet ? formatCurrency(wallet.balance, wallet.currency) : 'No wallet'}
-                            </div>
-                            <p className="text-xs text-[var(--acu-text-light)] mt-1">
-                                {wallet
-                                    ? `${formatCurrency(wallet.total_deposited, wallet.currency)} deposited`
-                                    : 'Contact support to set up your wallet'}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Active Sessions */}
-                    <div className="acu-fieldset">
-                        <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">
-                                    Active Sessions
-                                </span>
-                                <div
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                    style={{ backgroundColor: '#8B5CF615', color: '#8B5CF6' }}
-                                >
-                                    <i className="pi pi-desktop text-sm" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-bold text-[var(--acu-text)]">{active_session_count}</div>
-                            <p className="text-xs text-[var(--acu-text-light)] mt-1">
-                                {account.last_login_at
-                                    ? `Last login ${formatRelativeTime(account.last_login_at)}`
-                                    : 'First session'}
-                            </p>
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Trading desk</div>
+                        <h1 className="cgo-title">
+                            Live activity
+                            <span className="cgo-live-pill">Live</span>
+                        </h1>
+                        <div className="cgo-subtitle">
+                            Open wagers, handle and player activity right now. Updated{' '}
+                            {props.last_updated ?? '—'}.
                         </div>
                     </div>
                 </div>
 
-                {/* Account setup banner — only show if incomplete */}
-                {completedChecks < verificationChecks.length && (
-                    <div
-                        className="rounded-xl overflow-hidden"
-                        style={{
-                            background: 'rgba(59, 130, 246, 0.04)',
-                            border: '1px solid rgba(59, 130, 246, 0.15)',
-                        }}
-                    >
-                        <div className="flex items-center gap-3 px-5 py-3">
-                            <i className="pi pi-info-circle text-sm" style={{ color: '#3B82F6' }} />
-                            <span className="text-sm font-medium" style={{ color: 'var(--acu-text)' }}>
-                                Complete your account setup ({completedChecks}/{verificationChecks.length})
-                            </span>
-                            <div className="ml-auto flex items-center gap-3">
-                                {verificationChecks.filter(c => !c.done).map((check) => (
-                                    <Link
-                                        key={check.label}
-                                        href="/settings"
-                                        className="text-xs font-semibold flex items-center gap-1"
-                                        style={{ color: '#3B82F6' }}
-                                    >
-                                        <i className={`${check.icon} text-xs`} />
-                                        Enable {check.label.toLowerCase()}
-                                        <i className="pi pi-arrow-right text-[10px]" />
-                                    </Link>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* KPI strip — five cards: players, bets, wagered, wins, GGR. */}
+                <div className="cgo-kpis cgo-kpis--5">
+                    <KpiCard
+                        label="Active players · today"
+                        value={formatCount(playersToday)}
+                        delta={playersDelta.sign === 'flat' ? undefined : playersDelta}
+                        meta="distinct user uuids"
+                    />
+                    <KpiCard
+                        label="Bets placed · today"
+                        value={formatCount(betsToday)}
+                        delta={betsDelta.sign === 'flat' ? undefined : betsDelta}
+                        meta="all outcomes"
+                    />
+                    <KpiCard
+                        label="Total wagered · today"
+                        value={formatCurrencyCompact(wageredToday)}
+                        meta="gross"
+                        spark={sparkHeights}
+                    />
+                    <KpiCard
+                        label="Total wins · today"
+                        value={formatCurrencyCompact(winsToday)}
+                        delta={winsDelta.sign === 'flat' ? undefined : winsDelta}
+                        meta="paid to players"
+                    />
+                    <KpiCard
+                        label="GGR · today"
+                        value={formatCurrencyCompact(ggrToday)}
+                        brass
+                        delta={ggrDelta.sign === 'flat' ? undefined : ggrDelta}
+                        meta="deposit-funded"
+                    />
+                </div>
 
-                <div className="grid gap-6 lg:grid-cols-2">
-                    {/* Recent Transactions */}
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-history" />
-                                <span>Recent Transactions</span>
-                            </div>
-                            {wallet && (
-                                <span className="text-xs font-semibold text-[var(--acu-text-light)]">
-                                    Balance: {formatCurrency(wallet.balance, wallet.currency)}
-                                </span>
-                            )}
-                        </div>
-                        <div className="acu-fieldset-body">
-                            {!wallet ? (
-                                <p className="text-sm text-[var(--acu-text-light)] text-center py-4">No wallet set up yet</p>
-                            ) : wallet.recent_transactions.length === 0 ? (
-                                <p className="text-sm text-[var(--acu-text-light)] text-center py-4">No transactions yet</p>
+                {/* Recent bets preview — header stays put while the body
+                 * scrolls. The bar above sits OUTSIDE the scroll container
+                 * so it doesn't move when scrolling either. */}
+                <div className="cgo-table-bar" style={{ borderRadius: '8px 8px 0 0', borderTop: '1px solid var(--cg-rule)', borderLeft: '1px solid var(--cg-rule)', borderRight: '1px solid var(--cg-rule)' }}>
+                    <div className="cgo-table-bar-title">Recent bets</div>
+                    <Link href="/operator/wagers" className="cgo-table-bar-link">
+                        View all →
+                    </Link>
+                </div>
+                <div className="cgo-table-wrap cgo-table-wrap--scroll" style={{ borderRadius: '0 0 8px 8px' }}>
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 180 }}>Player</th>
+                                <th style={{ minWidth: 140 }}>Tenant</th>
+                                <th className="cgo-r" style={{ width: 80 }}>Round</th>
+                                <th style={{ minWidth: 200 }}>Picks</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Wager</th>
+                                <th className="cgo-r" style={{ width: 80 }}>Odds</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Potential</th>
+                                <th style={{ width: 100 }}>Outcome</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recentBets.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No bets placed yet.
+                                    </td>
+                                </tr>
                             ) : (
-                                <div className="space-y-2">
-                                    {wallet.recent_transactions.map((tx, i) => (
-                                        <div
-                                            key={i}
-                                            className="flex items-center gap-3 p-3 rounded-lg bg-[var(--acu-bg-alt)]"
-                                        >
-                                            <div
-                                                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                                style={{
-                                                    backgroundColor: `${getTransactionColor(tx.type)}15`,
-                                                    color: getTransactionColor(tx.type),
-                                                }}
-                                            >
-                                                <i className={`pi pi-${['deposit', 'win', 'load'].includes(tx.type) ? 'arrow-down-left' : 'arrow-up-right'} text-sm`} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-[var(--acu-text)] capitalize">
-                                                    {tx.type}
-                                                    {tx.game_name && (
-                                                        <span className="font-normal text-xs text-[var(--acu-text-light)] ml-1.5">
-                                                            {tx.game_name}
-                                                        </span>
-                                                    )}
+                                recentBets.map((b) => {
+                                    const pill = outcomePill(b.outcome);
+                                    const picks = b.team_names.length > 0
+                                        ? b.team_names.slice(0, 2).join(', ') + (b.team_names.length > 2 ? ` +${b.team_names.length - 2}` : '')
+                                        : '—';
+                                    return (
+                                        <tr key={b.id ?? Math.random()}>
+                                            <td style={{ maxWidth: 220 }}>
+                                                <div className="cgo-user">
+                                                    <div className="cgo-av">{b.player.initials}</div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div className="cgo-name cgo-cell-clip" title={b.player.name}>{b.player.name}</div>
+                                                        {b.player.uuid_short ? (
+                                                            <div className="cgo-uid">{b.player.uuid_short}</div>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
-                                                <div className="text-xs text-[var(--acu-text-light)]">
-                                                    {tx.description || formatRelativeTime(tx.created_at)}
-                                                </div>
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                                <div
-                                                    className="text-sm font-semibold"
-                                                    style={{ color: getTransactionColor(tx.type) }}
-                                                >
-                                                    {getTransactionSign(tx.type)}{formatCurrency(Math.abs(tx.amount), wallet.currency)}
-                                                </div>
-                                                <div className="text-xs text-[var(--acu-text-light)]">
-                                                    {formatCurrency(tx.balance_after, wallet.currency)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Recent Sessions */}
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-purple)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-history" />
-                                <span>Recent Sessions</span>
-                            </div>
-                            <Link
-                                href="/settings/security/log"
-                                className="text-xs font-semibold text-[var(--acu-primary)] hover:underline flex items-center gap-1"
-                            >
-                                View all <i className="pi pi-arrow-right text-xs" />
-                            </Link>
-                        </div>
-                        <div className="acu-fieldset-body">
-                            {sessions.length === 0 ? (
-                                <p className="text-sm text-[var(--acu-text-light)] text-center py-4">No recent sessions</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {sessions.map((session, i) => (
-                                        <div
-                                            key={i}
-                                            className="flex items-center gap-3 p-3 rounded-lg bg-[var(--acu-bg-alt)]"
-                                        >
-                                            <div
-                                                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                                style={{
-                                                    backgroundColor: session.is_current ? '#10B98120' : '#6B728015',
-                                                    color: session.is_current ? '#10B981' : 'var(--acu-text-muted)',
-                                                }}
-                                            >
-                                                <i className={`${getDeviceIcon(session.device_type)} text-sm`} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-medium text-[var(--acu-text)]">
-                                                        {session.browser} on {session.platform}
+                                            </td>
+                                            <td style={{ maxWidth: 180 }}>
+                                                {b.tenant_name || b.tenant_uuid ? (
+                                                    <span
+                                                        className="cgo-cell-clip"
+                                                        style={{ display: 'block', color: 'var(--cg-fg-2)', fontSize: 12 }}
+                                                        title={b.tenant_name ?? b.tenant_uuid ?? ''}
+                                                    >
+                                                        {b.tenant_name ?? b.tenant_uuid}
                                                     </span>
-                                                    {session.is_current && (
-                                                        <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-green-100 text-green-700">
-                                                            Current
-                                                        </span>
+                                                ) : (
+                                                    <span style={{ color: 'var(--cg-fg-4)' }}>—</span>
+                                                )}
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">#{b.round_number ?? '—'}</span>
+                                            </td>
+                                            <td style={{ maxWidth: 280 }}>
+                                                <span
+                                                    className="cgo-selection cgo-cell-clip"
+                                                    style={{ display: 'block' }}
+                                                    title={b.team_names.join(', ')}
+                                                >
+                                                    {b.team_names.length > 0 ? (
+                                                        <span className="cgo-pick">{picks}</span>
+                                                    ) : (
+                                                        '—'
                                                     )}
-                                                </div>
-                                                <div className="text-xs text-[var(--acu-text-light)]">
-                                                    {session.ip_address}
-                                                    {session.city && ` \u2022 ${session.city}`}
-                                                    {session.country_code && `, ${session.country_code}`}
-                                                </div>
-                                            </div>
-                                            <span className="text-xs text-[var(--acu-text-light)] flex-shrink-0">
-                                                {session.last_active_at
-                                                    ? formatRelativeTime(session.last_active_at)
-                                                    : '\u2014'}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-stake">
+                                                    <span className="cgo-ccy">NAD</span>
+                                                    {formatNAD(b.bet_amount)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">
+                                                    {b.combined_odds.toFixed(2)}x
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-payout">{formatNAD(b.potential_payout)}</span>
+                                            </td>
+                                            <td>
+                                                <span className={pill.className}>{pill.label}</span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
-                        </div>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </UserLayout>
+    );
+}
+
+function outcomePill(outcome: string): { className: string; label: string } {
+    switch (outcome) {
+        case 'win':
+            return { className: 'cgo-pill live', label: 'Win' };
+        case 'lost':
+            return { className: 'cgo-pill flagged', label: 'Loss' };
+        case 'pending':
+        default:
+            return { className: 'cgo-pill pending', label: 'Pending' };
+    }
+}
+
+function formatTime(iso: string): string {
+    try {
+        const d = new Date(iso);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        const day = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
+        return `${hh}:${mm}:${ss} · ${day}`;
+    } catch {
+        return iso;
+    }
+}
+
+// Non-admin fallback. Trimmed-down account view in the brass idiom so
+// the page doesn't go blank for player accounts.
+function NonAdminDashboard({ account, wallet }: DashboardProps) {
+    return (
+        <UserLayout title="Dashboard">
+            <Head title="Dashboard" />
+            <div className="cgo-page">
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Account</div>
+                        <h1 className="cgo-title">
+                            Welcome back{account?.display_name ? `, ${account.display_name}` : ''}
+                        </h1>
+                        <div className="cgo-subtitle">{account?.email}</div>
                     </div>
                 </div>
 
-                {/* Quick Actions */}
-                <div className="acu-fieldset">
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-bolt" />
-                            <span>Quick Actions</span>
-                        </div>
+                {wallet ? (
+                    <div className="cgo-kpis">
+                        <KpiCard
+                            label={`Balance · ${wallet.currency}`}
+                            value={formatNAD(wallet.balance)}
+                            brass
+                            meta={wallet.status?.toUpperCase()}
+                        />
+                        <KpiCard label="Total won" value={formatNAD(wallet.total_won)} meta="lifetime" />
+                        <KpiCard
+                            label="Total wagered"
+                            value={formatNAD(wallet.total_lost + wallet.total_won)}
+                            meta="lifetime"
+                        />
+                        <KpiCard
+                            label="Total deposited"
+                            value={formatNAD(wallet.total_deposited)}
+                            meta="lifetime"
+                        />
                     </div>
-                    <div className="acu-fieldset-body">
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <Link
-                                href="/settings/profile"
-                                className="flex items-center gap-3 p-3 rounded-lg bg-[var(--acu-bg-alt)] hover:bg-[var(--acu-bg-hover)] transition-colors"
-                            >
-                                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3B82F615', color: '#3B82F6' }}>
-                                    <i className="pi pi-user-edit text-sm" />
-                                </div>
-                                <div>
-                                    <div className="text-sm font-medium text-[var(--acu-text)]">Edit Profile</div>
-                                    <div className="text-xs text-[var(--acu-text-light)]">Update your details</div>
-                                </div>
-                            </Link>
-                            <Link
-                                href="/settings/security/log"
-                                className="flex items-center gap-3 p-3 rounded-lg bg-[var(--acu-bg-alt)] hover:bg-[var(--acu-bg-hover)] transition-colors"
-                            >
-                                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#10B98115', color: '#10B981' }}>
-                                    <i className="pi pi-shield text-sm" />
-                                </div>
-                                <div>
-                                    <div className="text-sm font-medium text-[var(--acu-text)]">Security Settings</div>
-                                    <div className="text-xs text-[var(--acu-text-light)]">Password & 2FA</div>
-                                </div>
-                            </Link>
-                            <Link
-                                href="/settings/sessions"
-                                className="flex items-center gap-3 p-3 rounded-lg bg-[var(--acu-bg-alt)] hover:bg-[var(--acu-bg-hover)] transition-colors"
-                            >
-                                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#8B5CF615', color: '#8B5CF6' }}>
-                                    <i className="pi pi-desktop text-sm" />
-                                </div>
-                                <div>
-                                    <div className="text-sm font-medium text-[var(--acu-text)]">Manage Sessions</div>
-                                    <div className="text-xs text-[var(--acu-text-light)]">View active sessions</div>
-                                </div>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
+                ) : null}
             </div>
         </UserLayout>
     );

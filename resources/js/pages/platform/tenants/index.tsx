@@ -1,16 +1,17 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import StatusBadge from '@/components/acumatica/Common/StatusBadge';
+// resources/js/pages/platform/tenants/index.tsx
+//
+// Platform tenants list, brass-on-ink to match /tenant-overview.
+// KPI strip → status chips + search → table. Create-tenant dialog
+// stays on PrimeReact (multi-field form with server validation).
+
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import type { StatusVariant } from '@/types/acumatica';
 import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
-import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
-import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Tenant {
     uuid: string;
@@ -35,21 +36,24 @@ const initialFormData = {
     admin_name: '',
 };
 
-function mapTenantStatusToVariant(status: string): StatusVariant {
-    const map: Record<string, StatusVariant> = {
-        active: 'active',
-        suspended: 'suspended',
-        inactive: 'inactive',
-    };
-    return map[status] || 'inactive';
-}
-
-const statusOptions = [
-    { label: 'All Status', value: '' },
+const STATUS_FILTERS = [
+    { label: 'All', value: '' },
     { label: 'Active', value: 'active' },
     { label: 'Suspended', value: 'suspended' },
     { label: 'Inactive', value: 'inactive' },
 ];
+
+function statusPill(status: string): string {
+    switch (status) {
+        case 'active': return 'live';
+        case 'suspended': return 'flagged';
+        case 'inactive': return 'void';
+        default: return 'void';
+    }
+}
+
+const generateSlug = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 export default function TenantsIndex() {
     const toast = useRef<Toast>(null);
@@ -63,16 +67,8 @@ export default function TenantsIndex() {
     const [formData, setFormData] = useState(initialFormData);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
-    const getCsrfToken = () => {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    };
-
-    const generateSlug = (name: string) => {
-        return name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)/g, '');
-    };
+    const getCsrfToken = () =>
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const fetchTenants = (searchQuery = '', status = '') => {
         setLoading(true);
@@ -83,18 +79,29 @@ export default function TenantsIndex() {
         fetch(`/api/v1/platform/tenants?${params}`)
             .then((res) => res.json())
             .then((res) => {
-                setTenants(res.data);
+                setTenants(res.data || []);
                 setLoading(false);
-            });
+            })
+            .catch(() => setLoading(false));
     };
 
     useEffect(() => {
         fetchTenants();
     }, []);
 
-    const handleSearch = () => {
-        fetchTenants(search, statusFilter);
-    };
+    const submitSearch = () => fetchTenants(search, statusFilter);
+
+    // Aggregate counts for the KPI strip — derived from the loaded
+    // tenants array. If filters are applied these reflect the filter
+    // (which matches the user's intent: see what they're looking at).
+    const kpis = useMemo(() => {
+        const total = tenants.length;
+        const active = tenants.filter((t) => t.status === 'active').length;
+        const suspended = tenants.filter((t) => t.status === 'suspended').length;
+        const players = tenants.reduce((s, t) => s + (t.users_count || 0), 0);
+        const venues = tenants.reduce((s, t) => s + (t.venues_count || 0), 0);
+        return { total, active, suspended, players, venues };
+    }, [tenants]);
 
     const handleCreateTenant = async () => {
         setSaving(true);
@@ -114,7 +121,7 @@ export default function TenantsIndex() {
                 setAddOpen(false);
                 setFormData(initialFormData);
                 fetchTenants(search, statusFilter);
-                toast.current?.show({ severity: 'success', summary: 'Success', detail: 'Tenant created successfully.' });
+                toast.current?.show({ severity: 'success', summary: 'Created', detail: 'Tenant created successfully.' });
             } else if (response.status === 422 && data.errors) {
                 setErrors(data.errors);
             } else {
@@ -128,146 +135,191 @@ export default function TenantsIndex() {
         }
     };
 
-    const tenantTemplate = (row: Tenant) => (
-        <div>
-            <div className="font-medium text-sm" style={{ color: 'var(--acu-text)' }}>{row.name}</div>
-            <div className="text-xs" style={{ color: 'var(--acu-text-light)' }}>{row.slug}.sso.chingagames.com</div>
-        </div>
-    );
-
-    const contactTemplate = (row: Tenant) => (
-        <span className="text-sm" style={{ color: 'var(--acu-text)' }}>{row.contact_email}</span>
-    );
-
-    const statusTemplate = (row: Tenant) => (
-        <StatusBadge status={mapTenantStatusToVariant(row.status)} label={row.status} />
-    );
-
-    const statsTemplate = (row: Tenant) => (
-        <div className="flex gap-4">
-            <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
-                <i className="pi pi-users text-xs mr-1" />{row.users_count}
-            </span>
-            <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
-                <i className="pi pi-map-marker text-xs mr-1" />{row.venues_count}
-            </span>
-        </div>
-    );
-
-    const countryTemplate = (row: Tenant) => (
-        <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
-            {row.country_code} / {row.currency}
-        </span>
-    );
-
-    const actionsTemplate = (row: Tenant) => (
-        <Button
-            icon="pi pi-eye"
-            text
-            severity="secondary"
-            size="small"
-            tooltip="View tenant"
-            onClick={() => router.visit(`/platform/tenants/${row.uuid}`)}
-        />
-    );
-
     const fieldError = (field: string) =>
         errors[field] ? (
-            <small className="text-red-500">{errors[field][0]}</small>
+            <small style={{ color: 'var(--cg-neg)' }}>{errors[field][0]}</small>
         ) : null;
 
     return (
         <UserLayout title="Tenants">
-            <Head title="Tenants" />
+            <Head title="Tenants · Platform" />
             <Toast ref={toast} />
 
-            <div className="space-y-6">
-                <PageHeader title="Tenants" subtitle="Manage operator tenants on the platform">
-                    <Button
-                        label="Refresh"
-                        icon="pi pi-refresh"
-                        outlined
-                        size="small"
-                        onClick={() => fetchTenants(search, statusFilter)}
-                    />
-                    <Button
-                        label="New Tenant"
-                        icon="pi pi-plus"
-                        size="small"
-                        onClick={() => setAddOpen(true)}
-                    />
-                </PageHeader>
-
-                {/* Filters */}
-                <div
-                    className="rounded-xl p-4"
-                    style={{
-                        background: 'var(--acu-surface-card)',
-                        border: '1px solid var(--acu-border)',
-                    }}
-                >
-                    <div className="flex flex-wrap gap-3 items-end">
-                        <div className="flex flex-1 gap-2">
-                            <span className="p-input-icon-left flex-1" style={{ maxWidth: '24rem' }}>
-                                <i className="pi pi-search" />
-                                <InputText
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                    placeholder="Search by name, slug, email..."
-                                    className="w-full"
-                                />
-                            </span>
-                            <Button
-                                label="Search"
-                                icon="pi pi-search"
-                                size="small"
-                                onClick={handleSearch}
-                            />
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Platform</div>
+                        <h1 className="cgo-title">Tenants</h1>
+                        <div className="cgo-subtitle">
+                            Operator tenants on the platform — brands, venues, and player counts.
                         </div>
-                        <Dropdown
-                            value={statusFilter}
-                            onChange={(e) => { setStatusFilter(e.value); fetchTenants(search, e.value); }}
-                            options={statusOptions}
-                            placeholder="Status"
-                            className="w-40"
-                        />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={() => fetchTenants(search, statusFilter)}
+                        >
+                            Refresh
+                        </button>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--primary cg-btn--sm"
+                            onClick={() => setAddOpen(true)}
+                        >
+                            + New tenant
+                        </button>
                     </div>
                 </div>
 
-                {/* Tenants Table */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-building" />
-                            <span>Tenants</span>
-                            <span className="text-xs font-normal ml-1" style={{ color: 'var(--acu-text-light)' }}>
-                                ({tenants.length})
-                            </span>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset-body p-0">
-                        <DataTable
-                            value={tenants}
-                            loading={loading}
-                            size="small"
-                            showGridlines={false}
-                            emptyMessage="No tenants found"
+                {/* KPI strip — 5-up. Counts derive from the visible list. */}
+                <div className="cgo-kpis cgo-kpis--5">
+                    <KpiCard
+                        label="Tenants"
+                        value={loading ? '—' : formatCount(kpis.total)}
+                        brass
+                        meta={statusFilter || search ? 'matching filters' : 'on platform'}
+                    />
+                    <KpiCard
+                        label="Active"
+                        value={loading ? '—' : formatCount(kpis.active)}
+                        meta="signed-in operators"
+                    />
+                    <KpiCard
+                        label="Suspended"
+                        value={loading ? '—' : formatCount(kpis.suspended)}
+                        meta={kpis.suspended > 0 ? 'review' : 'all clear'}
+                    />
+                    <KpiCard
+                        label="Total players"
+                        value={loading ? '—' : formatCount(kpis.players)}
+                        meta="across tenants"
+                    />
+                    <KpiCard
+                        label="Total venues"
+                        value={loading ? '—' : formatCount(kpis.venues)}
+                        meta="branded points-of-sale"
+                    />
+                </div>
+
+                {/* Filter bar */}
+                <div className="cgo-filterbar">
+                    {STATUS_FILTERS.map((f) => (
+                        <button
+                            key={f.value || 'all'}
+                            type="button"
+                            className={`cgo-chip${statusFilter === f.value ? ' active' : ''}`}
+                            onClick={() => { setStatusFilter(f.value); fetchTenants(search, f.value); }}
                         >
-                            <Column header="Tenant" body={tenantTemplate} />
-                            <Column header="Contact" body={contactTemplate} />
-                            <Column header="Status" body={statusTemplate} />
-                            <Column header="Players / Venues" body={statsTemplate} />
-                            <Column header="Region" body={countryTemplate} />
-                            <Column header="" body={actionsTemplate} style={{ width: '4rem' }} />
-                        </DataTable>
+                            {f.label}
+                        </button>
+                    ))}
+                    <div className="cgo-right">
+                        <label className="cgo-input">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
+                                placeholder="Search name, slug, email…"
+                                style={{ minWidth: 240 }}
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={submitSearch}
+                        >
+                            Search
+                        </button>
                     </div>
+                </div>
+
+                {/* Tenants table */}
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 240 }}>Tenant</th>
+                                <th style={{ minWidth: 200 }}>Contact</th>
+                                <th style={{ width: 110 }}>Status</th>
+                                <th className="cgo-r" style={{ width: 100 }}>Players</th>
+                                <th className="cgo-r" style={{ width: 100 }}>Venues</th>
+                                <th style={{ width: 120 }}>Region</th>
+                                <th style={{ width: 80 }} />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        Loading…
+                                    </td>
+                                </tr>
+                            ) : tenants.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No tenants match the current filters.
+                                    </td>
+                                </tr>
+                            ) : (
+                                tenants.map((t) => (
+                                    <tr key={t.uuid}>
+                                        <td style={{ maxWidth: 320 }}>
+                                            <div className="cgo-name cgo-cell-clip" title={t.name}>
+                                                {t.name}
+                                            </div>
+                                            <div className="cgo-uid">{t.slug}.sso.chingagames.com</div>
+                                        </td>
+                                        <td>
+                                            <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                                                {t.contact_email}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`cgo-pill ${statusPill(t.status)}`}>
+                                                {t.status}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-odds">{formatCount(t.users_count)}</span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-odds">{formatCount(t.venues_count)}</span>
+                                        </td>
+                                        <td>
+                                            <span className="cgo-uid">
+                                                {t.country_code} · {t.currency}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                <button
+                                                    type="button"
+                                                    className="cgo-row-action"
+                                                    aria-label="View tenant"
+                                                    title="View tenant"
+                                                    onClick={() => router.visit(`/platform/tenants/${t.uuid}`)}
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            {/* Create Tenant Dialog */}
+            {/* Create tenant dialog */}
             <Dialog
-                header="Create New Tenant"
+                header="Create new tenant"
                 visible={addOpen}
                 style={{ width: '32rem' }}
                 onHide={() => setAddOpen(false)}
@@ -275,16 +327,9 @@ export default function TenantsIndex() {
                 draggable={false}
                 footer={
                     <div className="flex justify-end gap-2">
+                        <Button label="Cancel" severity="secondary" outlined onClick={() => setAddOpen(false)} />
                         <Button
-                            label="Cancel"
-                            icon="pi pi-times"
-                            severity="secondary"
-                            outlined
-                            onClick={() => setAddOpen(false)}
-                        />
-                        <Button
-                            label={saving ? 'Creating...' : 'Create Tenant'}
-                            icon="pi pi-check"
+                            label={saving ? 'Creating…' : 'Create tenant'}
                             onClick={handleCreateTenant}
                             disabled={saving || !formData.name || !formData.contact_email}
                             loading={saving}
@@ -294,7 +339,9 @@ export default function TenantsIndex() {
             >
                 <div className="space-y-4">
                     <div>
-                        <label htmlFor="name" className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>Tenant Name *</label>
+                        <label htmlFor="name" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                            Tenant name *
+                        </label>
                         <InputText
                             id="name"
                             value={formData.name}
@@ -304,20 +351,25 @@ export default function TenantsIndex() {
                         />
                         {fieldError('name')}
                         {formData.name && (
-                            <small style={{ color: 'var(--acu-text-light)' }}>
-                                Subdomain: {generateSlug(formData.name)}.sso.chingagames.com
+                            <small style={{ color: 'var(--cg-fg-3)' }}>
+                                Subdomain:{' '}
+                                <code style={{ fontFamily: 'var(--cg-mono)', color: 'var(--cg-brass-hi)' }}>
+                                    {generateSlug(formData.name)}.sso.chingagames.com
+                                </code>
                             </small>
                         )}
                     </div>
 
                     <div>
-                        <label htmlFor="contact_email" className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>Contact Email *</label>
+                        <label htmlFor="contact_email" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                            Contact email *
+                        </label>
                         <InputText
                             id="contact_email"
                             type="email"
                             value={formData.contact_email}
                             onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                            placeholder="e.g., admin@luckystar.com"
+                            placeholder="admin@luckystar.com"
                             className={`w-full ${errors.contact_email ? 'p-invalid' : ''}`}
                         />
                         {fieldError('contact_email')}
@@ -325,7 +377,9 @@ export default function TenantsIndex() {
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="country_code" className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>Country Code</label>
+                            <label htmlFor="country_code" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                                Country
+                            </label>
                             <InputText
                                 id="country_code"
                                 value={formData.country_code}
@@ -336,7 +390,9 @@ export default function TenantsIndex() {
                             {fieldError('country_code')}
                         </div>
                         <div>
-                            <label htmlFor="currency" className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>Currency</label>
+                            <label htmlFor="currency" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                                Currency
+                            </label>
                             <InputText
                                 id="currency"
                                 value={formData.currency}
@@ -349,7 +405,9 @@ export default function TenantsIndex() {
                     </div>
 
                     <div>
-                        <label htmlFor="timezone" className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>Timezone</label>
+                        <label htmlFor="timezone" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                            Timezone
+                        </label>
                         <InputText
                             id="timezone"
                             value={formData.timezone}
@@ -360,38 +418,40 @@ export default function TenantsIndex() {
                     </div>
 
                     <div
-                        className="rounded-lg p-3 mt-2"
                         style={{
-                            background: 'rgba(59, 130, 246, 0.04)',
-                            border: '1px solid rgba(59, 130, 246, 0.15)',
+                            background: 'var(--cg-ink-elevated)',
+                            border: '1px solid var(--cg-rule)',
+                            borderRadius: 6,
+                            padding: 12,
                         }}
                     >
-                        <div className="flex items-center gap-2 mb-3">
-                            <i className="pi pi-user-plus text-xs" style={{ color: '#3B82F6' }} />
-                            <span className="text-sm font-medium" style={{ color: 'var(--acu-text)' }}>Initial Admin (optional)</span>
+                        <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, color: 'var(--cg-fg-2)' }}>
+                            Initial admin (optional)
                         </div>
-
                         <div className="space-y-3">
                             <div>
-                                <label htmlFor="admin_name" className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>Admin Name</label>
+                                <label htmlFor="admin_name" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                                    Name
+                                </label>
                                 <InputText
                                     id="admin_name"
                                     value={formData.admin_name}
                                     onChange={(e) => setFormData({ ...formData, admin_name: e.target.value })}
-                                    placeholder="e.g., John Doe"
+                                    placeholder="John Doe"
                                     className={`w-full ${errors.admin_name ? 'p-invalid' : ''}`}
                                 />
                                 {fieldError('admin_name')}
                             </div>
-
                             <div>
-                                <label htmlFor="admin_email" className="block text-sm font-medium mb-1" style={{ color: 'var(--acu-text)' }}>Admin Email</label>
+                                <label htmlFor="admin_email" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                                    Email
+                                </label>
                                 <InputText
                                     id="admin_email"
                                     type="email"
                                     value={formData.admin_email}
                                     onChange={(e) => setFormData({ ...formData, admin_email: e.target.value })}
-                                    placeholder="e.g., john@luckystar.com"
+                                    placeholder="john@luckystar.com"
                                     className={`w-full ${errors.admin_email ? 'p-invalid' : ''}`}
                                 />
                                 {fieldError('admin_email')}

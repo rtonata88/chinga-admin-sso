@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Game;
 use App\Models\Tenant;
+use App\Support\GameCatalogue;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -43,7 +45,7 @@ class HandleInertiaRequests extends Middleware
         $tenant = app('current_tenant');
 
         // If no tenant was resolved yet but the user has a tenant, resolve it now
-        if (!$tenant && $user && $user->tenant_id) {
+        if (! $tenant && $user && $user->tenant_id) {
             $tenant = \App\Models\Tenant::find($user->tenant_id);
             app()->instance('current_tenant', $tenant);
         }
@@ -66,6 +68,35 @@ class HandleInertiaRequests extends Middleware
                 'branding' => $tenant->getBranding(),
             ] : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            // The games this admin administers, from the catalogue, so the
+            // nav is generated rather than hardcoded per game (PRD §4 P7).
+            'games' => fn () => $this->gamesFor($user, $tenant instanceof Tenant ? $tenant : null),
         ];
+    }
+
+    /** @return list<array{uuid: string, name: string, slug: string, status: string, launch_url: ?string}> */
+    private function gamesFor(mixed $user, ?Tenant $tenant): array
+    {
+        if (! $user || ! ($user->isPlatformAdmin() || $user->isTenantAdmin())) {
+            return [];
+        }
+
+        try {
+            return GameCatalogue::forUser($user, $tenant)
+                ->map(fn (Game $game) => [
+                    'uuid' => $game->uuid,
+                    'name' => $game->name,
+                    'slug' => $game->slug,
+                    'status' => $game->status,
+                    'launch_url' => $game->launch_url,
+                ])
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            // Never let the catalogue take every page down.
+            report($e);
+
+            return [];
+        }
     }
 }

@@ -1,0 +1,837 @@
+/*
+ * Operator Console — screen-specific styles.
+ *
+ * Lifted from the reference HTML in design_handoff_operator_console/.
+ * All values come from CSS variables defined in colors_and_type.css
+ * (loaded one level up). Class names match the reference so the layout
+ * + page components can stay markup-faithful while we adapt the
+ * structure into React/Inertia.
+ */
+
+/* Layout shell */
+.cgo-app {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  min-height: 100vh;
+  background: var(--cg-ink);
+  color: var(--cg-fg-1);
+  font-family: var(--cg-body);
+  font-size: var(--cg-fs-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sidebar */
+.cgo-rail {
+  background: var(--cg-ink-rail);
+  border-right: 1px solid var(--cg-rule);
+  padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  /* The rail itself does NOT scroll — its background must paint
+   * the entire viewport. The middle .cgo-rail-scroll region scrolls
+   * internally instead, so brand at top + footer at bottom stay
+   * pinned and the nav doesn't spill out under the page content. */
+  overflow: hidden;
+}
+
+/* Middle nav region — takes the remaining height after brand + footer
+ * and scrolls when nav groups overflow. min-height: 0 is the standard
+ * fix to allow a flex child to shrink below its content height. */
+.cgo-rail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.cgo-rail-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.cgo-rail-scroll::-webkit-scrollbar-thumb {
+  background: var(--cg-rule-strong);
+  border-radius: 3px;
+}
+.cgo-rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cgo-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 24px 28px;
+  border-bottom: 1px solid var(--cg-rule);
+  margin-bottom: 16px;
+}
+.cgo-brand-mark {
+  width: 32px;
+  height: 32px;
+  background: var(--cg-brass);
+  color: var(--cg-ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--cg-display);
+  font-weight: 900;
+  font-size: 16px;
+  border-radius: 4px;
+}
+.cgo-brand-name {
+  font-family: var(--cg-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.cgo-brand-sub {
+  font-size: 10px;
+  color: var(--cg-fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  margin-top: 2px;
+}
+
+.cgo-nav-group {
+  padding: 8px 12px;
+}
+.cgo-nav-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--cg-fg-4);
+  padding: 12px 12px 8px;
+  font-weight: 600;
+}
+.cgo-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: var(--cg-fg-2);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background var(--cg-dur-fast) var(--cg-ease), color var(--cg-dur-fast) var(--cg-ease);
+  text-decoration: none;
+}
+.cgo-nav-item:hover {
+  background: rgba(242, 237, 227, 0.04);
+  color: var(--cg-fg-1);
+}
+.cgo-nav-item.active {
+  background: var(--cg-brass-wash-2);
+  color: var(--cg-brass-hi);
+  box-shadow: inset 2px 0 0 var(--cg-brass);
+}
+.cgo-nav-item .cgo-ico {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  opacity: 0.85;
+}
+.cgo-nav-item .cgo-badge {
+  margin-left: auto;
+  font-family: var(--cg-mono);
+  font-size: 10px;
+  background: var(--cg-neg);
+  color: var(--cg-fg-1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-feature-settings: 'tnum' 1;
+}
+
+.cgo-rail-foot {
+  margin-top: auto;
+  padding: 16px 24px;
+  border-top: 1px solid var(--cg-rule);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cgo-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a3d23, #B68A3E);
+  color: var(--cg-ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--cg-display);
+  font-weight: 700;
+  font-size: 12px;
+}
+.cgo-me-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.cgo-me-role {
+  font-size: 10px;
+  color: var(--cg-fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  margin-top: 2px;
+}
+.cgo-rail-logout {
+  /* Reset Inertia's `as="button"` defaults so the icon sits on a
+   * transparent square that picks up brass on hover. */
+  all: unset;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--cg-rule);
+  border-radius: 6px;
+  color: var(--cg-fg-3);
+  cursor: pointer;
+  transition: border-color var(--cg-dur-fast) var(--cg-ease),
+              color var(--cg-dur-fast) var(--cg-ease);
+  flex-shrink: 0;
+}
+.cgo-rail-logout:hover,
+.cgo-rail-logout:focus-visible {
+  border-color: var(--cg-neg);
+  color: var(--cg-neg);
+}
+
+/* Main column */
+.cgo-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cgo-topbar {
+  height: 64px;
+  border-bottom: 1px solid var(--cg-rule);
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  gap: 24px;
+  background: var(--cg-ink);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.cgo-crumb {
+  font-size: 12px;
+  color: var(--cg-fg-3);
+}
+.cgo-crumb b {
+  color: var(--cg-fg-1);
+  font-weight: 600;
+}
+.cgo-crumb-sep {
+  color: var(--cg-fg-4);
+  margin: 0 6px;
+}
+.cgo-search {
+  margin-left: auto;
+  width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--cg-rule-strong);
+  border-radius: 6px;
+  color: var(--cg-fg-3);
+  font-size: 13px;
+  background: transparent;
+}
+.cgo-search:focus-within {
+  border-color: var(--cg-brass);
+}
+.cgo-search input {
+  all: unset;
+  flex: 1;
+  color: var(--cg-fg-1);
+  font-family: var(--cg-body);
+  font-size: 13px;
+}
+.cgo-search input::placeholder {
+  color: var(--cg-fg-3);
+}
+.cgo-kbd {
+  font-family: var(--cg-mono);
+  font-size: 10px;
+  color: var(--cg-fg-4);
+  border: 1px solid var(--cg-rule);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.cgo-top-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cgo-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--cg-rule);
+  border-radius: 6px;
+  color: var(--cg-fg-2);
+  cursor: pointer;
+  transition: border-color var(--cg-dur-fast) var(--cg-ease), color var(--cg-dur-fast) var(--cg-ease);
+  position: relative;
+  background: transparent;
+}
+.cgo-icon-btn:hover {
+  border-color: var(--cg-brass);
+  color: var(--cg-brass-hi);
+}
+.cgo-icon-btn .cgo-dot {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cg-neg);
+  box-shadow: 0 0 0 2px var(--cg-ink);
+}
+
+/* Page container */
+.cgo-page {
+  padding: 32px 32px 60px;
+  max-width: 1480px;
+}
+.cgo-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 24px;
+}
+.cgo-eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--cg-fg-3);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.cgo-title {
+  font-family: var(--cg-display);
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  margin: 0;
+}
+.cgo-subtitle {
+  color: var(--cg-fg-3);
+  font-size: 13.5px;
+  margin-top: 8px;
+}
+.cgo-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cg-pos);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  margin-left: 12px;
+}
+.cgo-live-pill::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cg-pos);
+  animation: cgo-pulse 1.4s ease-in-out infinite;
+}
+@keyframes cgo-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.cgo-head-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* KPI strip */
+.cgo-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--cg-rule);
+  border: 1px solid var(--cg-rule);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+/* 5-up variant for dashboards that need an extra column (Active /
+ * Bets / Wagered / Wins / GGR). Same hairline-divided look. */
+.cgo-kpis.cgo-kpis--5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 1100px) {
+  .cgo-kpis.cgo-kpis--5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.cgo-kpi {
+  background: var(--cg-ink-card);
+  padding: 24px 24px 22px;
+  position: relative;
+}
+.cgo-kpi-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--cg-fg-3);
+  font-weight: 600;
+}
+.cgo-kpi-num {
+  font-family: var(--cg-condensed);
+  font-weight: 700;
+  font-size: clamp(28px, 3vw, 44px);
+  letter-spacing: -0.015em;
+  line-height: 1;
+  margin-top: 14px;
+  font-feature-settings: 'tnum' 1;
+  /* Numbers (especially currency) can run long — guard the card so a
+   * busy day doesn't push the next column or wrap awkwardly. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cgo-kpi-num.brass {
+  color: var(--cg-brass-hi);
+}
+/* 5-up dashboard cards are narrower than the 4-up wagers strip, so
+ * pull the display size down a touch and tighten the gutters. */
+.cgo-kpis.cgo-kpis--5 .cgo-kpi {
+  padding: 22px 18px 20px;
+}
+.cgo-kpis.cgo-kpis--5 .cgo-kpi-num {
+  font-size: clamp(24px, 2.4vw, 36px);
+}
+.cgo-kpi-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  font-family: var(--cg-mono);
+  font-size: 11px;
+  font-feature-settings: 'tnum' 1;
+}
+.cgo-delta-pos {
+  color: var(--cg-pos);
+}
+.cgo-delta-neg {
+  color: var(--cg-neg);
+}
+.cgo-kpi-foot .cgo-meta {
+  color: var(--cg-fg-3);
+}
+.cgo-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+}
+.cgo-spark span {
+  display: block;
+  width: 3px;
+  background: var(--cg-brass);
+  opacity: 0.7;
+}
+
+/* Filter bar */
+.cgo-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border: 1px solid var(--cg-rule);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--cg-ink-elevated);
+  flex-wrap: wrap;
+}
+.cgo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--cg-rule-strong);
+  border-radius: 999px;
+  color: var(--cg-fg-2);
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  transition: border-color var(--cg-dur-fast) var(--cg-ease), color var(--cg-dur-fast) var(--cg-ease);
+  text-decoration: none;
+}
+.cgo-chip:hover {
+  color: var(--cg-fg-1);
+  border-color: var(--cg-rule-strong);
+}
+.cgo-chip.active {
+  border-color: var(--cg-brass);
+  color: var(--cg-brass-hi);
+  background: var(--cg-brass-wash);
+}
+.cgo-chip.active::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cg-brass);
+}
+.cgo-chip-count {
+  color: var(--cg-fg-3);
+  font-family: var(--cg-mono);
+  font-size: 10px;
+  font-feature-settings: 'tnum' 1;
+}
+.cgo-chip-count.danger {
+  color: var(--cg-neg);
+}
+.cgo-filter-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--cg-rule-strong);
+  margin: 0 6px;
+}
+.cgo-filterbar .cgo-right {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Inline text input for filter bars (search, etc). Same hairline-and-
+ * brass-on-focus treatment as .cgo-search but flexible-width. */
+.cgo-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--cg-rule-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cg-fg-1);
+  font-family: var(--cg-body);
+  font-size: 12px;
+  min-width: 220px;
+  transition: border-color var(--cg-dur-fast) var(--cg-ease);
+}
+.cgo-input:focus-within { border-color: var(--cg-brass); }
+.cgo-input input {
+  all: unset;
+  flex: 1;
+  color: inherit;
+  font: inherit;
+}
+.cgo-input input::placeholder { color: var(--cg-fg-3); }
+.cgo-sort-label {
+  font-size: 11px;
+  color: var(--cg-fg-4);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+/* Wagers table */
+.cgo-table-wrap {
+  border: 1px solid var(--cg-rule);
+  border-radius: 0 0 8px 8px;
+  /* Horizontal scroll on narrow viewports — wide column-rich tables
+   * (wallet transactions, recent bets) would otherwise overflow the
+   * page or clip. Vertical stays clipped here; the --scroll variant
+   * adds vertical scroll separately. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--cg-ink-card);
+}
+/* Scroll-bounded variant — caps the table body so a long list
+ * doesn't push the rest of the page miles down. Header stays in
+ * place via thead position: sticky. */
+.cgo-table-wrap--scroll {
+  max-height: 520px;
+  overflow: auto;
+  border-radius: 8px;
+}
+.cgo-table-wrap--scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.cgo-table-wrap--scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.cgo-table-wrap--scroll::-webkit-scrollbar-thumb {
+  background: var(--cg-rule-strong);
+  border-radius: 4px;
+}
+.cgo-table-wrap--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Long-text guard for cells that can hold arbitrary user-input
+ * strings (player display names, tenant names, multi-team picks).
+ * Truncate with ellipsis and let the title attribute show the full
+ * value on hover. Apply per-cell with .cgo-cell-clip + a max-width. */
+.cgo-cell-clip {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+table.cgo-wagers {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cgo-wagers thead th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--cg-fg-3);
+  text-align: left;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--cg-rule-strong);
+  background: var(--cg-ink-elevated);
+  white-space: nowrap;
+}
+.cgo-wagers thead th.cgo-r {
+  text-align: right;
+}
+.cgo-wagers tbody td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--cg-rule);
+  font-size: 13px;
+  vertical-align: middle;
+}
+.cgo-wagers tbody tr {
+  transition: background var(--cg-dur-fast) var(--cg-ease);
+}
+.cgo-wagers tbody tr:hover {
+  background: rgba(242, 237, 227, 0.025);
+}
+.cgo-wagers tbody tr.flagged {
+  background: rgba(181, 82, 76, 0.05);
+}
+.cgo-wagers tbody tr.flagged:hover {
+  background: rgba(181, 82, 76, 0.09);
+}
+.cgo-wagers tbody td.cgo-r {
+  text-align: right;
+}
+.cgo-wagers tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cgo-ts {
+  font-family: var(--cg-mono);
+  font-size: 11.5px;
+  color: var(--cg-fg-2);
+  font-feature-settings: 'tnum' 1;
+  white-space: nowrap;
+}
+.cgo-ts .cgo-date {
+  display: block;
+  color: var(--cg-fg-4);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.cgo-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cgo-user .cgo-av {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--cg-ink-elevated);
+  border: 1px solid var(--cg-rule-strong);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-fg-2);
+  font-family: var(--cg-display);
+}
+.cgo-user .cgo-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.cgo-user .cgo-uid {
+  font-family: var(--cg-mono);
+  font-size: 10.5px;
+  color: var(--cg-fg-4);
+  margin-top: 1px;
+}
+
+.cgo-event {
+  font-weight: 500;
+}
+.cgo-event .cgo-market {
+  display: block;
+  color: var(--cg-fg-3);
+  font-size: 11.5px;
+  margin-top: 3px;
+  letter-spacing: 0.01em;
+}
+.cgo-selection {
+  font-weight: 500;
+  color: var(--cg-fg-1);
+}
+.cgo-selection .cgo-pick {
+  color: var(--cg-brass-hi);
+  font-weight: 600;
+}
+
+.cgo-stake {
+  font-family: var(--cg-condensed);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  font-feature-settings: 'tnum' 1;
+}
+.cgo-stake .cgo-ccy {
+  font-family: var(--cg-body);
+  font-weight: 500;
+  font-size: 10px;
+  color: var(--cg-fg-3);
+  margin-right: 4px;
+  letter-spacing: 0.1em;
+}
+.cgo-odds {
+  font-family: var(--cg-mono);
+  font-weight: 500;
+  font-size: 13.5px;
+  color: var(--cg-fg-1);
+  font-feature-settings: 'tnum' 1;
+}
+.cgo-payout {
+  font-family: var(--cg-condensed);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--cg-brass-hi);
+  font-feature-settings: 'tnum' 1;
+}
+
+.cgo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.cgo-pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cgo-pill.live { color: var(--cg-pos); }
+.cgo-pill.pending { color: var(--cg-warn); }
+.cgo-pill.settled { color: var(--cg-info); }
+.cgo-pill.flagged { color: var(--cg-neg); }
+.cgo-pill.void { color: var(--cg-fg-3); }
+
+.cgo-row-action {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cg-rule-strong);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  color: var(--cg-fg-3);
+  cursor: pointer;
+  background: transparent;
+  transition: all var(--cg-dur-fast) var(--cg-ease);
+}
+.cgo-row-action:hover {
+  color: var(--cg-brass-hi);
+  border-color: var(--cg-brass);
+}
+
+/* Table footer */
+.cgo-table-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-top: 1px solid var(--cg-rule-strong);
+  background: var(--cg-ink-elevated);
+  font-size: 12px;
+  color: var(--cg-fg-3);
+}
+.cgo-table-foot b {
+  color: var(--cg-fg-1);
+}
+.cgo-table-foot b.cgo-mono {
+  font-family: var(--cg-mono);
+  font-feature-settings: 'tnum' 1;
+}
+.cgo-pager {
+  display: flex;
+  gap: 4px;
+}
+.cgo-pager button {
+  all: unset;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cg-rule-strong);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  color: var(--cg-fg-2);
+  cursor: pointer;
+  font-family: var(--cg-mono);
+  font-size: 11px;
+  transition: all var(--cg-dur-fast) var(--cg-ease);
+}
+.cgo-pager button:hover {
+  color: var(--cg-brass-hi);
+  border-color: var(--cg-brass);
+}
+.cgo-pager button.curr {
+  color: var(--cg-ink);
+  background: var(--cg-brass);
+  border-color: var(--cg-brass);
+}
+
+/* Generic header strip for cards/tables that need a labelled bar above
+ * a body — used on the dashboard's "Recent rounds" preview and any
+ * future operator-console summary panel. */
+.cgo-table-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--cg-rule-strong);
+  background: var(--cg-ink-elevated);
+}
+.cgo-table-bar-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--cg-fg-3);
+}
+.cgo-table-bar-link {
+  font-size: 12px;
+  color: var(--cg-fg-3);
+  text-decoration: none;
+  transition: color var(--cg-dur-fast) var(--cg-ease);
+}
+.cgo-table-bar-link:hover {
+  color: var(--cg-brass-hi);
+}
+

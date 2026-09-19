@@ -1,13 +1,14 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import StatusBadge from '@/components/acumatica/Common/StatusBadge';
+// resources/js/pages/fantasy/rounds.tsx
+//
+// Fantasy round history, brass-on-ink to match /tenant-overview.
+// KPI strip (page totals) → tenant filter → rounds table → pager.
+// Each row links to the round detail page; the page totals are
+// derived from the visible rows so they reflect the active filter.
+
+import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import type { StatusVariant } from '@/types/acumatica';
 import { Head, router } from '@inertiajs/react';
-import { Button } from 'primereact/button';
-import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
-import { Dropdown } from 'primereact/dropdown';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface Round {
     id: number;
@@ -43,19 +44,27 @@ interface Props {
     detailHrefBase?: string;
 }
 
-function formatCurrency(amount: string | number): string {
-    const n = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `NAD ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
+
+function formatDateTime(iso: string): string {
+    return DATETIME_FMT.format(new Date(iso));
 }
 
-function deriveStatus(round: Round): { label: string; variant: StatusVariant } {
+function formatNAD(amount: string | number): string {
+    const n = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function roundStatus(round: Round): { label: string; pill: string } {
     if (round.end_time && round.winning_team_ids && round.winning_team_ids.length > 0) {
-        return { label: 'completed', variant: 'active' };
+        return { label: 'completed', pill: 'settled' };
     }
     if (round.end_time) {
-        return { label: 'finished', variant: 'pending' };
+        return { label: 'finished', pill: 'pending' };
     }
-    return { label: 'in progress', variant: 'pending' };
+    return { label: 'in progress', pill: 'live' };
 }
 
 export default function Rounds({
@@ -78,187 +87,241 @@ export default function Rounds({
         router.get(listHref, params, { preserveState: true, preserveScroll: true });
     };
 
-    const tenantOptions = [
-        { label: 'All tenants', value: null },
-        ...tenants.map((t) => ({ label: t.name, value: t.uuid })),
-    ];
-
     const isEmpty = !rounds || rounds.length === 0;
     const page = filters?.page ?? 1;
     const perPage = filters?.per_page ?? 25;
     const hasNext = rounds.length === perPage;
 
-    return (
-        <UserLayout title="Fantasy Rounds">
-            <Head title="Fantasy Rounds" />
+    // Page-level totals derived from the visible rounds. They reflect
+    // the active filter (tenant scope, current page) — not platform-
+    // wide history. Cheap and matches what the user is looking at.
+    const totals = useMemo(() => {
+        let bets = 0;
+        let wagered = 0;
+        let paidOut = 0;
+        for (const r of rounds) {
+            bets += r.bet_count || 0;
+            wagered += parseFloat(r.total_wagered) || 0;
+            paidOut += parseFloat(r.total_paid_out) || 0;
+        }
+        return { bets, wagered, paidOut, ggr: wagered - paidOut };
+    }, [rounds]);
 
-            <div className="space-y-6">
-                <PageHeader title="Fantasy Rounds" subtitle="Monitor game rounds and results across tenants" />
+    return (
+        <UserLayout title="Fantasy rounds">
+            <Head title="Fantasy rounds · Admin" />
+
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Fantasy</div>
+                        <h1 className="cgo-title">Rounds</h1>
+                        <div className="cgo-subtitle">
+                            Game round history — bets, results, and tenant attribution.
+                        </div>
+                    </div>
+                </div>
 
                 {error && (
                     <div
-                        className="rounded-xl px-5 py-4 text-sm"
                         style={{
-                            background: 'rgba(248, 81, 73, 0.04)',
-                            border: '1px solid rgba(248, 81, 73, 0.15)',
-                            color: 'var(--acu-text)',
+                            background: 'var(--cg-ink-card)',
+                            border: '1px solid var(--cg-neg)',
+                            borderRadius: 6,
+                            padding: 14,
+                            marginBottom: 18,
+                            fontSize: 13,
+                            color: 'var(--cg-fg-1)',
                         }}
                     >
-                        <i className="pi pi-exclamation-triangle mr-2" style={{ color: '#F85149' }} />
+                        <strong style={{ color: 'var(--cg-neg)' }}>Error:</strong>{' '}
                         {error}
                     </div>
                 )}
 
+                {/* KPI strip — page totals. */}
+                <div className="cgo-kpis cgo-kpis--5">
+                    <KpiCard
+                        label="Rounds shown"
+                        value={formatCount(rounds.length)}
+                        meta={`page ${page}`}
+                    />
+                    <KpiCard
+                        label="Total bets"
+                        value={formatCount(totals.bets)}
+                        meta="across visible rounds"
+                    />
+                    <KpiCard
+                        label="Total wagered"
+                        value={formatCurrencyCompact(totals.wagered)}
+                        meta="staked"
+                    />
+                    <KpiCard
+                        label="Total paid out"
+                        value={formatCurrencyCompact(totals.paidOut)}
+                        meta="to winners"
+                    />
+                    <KpiCard
+                        label="GGR"
+                        value={formatCurrencyCompact(totals.ggr)}
+                        brass
+                        meta="wagered − paid out"
+                    />
+                </div>
+
+                {/* Filter bar — tenant select only when not locked. */}
                 {!tenantLocked && (
-                    <div className="flex flex-wrap gap-3 items-end">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs font-medium" style={{ color: 'var(--acu-text-light)' }}>
-                                Tenant
-                            </label>
-                            <Dropdown
-                                value={tenantUuid}
-                                options={tenantOptions}
+                    <div className="cgo-filterbar">
+                        <span className="cgo-sort-label">Tenant</span>
+                        <label className="cgo-input" style={{ minWidth: 220 }}>
+                            <select
+                                value={tenantUuid ?? ''}
                                 onChange={(e) => {
-                                    setTenantUuid(e.value);
-                                    applyFilters({ tenant_uuid: e.value, page: 1 });
+                                    const v = e.target.value || null;
+                                    setTenantUuid(v);
+                                    applyFilters({ tenant_uuid: v, page: 1 });
                                 }}
-                                placeholder="All tenants"
-                                style={{ minWidth: '14rem' }}
-                                showClear
-                            />
-                        </div>
+                                style={{
+                                    all: 'unset', flex: 1,
+                                    color: 'inherit', font: 'inherit', cursor: 'pointer',
+                                }}
+                            >
+                                <option value="">All tenants</option>
+                                {tenants.map((t) => (
+                                    <option key={t.uuid} value={t.uuid}>{t.name}</option>
+                                ))}
+                            </select>
+                        </label>
+                        {tenantUuid && (
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--text cg-btn--sm"
+                                onClick={() => { setTenantUuid(null); applyFilters({ tenant_uuid: null, page: 1 }); }}
+                            >
+                                Clear
+                            </button>
+                        )}
                     </div>
                 )}
 
-                {isEmpty ? (
-                    <div
-                        className="rounded-xl p-12 text-center"
-                        style={{
-                            background: 'var(--acu-surface-card)',
-                            border: '1px solid var(--acu-border)',
-                        }}
-                    >
-                        <div
-                            className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4"
-                            style={{ background: 'var(--acu-surface-hover)' }}
-                        >
-                            <i className="pi pi-clock text-2xl" style={{ color: 'var(--acu-text-light)' }} />
-                        </div>
-                        <h3
-                            className="text-lg font-semibold mb-2"
-                            style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}
-                        >
-                            No Rounds
-                        </h3>
-                        <p className="text-sm" style={{ color: 'var(--acu-text-light)', maxWidth: '28rem', margin: '0 auto' }}>
-                            No rounds match the current filters.
-                        </p>
-                    </div>
-                ) : (
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-history" />
-                                <span>Rounds</span>
-                                <span className="text-xs font-normal ml-1" style={{ color: 'var(--acu-text-light)' }}>
-                                    ({rounds.length})
-                                </span>
-                            </div>
-                        </div>
-                        <div className="acu-fieldset-body p-0">
-                            <DataTable
-                                value={rounds}
-                                size="small"
-                                showGridlines={false}
-                                emptyMessage="No rounds found"
-                                onRowClick={(e) => router.get(`${detailHrefBase}/${(e.data as Round).id}`)}
-                                rowHover
-                                dataKey="id"
+                {/* Rounds table */}
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: tenantLocked ? 8 : '0 0 8px 8px', borderTop: tenantLocked ? undefined : 0 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 110 }}>Round</th>
+                                <th style={{ width: 170 }}>Started</th>
+                                <th className="cgo-r" style={{ width: 90 }}>Bets</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Wagered</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Paid out</th>
+                                <th className="cgo-r" style={{ width: 130 }}>GGR</th>
+                                <th style={{ width: 120 }}>Status</th>
+                                <th style={{ width: 60 }} />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {isEmpty ? (
+                                <tr>
+                                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
+                                        No rounds match the current filters.
+                                    </td>
+                                </tr>
+                            ) : (
+                                rounds.map((r) => {
+                                    const status = roundStatus(r);
+                                    const wagered = parseFloat(r.total_wagered) || 0;
+                                    const paidOut = parseFloat(r.total_paid_out) || 0;
+                                    const ggr = wagered - paidOut;
+                                    return (
+                                        <tr
+                                            key={r.id}
+                                            onClick={() => router.get(`${detailHrefBase}/${r.id}`)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <td>
+                                                <span className="cgo-name" style={{ fontFamily: 'var(--cg-mono)' }}>
+                                                    #{r.round_number}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className="cgo-uid">{formatDateTime(r.start_time)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">{formatCount(r.bet_count)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-stake">
+                                                    <span className="cgo-ccy">NAD</span>
+                                                    {formatNAD(wagered)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-payout">
+                                                    {formatNAD(paidOut)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span
+                                                    className="cgo-payout"
+                                                    style={{ color: ggr < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}
+                                                >
+                                                    {formatNAD(ggr)}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`cgo-pill ${status.pill}`}>
+                                                    {status.label}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                    <span style={{ color: 'var(--cg-fg-3)' }}>›</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+
+                    {/* Footer + pager */}
+                    <div className="cgo-table-foot">
+                        <span>
+                            {isEmpty ? 'No rounds' : (
+                                <>
+                                    Page <b className="cgo-mono">{page}</b> ·{' '}
+                                    Showing <b className="cgo-mono">{rounds.length}</b> rounds
+                                </>
+                            )}
+                        </span>
+                        <div className="cgo-pager">
+                            <button
+                                type="button"
+                                disabled={page <= 1}
+                                onClick={() => applyFilters({ page: page - 1 })}
+                                aria-label="Previous"
                             >
-                                <Column
-                                    header="Round #"
-                                    body={(row: Round) => (
-                                        <span className="font-medium text-sm" style={{ color: 'var(--acu-text)' }}>
-                                            #{row.round_number}
-                                        </span>
-                                    )}
-                                />
-                                <Column
-                                    header="Started"
-                                    body={(row: Round) => (
-                                        <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
-                                            {new Date(row.start_time).toLocaleString()}
-                                        </span>
-                                    )}
-                                />
-                                <Column
-                                    header="Bets"
-                                    body={(row: Round) => (
-                                        <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
-                                            {row.bet_count.toLocaleString()}
-                                        </span>
-                                    )}
-                                />
-                                <Column
-                                    header="Wagered"
-                                    body={(row: Round) => (
-                                        <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
-                                            {formatCurrency(row.total_wagered)}
-                                        </span>
-                                    )}
-                                />
-                                <Column
-                                    header="Paid Out"
-                                    body={(row: Round) => (
-                                        <span className="text-sm" style={{ color: 'var(--acu-text-muted)' }}>
-                                            {formatCurrency(row.total_paid_out)}
-                                        </span>
-                                    )}
-                                />
-                                <Column
-                                    header="Status"
-                                    body={(row: Round) => {
-                                        const s = deriveStatus(row);
-                                        return <StatusBadge status={s.variant} label={s.label} />;
-                                    }}
-                                />
-                                <Column
-                                    header=""
-                                    body={() => (
-                                        <i className="pi pi-chevron-right" style={{ color: 'var(--acu-text-light)' }} />
-                                    )}
-                                    style={{ width: '2rem' }}
-                                />
-                            </DataTable>
-                        </div>
-                        <div className="flex items-center justify-between p-3 border-t" style={{ borderColor: 'var(--acu-border)' }}>
-                            <span className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
-                                Page {page}
-                            </span>
-                            <div className="flex gap-2">
-                                <Button
-                                    icon="pi pi-chevron-left"
-                                    label="Previous"
-                                    size="small"
-                                    severity="secondary"
-                                    text
-                                    disabled={page <= 1}
-                                    onClick={() => applyFilters({ page: page - 1 })}
-                                />
-                                <Button
-                                    icon="pi pi-chevron-right"
-                                    iconPos="right"
-                                    label="Next"
-                                    size="small"
-                                    severity="secondary"
-                                    text
-                                    disabled={!hasNext}
-                                    onClick={() => applyFilters({ page: page + 1 })}
-                                />
-                            </div>
+                                ‹
+                            </button>
+                            <button type="button" className="curr" disabled>
+                                {page}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={!hasNext}
+                                onClick={() => applyFilters({ page: page + 1 })}
+                                aria-label="Next"
+                            >
+                                ›
+                            </button>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
         </UserLayout>
     );

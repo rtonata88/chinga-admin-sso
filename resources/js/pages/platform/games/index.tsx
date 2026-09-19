@@ -1,16 +1,19 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import StatusBadge from '@/components/acumatica/Common/StatusBadge';
+// resources/js/pages/platform/games/index.tsx
+//
+// Platform game catalog, brass-on-ink to match /tenant-overview.
+// KPI strip → type chips + search → games table → Add-game dialog
+// (kept on PrimeReact for the multi-field form).
+
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import type { StatusVariant } from '@/types/acumatica';
-import { Head, Link } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
-import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { InputTextarea } from 'primereact/inputtextarea';
-import { useEffect, useState } from 'react';
+import { Toast } from 'primereact/toast';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Game {
     uuid: string;
@@ -23,45 +26,46 @@ interface Game {
     created_at: string;
 }
 
-function mapGameStatus(status: string): StatusVariant {
+const TYPE_FILTERS = [
+    { label: 'All', value: '' },
+    { label: 'Slots', value: 'slots' },
+    { label: 'Table', value: 'table' },
+    { label: 'Instant', value: 'instant' },
+    { label: 'Other', value: 'other' },
+];
+
+const GAME_TYPE_OPTIONS = [
+    { label: 'Slots', value: 'slots' },
+    { label: 'Table', value: 'table' },
+    { label: 'Instant', value: 'instant' },
+    { label: 'Other', value: 'other' },
+];
+
+const STATUS_OPTIONS = [
+    { label: 'Active', value: 'active' },
+    { label: 'Development', value: 'development' },
+    { label: 'Inactive', value: 'inactive' },
+];
+
+function statusPill(status: string): string {
     switch (status) {
-        case 'active':
-            return 'active';
-        case 'development':
-            return 'pending';
-        default:
-            return 'inactive';
+        case 'active': return 'live';
+        case 'development': return 'pending';
+        case 'inactive': return 'void';
+        default: return 'void';
     }
 }
 
-const typeOptions = [
-    { label: 'All Types', value: null },
-    { label: 'Slots', value: 'slots' },
-    { label: 'Table', value: 'table' },
-    { label: 'Instant', value: 'instant' },
-    { label: 'Other', value: 'other' },
-];
-
-const gameTypeOptions = [
-    { label: 'Slots', value: 'slots' },
-    { label: 'Table', value: 'table' },
-    { label: 'Instant', value: 'instant' },
-    { label: 'Other', value: 'other' },
-];
-
-const statusOptions = [
-    { label: 'Active', value: 'active' },
-    { label: 'Inactive', value: 'inactive' },
-    { label: 'Development', value: 'development' },
-];
+const generateSlug = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 export default function GamesIndex() {
+    const toast = useRef<Toast>(null);
     const [games, setGames] = useState<Game[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [typeFilter, setTypeFilter] = useState<string | null>(null);
+    const [typeFilter, setTypeFilter] = useState('');
 
-    // New game dialog
     const [addOpen, setAddOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
@@ -72,18 +76,12 @@ export default function GamesIndex() {
         status: 'development',
         version: '',
         thumbnail_url: '',
+        backend_url: '',
+        launch_url: '',
     });
 
-    const getCsrfToken = () => {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    };
-
-    const generateSlug = (name: string) => {
-        return name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)/g, '');
-    };
+    const getCsrfToken = () =>
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const fetchGames = () => {
         setLoading(true);
@@ -97,14 +95,32 @@ export default function GamesIndex() {
         })
             .then((res) => res.json())
             .then((res) => {
-                setGames(res.data);
+                setGames(res.data || []);
                 setLoading(false);
-            });
+            })
+            .catch(() => setLoading(false));
     };
 
     useEffect(() => {
         fetchGames();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [typeFilter]);
+
+    const submitSearch = () => fetchGames();
+
+    const stats = useMemo(() => {
+        let active = 0;
+        let development = 0;
+        let inactive = 0;
+        let totalTenants = 0;
+        for (const g of games) {
+            if (g.status === 'active') active++;
+            else if (g.status === 'development') development++;
+            else inactive++;
+            totalTenants += g.tenants_count || 0;
+        }
+        return { total: games.length, active, development, inactive, totalTenants };
+    }, [games]);
 
     const handleAddGame = async () => {
         setSaving(true);
@@ -116,275 +132,326 @@ export default function GamesIndex() {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    thumbnail_url: formData.thumbnail_url || null,
+                    backend_url: formData.backend_url || null,
+                    launch_url: formData.launch_url || null,
+                }),
             });
             const data = await response.json();
             if (data.data) {
                 setAddOpen(false);
                 setFormData({
-                    name: '',
-                    slug: '',
-                    description: '',
-                    type: 'slots',
-                    status: 'development',
-                    version: '',
-                    thumbnail_url: '',
+                    name: '', slug: '', description: '', type: 'slots',
+                    status: 'development', version: '', thumbnail_url: '',
+                    backend_url: '', launch_url: '',
                 });
                 fetchGames();
+                toast.current?.show({ severity: 'success', summary: 'Created', detail: 'Game added to catalog.' });
             } else {
-                alert(data.message || 'Failed to create game');
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to create game.' });
             }
         } catch (error) {
             console.error('Failed to create game:', error);
-            alert('Failed to create game');
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to create game.' });
         } finally {
             setSaving(false);
         }
     };
 
-    const nameTemplate = (row: Game) => (
-        <div>
-            <div className="font-medium text-sm text-[var(--acu-text)]">{row.name}</div>
-            <div className="text-xs text-[var(--acu-text-light)]">{row.slug}</div>
-        </div>
-    );
-
-    const typeTemplate = (row: Game) => (
-        <span className="text-sm capitalize text-[var(--acu-text)]">{row.type}</span>
-    );
-
-    const statusTemplate = (row: Game) => (
-        <StatusBadge status={mapGameStatus(row.status)} label={row.status} />
-    );
-
-    const tenantsTemplate = (row: Game) => (
-        <span className="text-sm text-[var(--acu-text)]">{row.tenants_count}</span>
-    );
-
-    const actionsTemplate = (row: Game) => (
-        <Link href={`/platform/games/${row.uuid}`}>
-            <Button
-                icon="pi pi-eye"
-                severity="secondary"
-                text
-                size="small"
-                tooltip="View game"
-            />
-        </Link>
-    );
-
-    const dialogFooter = (
-        <div className="flex justify-end gap-2">
-            <Button
-                label="Cancel"
-                icon="pi pi-times"
-                severity="secondary"
-                outlined
-                onClick={() => setAddOpen(false)}
-            />
-            <Button
-                label={saving ? 'Creating...' : 'Create Game'}
-                icon="pi pi-check"
-                onClick={handleAddGame}
-                disabled={saving || !formData.name || !formData.slug || !formData.type}
-                loading={saving}
-            />
-        </div>
-    );
-
     return (
-        <UserLayout title="Game Catalog">
-            <Head title="Game Catalog" />
+        <UserLayout title="Games">
+            <Head title="Games · Platform" />
+            <Toast ref={toast} />
 
-            <div className="space-y-6">
-                <PageHeader title="Game Catalog" subtitle="Manage games available to tenants">
-                    <Button
-                        label="Refresh"
-                        icon="pi pi-refresh"
-                        severity="secondary"
-                        outlined
-                        onClick={fetchGames}
-                    />
-                    <Button
-                        label="New Game"
-                        icon="pi pi-plus"
-                        onClick={() => setAddOpen(true)}
-                    />
-                </PageHeader>
-
-                {/* Search & Filter */}
-                <div className="acu-fieldset">
-                    <div className="acu-fieldset-body">
-                        <div className="flex gap-2">
-                            <span className="p-input-icon-left">
-                                <i className="pi pi-search" />
-                                <InputText
-                                    placeholder="Search games..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && fetchGames()}
-                                    style={{ width: '20rem' }}
-                                />
-                            </span>
-                            <Button
-                                label="Search"
-                                icon="pi pi-search"
-                                onClick={fetchGames}
-                            />
-                            <Dropdown
-                                value={typeFilter}
-                                options={typeOptions}
-                                onChange={(e) => setTypeFilter(e.value)}
-                                placeholder="Filter by type"
-                            />
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Platform</div>
+                        <h1 className="cgo-title">Games</h1>
+                        <div className="cgo-subtitle">
+                            Game catalog — what's available to assign to tenants.
                         </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={fetchGames}
+                        >
+                            Refresh
+                        </button>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--primary cg-btn--sm"
+                            onClick={() => setAddOpen(true)}
+                        >
+                            + New game
+                        </button>
                     </div>
                 </div>
 
-                {/* Games Table */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-play" />
-                            <span>Games</span>
-                            <span className="text-xs font-normal text-[var(--acu-text-light)] ml-1">
-                                ({games.length})
-                            </span>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset-body p-0">
-                        <DataTable
-                            value={games}
-                            loading={loading}
-                            size="small"
-                            emptyMessage="No games found"
-                            showGridlines={false}
-                            dataKey="uuid"
-                            stripedRows
+                {/* KPI strip */}
+                <div className="cgo-kpis">
+                    <KpiCard
+                        label="Total games"
+                        value={loading ? '—' : formatCount(stats.total)}
+                        brass
+                        meta={typeFilter ? `type: ${typeFilter}` : 'in catalog'}
+                    />
+                    <KpiCard
+                        label="Active"
+                        value={loading ? '—' : formatCount(stats.active)}
+                        meta="live in production"
+                    />
+                    <KpiCard
+                        label="Development"
+                        value={loading ? '—' : formatCount(stats.development)}
+                        meta="not yet live"
+                    />
+                    <KpiCard
+                        label="Tenant assignments"
+                        value={loading ? '—' : formatCount(stats.totalTenants)}
+                        meta="across all games"
+                    />
+                </div>
+
+                {/* Filter bar */}
+                <div className="cgo-filterbar">
+                    {TYPE_FILTERS.map((f) => (
+                        <button
+                            key={f.value || 'all'}
+                            type="button"
+                            className={`cgo-chip${typeFilter === f.value ? ' active' : ''}`}
+                            onClick={() => setTypeFilter(f.value)}
                         >
-                            <Column header="Game" body={nameTemplate} sortable sortField="name" />
-                            <Column header="Type" body={typeTemplate} sortable sortField="type" />
-                            <Column header="Status" body={statusTemplate} sortable sortField="status" />
-                            <Column field="version" header="Version" />
-                            <Column header="Tenants" body={tenantsTemplate} sortable sortField="tenants_count" />
-                            <Column header="Actions" body={actionsTemplate} style={{ width: '5rem' }} />
-                        </DataTable>
+                            {f.label}
+                        </button>
+                    ))}
+                    <div className="cgo-right">
+                        <label className="cgo-input">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
+                                placeholder="Search games…"
+                                style={{ minWidth: 240 }}
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={submitSearch}
+                        >
+                            Search
+                        </button>
                     </div>
+                </div>
+
+                {/* Games table */}
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 240 }}>Game</th>
+                                <th style={{ width: 110 }}>Type</th>
+                                <th style={{ width: 120 }}>Status</th>
+                                <th style={{ width: 100 }}>Version</th>
+                                <th className="cgo-r" style={{ width: 100 }}>Tenants</th>
+                                <th style={{ width: 70 }} />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        Loading…
+                                    </td>
+                                </tr>
+                            ) : games.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No games match the current filters.
+                                    </td>
+                                </tr>
+                            ) : (
+                                games.map((g) => (
+                                    <tr key={g.uuid}>
+                                        <td>
+                                            <div className="cgo-name">{g.name}</div>
+                                            <div className="cgo-uid">{g.slug}</div>
+                                        </td>
+                                        <td>
+                                            <span style={{ fontSize: 12, color: 'var(--cg-fg-2)', textTransform: 'capitalize' }}>
+                                                {g.type}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`cgo-pill ${statusPill(g.status)}`}>
+                                                {g.status}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
+                                                {g.version || '—'}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-odds">{formatCount(g.tenants_count)}</span>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                <a
+                                                    href={`/platform/games/${g.uuid}`}
+                                                    className="cgo-row-action"
+                                                    aria-label="View game"
+                                                    title="View game"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        router.visit(`/platform/games/${g.uuid}`);
+                                                    }}
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            {/* New Game Dialog */}
+            {/* New game dialog */}
             <Dialog
-                header="New Game"
+                header="New game"
                 visible={addOpen}
                 style={{ width: '32rem' }}
                 onHide={() => setAddOpen(false)}
-                footer={dialogFooter}
                 modal
                 draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button label="Cancel" severity="secondary" outlined onClick={() => setAddOpen(false)} />
+                        <Button
+                            label={saving ? 'Creating…' : 'Create game'}
+                            onClick={handleAddGame}
+                            disabled={saving || !formData.name || !formData.slug || !formData.type}
+                            loading={saving}
+                        />
+                    </div>
+                }
             >
-                <p className="text-sm text-[var(--acu-text-muted)] mb-4">
-                    Add a new game to the platform catalog
+                <p style={{ fontSize: 12, color: 'var(--cg-fg-3)', marginBottom: 16 }}>
+                    Add a new game to the platform catalog.
                 </p>
                 <div className="space-y-4">
                     <div className="flex flex-col gap-1">
-                        <label htmlFor="game-name" className="text-sm font-medium text-[var(--acu-text)]">
-                            Name *
-                        </label>
+                        <label htmlFor="game-name" style={{ fontSize: 12, fontWeight: 500 }}>Name *</label>
                         <InputText
                             id="game-name"
                             value={formData.name}
                             onChange={(e) => {
                                 const name = e.target.value;
-                                setFormData({
-                                    ...formData,
-                                    name,
-                                    slug: formData.slug || generateSlug(name),
-                                });
+                                setFormData({ ...formData, name, slug: formData.slug || generateSlug(name) });
                             }}
-                            placeholder="e.g., Lucky Sevens"
+                            placeholder="e.g. Lucky Sevens"
                             className="w-full"
                         />
                     </div>
                     <div className="flex flex-col gap-1">
-                        <label htmlFor="game-slug" className="text-sm font-medium text-[var(--acu-text)]">
-                            Slug *
-                        </label>
+                        <label htmlFor="game-slug" style={{ fontSize: 12, fontWeight: 500 }}>Slug *</label>
                         <InputText
                             id="game-slug"
                             value={formData.slug}
                             onChange={(e) =>
-                                setFormData({
-                                    ...formData,
-                                    slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
-                                })
+                                setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })
                             }
-                            placeholder="e.g., lucky-sevens"
+                            placeholder="e.g. lucky-sevens"
                             className="w-full"
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1">
-                            <label htmlFor="game-type" className="text-sm font-medium text-[var(--acu-text)]">
-                                Type *
-                            </label>
+                            <label htmlFor="game-type" style={{ fontSize: 12, fontWeight: 500 }}>Type *</label>
                             <Dropdown
                                 id="game-type"
                                 value={formData.type}
-                                options={gameTypeOptions}
+                                options={GAME_TYPE_OPTIONS}
                                 onChange={(e) => setFormData({ ...formData, type: e.value })}
                                 className="w-full"
                             />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <label htmlFor="game-status" className="text-sm font-medium text-[var(--acu-text)]">
-                                Status
-                            </label>
+                            <label htmlFor="game-status" style={{ fontSize: 12, fontWeight: 500 }}>Status</label>
                             <Dropdown
                                 id="game-status"
                                 value={formData.status}
-                                options={statusOptions}
+                                options={STATUS_OPTIONS}
                                 onChange={(e) => setFormData({ ...formData, status: e.value })}
                                 className="w-full"
                             />
                         </div>
                     </div>
                     <div className="flex flex-col gap-1">
-                        <label htmlFor="game-version" className="text-sm font-medium text-[var(--acu-text)]">
-                            Version
-                        </label>
+                        <label htmlFor="game-version" style={{ fontSize: 12, fontWeight: 500 }}>Version</label>
                         <InputText
                             id="game-version"
                             value={formData.version}
                             onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                            placeholder="e.g., 1.0.0"
+                            placeholder="e.g. 1.0.0"
                             className="w-full"
                         />
                     </div>
                     <div className="flex flex-col gap-1">
-                        <label htmlFor="game-description" className="text-sm font-medium text-[var(--acu-text)]">
-                            Description
-                        </label>
+                        <label htmlFor="game-description" style={{ fontSize: 12, fontWeight: 500 }}>Description</label>
                         <InputTextarea
                             id="game-description"
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            placeholder="Brief game description..."
+                            placeholder="Brief game description…"
                             rows={3}
                             className="w-full"
                         />
                     </div>
                     <div className="flex flex-col gap-1">
-                        <label htmlFor="game-thumbnail" className="text-sm font-medium text-[var(--acu-text)]">
-                            Thumbnail URL
-                        </label>
+                        <label htmlFor="game-thumbnail" style={{ fontSize: 12, fontWeight: 500 }}>Thumbnail URL</label>
                         <InputText
                             id="game-thumbnail"
                             value={formData.thumbnail_url}
                             onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                            placeholder="https://..."
+                            placeholder="https://…"
                             className="w-full"
                         />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="game-backend-url" style={{ fontSize: 12, fontWeight: 500 }}>Backend URL</label>
+                            <InputText
+                                id="game-backend-url"
+                                value={formData.backend_url}
+                                onChange={(e) => setFormData({ ...formData, backend_url: e.target.value })}
+                                placeholder="https://engine.example.com"
+                                className="w-full"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="game-launch-url" style={{ fontSize: 12, fontWeight: 500 }}>Launch URL</label>
+                            <InputText
+                                id="game-launch-url"
+                                value={formData.launch_url}
+                                onChange={(e) => setFormData({ ...formData, launch_url: e.target.value })}
+                                placeholder="https://play.example.com"
+                                className="w-full"
+                            />
+                        </div>
                     </div>
                 </div>
             </Dialog>

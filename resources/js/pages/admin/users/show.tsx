@@ -1,15 +1,19 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import StatusBadge from '@/components/acumatica/Common/StatusBadge';
-import { UserFantasyBets } from '@/components/fantasy/UserFantasyBets';
+// resources/js/pages/admin/users/show.tsx
+//
+// User detail page, brass-on-ink to match /tenant-overview. Layout
+// is: page head (with admin actions) → KPI strip (computed from
+// fantasy bet history) → Profile + Account info panels → Fantasy
+// bets table. The Reset Password flow stays on PrimeReact Dialog —
+// it's a functional modal, not chrome.
+
+import { KpiCard, formatCount, formatNAD } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import type { StatusVariant } from '@/types/acumatica';
 import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
-import { Tag } from 'primereact/tag';
 import { Toast } from 'primereact/toast';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface UserDetail {
     uuid: string;
@@ -31,6 +35,25 @@ interface UserDetail {
     updated_at: string;
 }
 
+interface Pick {
+    team_id: number;
+    team_name: string | null;
+    odds: string;
+    won: boolean;
+}
+
+interface Bet {
+    id: number;
+    round_id: number;
+    round_number: number;
+    bet_amount: string;
+    winning_amount: string;
+    outcome: 'pending' | 'win' | 'lost';
+    credit_status: string | null;
+    placed_at: string;
+    picks: Pick[];
+}
+
 const ROLE_LABELS: Record<string, string> = {
     platform_super_admin: 'Super Admin',
     platform_admin: 'Platform Admin',
@@ -39,32 +62,98 @@ const ROLE_LABELS: Record<string, string> = {
     player: 'Player',
 };
 
-const ROLE_SEVERITIES: Record<string, 'danger' | 'warning' | 'info' | 'success'> = {
-    platform_super_admin: 'danger',
-    platform_admin: 'danger',
-    tenant_admin: 'warning',
-    tenant_manager: 'info',
-    player: 'success',
-};
+function statusPill(status: string): string {
+    switch (status) {
+        case 'active': return 'live';
+        case 'suspended': return 'pending';
+        case 'banned': return 'flagged';
+        case 'self_excluded': return 'void';
+        default: return 'void';
+    }
+}
 
-function mapStatus(status: string): StatusVariant {
-    const map: Record<string, StatusVariant> = {
-        active: 'active',
-        suspended: 'suspended',
-        banned: 'error',
-        self_excluded: 'inactive',
-    };
-    return map[status] || 'inactive';
+function outcomePill(outcome: Bet['outcome']): string {
+    if (outcome === 'win') return 'live';
+    if (outcome === 'lost') return 'flagged';
+    return 'pending';
+}
+
+const DATE_FMT = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
+
+function formatDate(iso: string | null): string {
+    return iso ? DATE_FMT.format(new Date(iso)) : '—';
+}
+
+function formatDateTime(iso: string | null): string {
+    return iso ? DATETIME_FMT.format(new Date(iso)) : '—';
 }
 
 function getCsrfToken(): string {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 }
 
+interface InfoItem {
+    label: string;
+    value: React.ReactNode;
+    mono?: boolean;
+    span?: number;
+}
+
+function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
+    return (
+        <div style={{ border: '1px solid var(--cg-rule)', borderRadius: 8, overflow: 'hidden', background: 'var(--cg-ink-card)' }}>
+            <div className="cgo-table-bar">
+                <div className="cgo-table-bar-title">{title}</div>
+            </div>
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(12, 1fr)',
+                    gap: '14px 18px',
+                    padding: '18px',
+                }}
+            >
+                {items.map((it, i) => (
+                    <div key={i} style={{ gridColumn: `span ${it.span ?? 4}` }}>
+                        <div
+                            style={{
+                                fontSize: 10,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.16em',
+                                color: 'var(--cg-fg-3)',
+                                fontWeight: 600,
+                                marginBottom: 4,
+                            }}
+                        >
+                            {it.label}
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                color: 'var(--cg-fg-1)',
+                                fontFamily: it.mono ? 'var(--cg-mono)' : undefined,
+                                fontFeatureSettings: it.mono ? "'tnum' 1" : undefined,
+                                wordBreak: 'break-word',
+                            }}
+                        >
+                            {it.value}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function UserShow({ uuid }: { uuid: string }) {
     const [user, setUser] = useState<UserDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [bets, setBets] = useState<Bet[]>([]);
+    const [betsLoading, setBetsLoading] = useState(true);
     const [passwordDialog, setPasswordDialog] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [tempPassword, setTempPassword] = useState<string | null>(null);
@@ -77,12 +166,10 @@ export default function UserShow({ uuid }: { uuid: string }) {
                 headers: { Accept: 'application/json' },
                 credentials: 'same-origin',
             });
-
             if (!response.ok) {
                 setError(`Failed to load user (${response.status})`);
                 return;
             }
-
             const data = await response.json();
             if (data.success) {
                 setUser(data.data);
@@ -96,7 +183,42 @@ export default function UserShow({ uuid }: { uuid: string }) {
         }
     };
 
-    useEffect(() => { fetchUser(); }, [uuid]);
+    const fetchBets = async () => {
+        setBetsLoading(true);
+        try {
+            const response = await fetch(`/api/v1/admin/users/${uuid}/fantasy-bets?limit=50`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                setBets(data.data ?? []);
+            }
+        } catch {
+            // Soft failure — bets section just shows empty.
+        } finally {
+            setBetsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchUser();
+        fetchBets();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [uuid]);
+
+    const kpis = useMemo(() => {
+        const total = bets.length;
+        let wagered = 0;
+        let won = 0;
+        for (const b of bets) {
+            wagered += parseFloat(b.bet_amount) || 0;
+            if (b.outcome === 'win') {
+                won += parseFloat(b.winning_amount) || 0;
+            }
+        }
+        return { total, wagered, won, net: won - wagered };
+    }, [bets]);
 
     const apiCall = async (url: string, method: string = 'POST', body?: Record<string, unknown>) => {
         const response = await fetch(url, {
@@ -118,7 +240,7 @@ export default function UserShow({ uuid }: { uuid: string }) {
             });
             if (data.success) {
                 setTempPassword(data.temporary_password || null);
-                toast.current?.show({ severity: 'success', summary: 'Password Reset', detail: 'Password has been reset successfully.', life: 5000 });
+                toast.current?.show({ severity: 'success', summary: 'Password reset', detail: 'Password has been reset.', life: 5000 });
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to reset password.', life: 5000 });
             }
@@ -130,7 +252,7 @@ export default function UserShow({ uuid }: { uuid: string }) {
     };
 
     const handleSuspend = async () => {
-        if (!confirm('Are you sure you want to suspend this user?')) return;
+        if (!confirm('Suspend this user?')) return;
         const data = await apiCall(`/api/v1/admin/users/${uuid}/suspend`);
         if (data.success) {
             fetchUser();
@@ -154,10 +276,10 @@ export default function UserShow({ uuid }: { uuid: string }) {
 
     if (loading) {
         return (
-            <UserLayout>
-                <Head title="Loading..." />
-                <div className="flex items-center justify-center p-12">
-                    <i className="pi pi-spin pi-spinner" style={{ fontSize: '2rem', color: 'var(--acu-text-muted)' }} />
+            <UserLayout title="User">
+                <Head title="Loading…" />
+                <div className="cgo-page">
+                    <div style={{ color: 'var(--cg-fg-3)', padding: '40px 0' }}>Loading user…</div>
                 </div>
             </UserLayout>
         );
@@ -165,169 +287,288 @@ export default function UserShow({ uuid }: { uuid: string }) {
 
     if (!user) {
         return (
-            <UserLayout>
-                <Head title="User Not Found" />
-                <div className="p-12 text-center">
-                    <i className="pi pi-exclamation-circle mb-4" style={{ fontSize: '3rem', color: 'var(--acu-text-muted)' }} />
-                    <p className="mb-6" style={{ color: 'var(--acu-text-muted)', fontFamily: 'var(--font-body)' }}>{error || 'User not found.'}</p>
-                    <Button label="Back to Users" icon="pi pi-arrow-left" severity="secondary" outlined onClick={() => router.visit('/admin/users')} />
+            <UserLayout title="User">
+                <Head title="User not found" />
+                <div className="cgo-page">
+                    <div className="cgo-page-head">
+                        <div>
+                            <div className="cgo-eyebrow">Admin</div>
+                            <h1 className="cgo-title">User not found</h1>
+                            <div className="cgo-subtitle">{error || 'This user does not exist.'}</div>
+                        </div>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={() => router.visit('/admin/users')}
+                        >
+                            ← Back to users
+                        </button>
+                    </div>
                 </div>
             </UserLayout>
         );
     }
 
+    const profileItems: InfoItem[] = [
+        { label: 'Full name', value: user.name },
+        { label: 'Username', value: user.username || '—' },
+        { label: 'Display name', value: user.display_name || '—' },
+        { label: 'Email', value: user.email },
+        { label: 'Phone', value: user.phone || '—' },
+        { label: 'Date of birth', value: user.date_of_birth || '—' },
+        { label: 'Country', value: user.country_code || '—' },
+        { label: 'Timezone', value: user.timezone, mono: true },
+        { label: 'Language', value: user.language, mono: true },
+    ];
+
+    const accountItems: InfoItem[] = [
+        {
+            label: 'Status',
+            value: (
+                <span className={`cgo-pill ${statusPill(user.status)}`}>
+                    {user.status.replace('_', ' ')}
+                </span>
+            ),
+            span: 3,
+        },
+        {
+            label: 'Type',
+            value: <span style={{ textTransform: 'capitalize' }}>{user.user_type || 'direct'}</span>,
+            span: 3,
+        },
+        {
+            label: 'Email verified',
+            value: user.email_verified_at
+                ? <span style={{ color: 'var(--cg-pos)' }}>✓ {formatDate(user.email_verified_at)}</span>
+                : <span style={{ color: 'var(--cg-fg-3)' }}>not verified</span>,
+            span: 3,
+        },
+        {
+            label: 'Last login',
+            value: formatDateTime(user.last_login_at),
+            span: 3,
+        },
+        {
+            label: 'Roles',
+            value: user.roles.length === 0
+                ? <span style={{ color: 'var(--cg-fg-3)' }}>none assigned</span>
+                : (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {user.roles.map((r) => (
+                            <span
+                                key={r}
+                                style={{
+                                    display: 'inline-block',
+                                    padding: '2px 8px',
+                                    border: '1px solid var(--cg-rule-strong)',
+                                    borderRadius: 999,
+                                    fontSize: 10,
+                                    color: 'var(--cg-fg-2)',
+                                    fontFamily: 'var(--cg-mono)',
+                                    letterSpacing: '0.04em',
+                                }}
+                            >
+                                {ROLE_LABELS[r] || r}
+                            </span>
+                        ))}
+                    </div>
+                ),
+            span: 6,
+        },
+        { label: 'UUID', value: user.uuid, mono: true, span: 6 },
+        { label: 'Created', value: formatDate(user.created_at), span: 3 },
+        { label: 'Updated', value: formatDate(user.updated_at), span: 3 },
+    ];
+
     return (
-        <UserLayout>
-            <Head title={user.name} />
+        <UserLayout title={user.name}>
+            <Head title={`${user.name} · User`} />
             <Toast ref={toast} />
 
-            <PageHeader title={user.name} subtitle={user.email}>
-                <div className="flex gap-2 flex-wrap">
-                    <Button label="Back" icon="pi pi-arrow-left" severity="secondary" outlined size="small" onClick={() => router.visit('/admin/users')} />
-                    <Button label="Reset Password" icon="pi pi-key" severity="warning" size="small" onClick={() => setPasswordDialog(true)} />
-                    {user.status === 'active' ? (
-                        <Button label="Suspend" icon="pi pi-ban" severity="danger" outlined size="small" onClick={handleSuspend} />
-                    ) : (
-                        <Button label="Activate" icon="pi pi-check" severity="success" size="small" onClick={handleActivate} />
-                    )}
-                </div>
-            </PageHeader>
-
-            {/* Profile Fieldset */}
-            <div className="space-y-6">
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-user" />
-                            Profile
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">User</div>
+                        <h1 className="cgo-title">{user.name}</h1>
+                        <div className="cgo-subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span>{user.email}</span>
+                            <span className={`cgo-pill ${statusPill(user.status)}`}>
+                                {user.status.replace('_', ' ')}
+                            </span>
                         </div>
                     </div>
-                    <div className="acu-fieldset-content">
-                        <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Full Name</label>
-                                <div className="acu-field-value">{user.name}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Username</label>
-                                <div className="acu-field-value">{user.username || '—'}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Display Name</label>
-                                <div className="acu-field-value">{user.display_name || '—'}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Email</label>
-                                <div className="acu-field-value">{user.email}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Phone</label>
-                                <div className="acu-field-value">{user.phone || '—'}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Date of Birth</label>
-                                <div className="acu-field-value">{user.date_of_birth || '—'}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Country</label>
-                                <div className="acu-field-value">{user.country_code || '—'}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Timezone</label>
-                                <div className="acu-field-value">{user.timezone}</div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-4">
-                                <label className="acu-field-label">Language</label>
-                                <div className="acu-field-value">{user.language}</div>
-                            </div>
-                        </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={() => router.visit('/admin/users')}
+                        >
+                            ← Back
+                        </button>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={() => setPasswordDialog(true)}
+                        >
+                            Reset password
+                        </button>
+                        {user.status === 'active' ? (
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--ghost cg-btn--sm"
+                                style={{ borderColor: 'var(--cg-neg)', color: 'var(--cg-neg)' }}
+                                onClick={handleSuspend}
+                            >
+                                Suspend
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--primary cg-btn--sm"
+                                onClick={handleActivate}
+                            >
+                                Activate
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Account Fieldset */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-shield" />
-                            Account
-                        </div>
-                    </div>
-                    <div className="acu-fieldset-content">
-                        <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-12 md:col-span-6 lg:col-span-3">
-                                <label className="acu-field-label">Status</label>
-                                <div className="mt-1">
-                                    <StatusBadge status={mapStatus(user.status)} label={user.status.toUpperCase()} />
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-3">
-                                <label className="acu-field-label">User Type</label>
-                                <div className="mt-1">
-                                    <Tag
-                                        value={user.user_type === 'voucher' ? 'Voucher' : 'Direct'}
-                                        severity={user.user_type === 'voucher' ? 'warning' : 'info'}
-                                    />
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-3">
-                                <label className="acu-field-label">Email Verified</label>
-                                <div className="mt-1">
-                                    {user.email_verified_at ? (
-                                        <StatusBadge status="completed" label={new Date(user.email_verified_at).toLocaleDateString()} />
-                                    ) : (
-                                        <StatusBadge status="pending" label="Not Verified" />
-                                    )}
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-3">
-                                <label className="acu-field-label">Last Login</label>
-                                <div className="acu-field-value">
-                                    {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '—'}
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="acu-field-label">Roles</label>
-                                <div className="flex gap-1.5 flex-wrap mt-1">
-                                    {user.roles.map((r) => (
-                                        <Tag
-                                            key={r}
-                                            value={ROLE_LABELS[r] || r}
-                                            severity={ROLE_SEVERITIES[r] || 'info'}
-                                        />
-                                    ))}
-                                    {user.roles.length === 0 && (
-                                        <span style={{ color: 'var(--acu-text-muted)', fontSize: '0.85rem', fontFamily: 'var(--font-body)' }}>No roles assigned</span>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="acu-field-label">UUID</label>
-                                <div className="acu-field-value">
-                                    <code style={{ fontSize: '0.8rem', color: 'var(--acu-text-light)', letterSpacing: '0.02em' }}>{user.uuid}</code>
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-3">
-                                <label className="acu-field-label">Created</label>
-                                <div className="acu-field-value">
-                                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
-                                </div>
-                            </div>
-                            <div className="col-span-12 md:col-span-6 lg:col-span-3">
-                                <label className="acu-field-label">Updated</label>
-                                <div className="acu-field-value">
-                                    {user.updated_at ? new Date(user.updated_at).toLocaleDateString() : '—'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                {/* KPI strip — derived from fantasy bet history */}
+                <div className="cgo-kpis">
+                    <KpiCard
+                        label="Bets placed"
+                        value={betsLoading ? '—' : formatCount(kpis.total)}
+                        meta="lifetime"
+                    />
+                    <KpiCard
+                        label="Total wagered"
+                        value={betsLoading ? '—' : `N$${formatNAD(kpis.wagered)}`}
+                        meta="lifetime"
+                    />
+                    <KpiCard
+                        label="Total wins"
+                        value={betsLoading ? '—' : `N$${formatNAD(kpis.won)}`}
+                        meta="winning bets only"
+                    />
+                    <KpiCard
+                        label="Net P/L"
+                        value={betsLoading ? '—' : `${kpis.net >= 0 ? '+' : '−'}N$${formatNAD(Math.abs(kpis.net))}`}
+                        brass={kpis.net >= 0}
+                        meta={kpis.net >= 0 ? 'player up' : 'player down'}
+                    />
                 </div>
 
-                <UserFantasyBets userUuid={user.uuid} />
+                {/* Profile + Account */}
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 16,
+                        marginBottom: 24,
+                    }}
+                >
+                    <InfoPanel title="Profile" items={profileItems} />
+                    <InfoPanel title="Account" items={accountItems} />
+                </div>
+
+                {/* Fantasy bets */}
+                <div
+                    className="cgo-table-bar"
+                    style={{
+                        borderRadius: '8px 8px 0 0',
+                        borderTop: '1px solid var(--cg-rule)',
+                        borderLeft: '1px solid var(--cg-rule)',
+                        borderRight: '1px solid var(--cg-rule)',
+                    }}
+                >
+                    <div className="cgo-table-bar-title">Fantasy bets · last 50</div>
+                </div>
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', marginBottom: 32 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 150 }}>Placed</th>
+                                <th style={{ width: 90 }}>Round</th>
+                                <th>Picks</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Stake</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Payout</th>
+                                <th style={{ width: 90 }}>Outcome</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {betsLoading ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        Loading bets…
+                                    </td>
+                                </tr>
+                            ) : bets.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No bets placed yet.
+                                    </td>
+                                </tr>
+                            ) : (
+                                bets.map((b) => (
+                                    <tr key={b.id}>
+                                        <td>
+                                            <span className="cgo-uid">{formatDateTime(b.placed_at)}</span>
+                                        </td>
+                                        <td>
+                                            <a
+                                                href={`/admin/fantasy/rounds/${b.round_id}`}
+                                                className="cgo-uid"
+                                                style={{ color: 'var(--cg-fg-2)', textDecoration: 'none' }}
+                                            >
+                                                #{b.round_number}
+                                            </a>
+                                        </td>
+                                        <td style={{ maxWidth: 320 }}>
+                                            <div
+                                                className="cgo-cell-clip"
+                                                title={b.picks.map((p) => `${p.team_name || `Team ${p.team_id}`} (${p.odds})`).join(', ')}
+                                                style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}
+                                            >
+                                                {b.picks.map((p) => `${p.team_name || `Team ${p.team_id}`} (${p.odds})`).join(', ')}
+                                            </div>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-stake">
+                                                <span className="cgo-ccy">NAD</span>
+                                                {formatNAD(parseFloat(b.bet_amount))}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            {b.outcome === 'win' ? (
+                                                <span className="cgo-payout" style={{ color: 'var(--cg-pos)' }}>
+                                                    {formatNAD(parseFloat(b.winning_amount))}
+                                                </span>
+                                            ) : (
+                                                <span className="cgo-payout" style={{ color: 'var(--cg-fg-4)' }}>
+                                                    —
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <span className={`cgo-pill ${outcomePill(b.outcome)}`}>
+                                                {b.outcome}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Reset Password Dialog */}
+            {/* Reset password dialog (PrimeReact — functional modal) */}
             <Dialog
-                header="Reset Password"
+                header="Reset password"
                 visible={passwordDialog}
                 style={{ width: '28rem' }}
                 onHide={closePasswordDialog}
@@ -335,12 +576,10 @@ export default function UserShow({ uuid }: { uuid: string }) {
                 draggable={false}
                 footer={
                     <div className="flex justify-end gap-2">
-                        <Button label={tempPassword ? 'Close' : 'Cancel'} icon="pi pi-times" severity="secondary" outlined onClick={closePasswordDialog} />
+                        <Button label={tempPassword ? 'Close' : 'Cancel'} severity="secondary" outlined onClick={closePasswordDialog} />
                         {!tempPassword && (
                             <Button
-                                label={resetting ? 'Resetting...' : 'Reset Password'}
-                                icon="pi pi-key"
-                                severity="warning"
+                                label={resetting ? 'Resetting…' : 'Reset password'}
                                 onClick={handleResetPassword}
                                 disabled={resetting}
                                 loading={resetting}
@@ -351,28 +590,27 @@ export default function UserShow({ uuid }: { uuid: string }) {
             >
                 {tempPassword ? (
                     <div className="space-y-4">
-                        <div className="flex items-center gap-2" style={{ color: 'var(--green-500)' }}>
-                            <i className="pi pi-check-circle" />
-                            <span style={{ fontWeight: 500, fontFamily: 'var(--font-body)' }}>Password reset successfully!</span>
-                        </div>
-                        <div className="rounded-lg p-4" style={{ background: 'var(--acu-surface-elevated)', border: '1px solid var(--acu-border)' }}>
-                            <label className="acu-field-label">New Password</label>
-                            <code style={{ display: 'block', fontSize: '1.2rem', color: 'var(--acu-primary)', letterSpacing: '0.05em', marginTop: '0.25rem', fontWeight: 600 }}>
+                        <div style={{ fontWeight: 500 }}>Password reset successfully.</div>
+                        <div style={{ background: 'var(--cg-ink-elevated)', border: '1px solid var(--cg-rule)', borderRadius: 6, padding: 14 }}>
+                            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--cg-fg-3)', marginBottom: 4 }}>
+                                New password
+                            </div>
+                            <code style={{ display: 'block', fontSize: '1.1rem', fontFamily: 'var(--cg-mono)', color: 'var(--cg-brass-hi)', letterSpacing: '0.05em' }}>
                                 {tempPassword}
                             </code>
                         </div>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--acu-text-muted)', fontFamily: 'var(--font-body)' }}>
-                            Make sure to copy this password. It will not be shown again.
+                        <p style={{ fontSize: 12, color: 'var(--cg-fg-3)' }}>
+                            Copy this password now — it will not be shown again.
                         </p>
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        <p style={{ fontSize: '0.875rem', color: 'var(--acu-text-muted)', fontFamily: 'var(--font-body)' }}>
-                            Set a new password for <strong style={{ color: 'var(--acu-text)' }}>{user.name}</strong> ({user.email}).
+                        <p style={{ fontSize: '0.875rem' }}>
+                            Set a new password for <strong>{user.name}</strong> ({user.email}).
                             Leave blank to generate a random password.
                         </p>
                         <div>
-                            <label className="acu-field-label">New Password (optional)</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>New password (optional)</label>
                             <InputText
                                 type="text"
                                 placeholder="Leave blank for random password"

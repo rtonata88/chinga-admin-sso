@@ -1,15 +1,19 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import StatusBadge from '@/components/acumatica/Common/StatusBadge';
+// resources/js/pages/platform/tenants/venues/show.tsx
+//
+// Venue detail, brass-on-ink to match /platform/tenants/{uuid}.
+// Header → KPI strip → Address + Contact info panels → Staff /
+// Terminals tabs (each with their own table). Add-staff and
+// add-terminal dialogs stay on PrimeReact.
+
+import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import type { StatusVariant } from '@/types/acumatica';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
-import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
-import { useEffect, useState } from 'react';
+import { Toast } from 'primereact/toast';
+import { useEffect, useRef, useState } from 'react';
 
 interface VenueDetails {
     uuid: string;
@@ -62,8 +66,91 @@ interface Terminal {
     created_at: string;
 }
 
-function formatCurrency(amount: number, currency: string = 'NAD'): string {
-    return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+function statusPill(status: string | null | undefined): string {
+    switch (status) {
+        case 'active': return 'live';
+        case 'suspended': return 'flagged';
+        case 'inactive':
+        case 'closed':
+        case 'offline': return 'void';
+        case 'pending': return 'pending';
+        default: return 'void';
+    }
+}
+
+const ROLE_OPTIONS = [
+    { label: 'Owner', value: 'owner' },
+    { label: 'Manager', value: 'manager' },
+    { label: 'Staff', value: 'staff' },
+    { label: 'Cashier', value: 'cashier' },
+];
+
+const TERMINAL_TYPE_OPTIONS = [
+    { label: 'Kiosk', value: 'kiosk' },
+    { label: 'Tablet', value: 'tablet' },
+    { label: 'Terminal', value: 'terminal' },
+    { label: 'POS', value: 'pos' },
+];
+
+const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
+
+function formatDateTime(iso: string | null): string {
+    return iso ? DATETIME_FMT.format(new Date(iso)) : '—';
+}
+
+interface InfoItem {
+    label: string;
+    value: React.ReactNode;
+    span?: number;
+    mono?: boolean;
+}
+
+function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
+    return (
+        <div style={{ border: '1px solid var(--cg-rule)', borderRadius: 8, overflow: 'hidden', background: 'var(--cg-ink-card)' }}>
+            <div className="cgo-table-bar">
+                <div className="cgo-table-bar-title">{title}</div>
+            </div>
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(12, 1fr)',
+                    gap: '14px 18px',
+                    padding: '18px',
+                }}
+            >
+                {items.map((it, i) => (
+                    <div key={i} style={{ gridColumn: `span ${it.span ?? 6}` }}>
+                        <div
+                            style={{
+                                fontSize: 10,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.16em',
+                                color: 'var(--cg-fg-3)',
+                                fontWeight: 600,
+                                marginBottom: 4,
+                            }}
+                        >
+                            {it.label}
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                color: 'var(--cg-fg-1)',
+                                fontFamily: it.mono ? 'var(--cg-mono)' : undefined,
+                                fontFeatureSettings: it.mono ? "'tnum' 1" : undefined,
+                                wordBreak: 'break-word',
+                            }}
+                        >
+                            {it.value}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 export default function VenueShow() {
@@ -74,8 +161,8 @@ export default function VenueShow() {
     const [terminals, setTerminals] = useState<Terminal[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'staff' | 'terminals'>('staff');
+    const toast = useRef<Toast>(null);
 
-    // Add staff dialog
     const [addStaffOpen, setAddStaffOpen] = useState(false);
     const [savingStaff, setSavingStaff] = useState(false);
     const [staffForm, setStaffForm] = useState({
@@ -88,7 +175,6 @@ export default function VenueShow() {
         pin: '',
     });
 
-    // Add terminal dialog
     const [addTerminalOpen, setAddTerminalOpen] = useState(false);
     const [savingTerminal, setSavingTerminal] = useState(false);
     const [terminalForm, setTerminalForm] = useState({
@@ -100,9 +186,8 @@ export default function VenueShow() {
 
     const apiBase = `/api/v1/platform/tenants/${tenantUuid}/venues/${uuid}`;
 
-    const getCsrfToken = () => {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    };
+    const getCsrfToken = () =>
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const fetchVenue = async () => {
         try {
@@ -111,9 +196,7 @@ export default function VenueShow() {
                 credentials: 'same-origin',
             });
             const data = await response.json();
-            if (data.success) {
-                setVenue(data.data);
-            }
+            if (data.success) setVenue(data.data);
         } catch (error) {
             console.error('Failed to fetch venue:', error);
         } finally {
@@ -128,9 +211,7 @@ export default function VenueShow() {
                 credentials: 'same-origin',
             });
             const data = await response.json();
-            if (data.success) {
-                setStaff(data.data);
-            }
+            if (data.success) setStaff(data.data);
         } catch (error) {
             console.error('Failed to fetch staff:', error);
         }
@@ -143,9 +224,7 @@ export default function VenueShow() {
                 credentials: 'same-origin',
             });
             const data = await response.json();
-            if (data.success) {
-                setTerminals(data.data);
-            }
+            if (data.success) setTerminals(data.data);
         } catch (error) {
             console.error('Failed to fetch terminals:', error);
         }
@@ -155,7 +234,10 @@ export default function VenueShow() {
         fetchVenue();
         fetchStaff();
         fetchTerminals();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tenantUuid, uuid]);
+
+    const refreshAll = () => { fetchVenue(); fetchStaff(); fetchTerminals(); };
 
     const handleAddStaff = async () => {
         setSavingStaff(true);
@@ -173,23 +255,15 @@ export default function VenueShow() {
             const data = await response.json();
             if (data.success) {
                 setAddStaffOpen(false);
-                setStaffForm({
-                    username: '',
-                    password: '',
-                    display_name: '',
-                    email: '',
-                    phone: '',
-                    role: 'staff',
-                    pin: '',
-                });
+                setStaffForm({ username: '', password: '', display_name: '', email: '', phone: '', role: 'staff', pin: '' });
                 fetchStaff();
                 fetchVenue();
+                toast.current?.show({ severity: 'success', summary: 'Created', detail: 'Staff added.' });
             } else {
-                alert(data.message || 'Failed to add staff');
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to add staff.' });
             }
         } catch (error) {
-            console.error('Failed to add staff:', error);
-            alert('Failed to add staff');
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to add staff.' });
         } finally {
             setSavingStaff(false);
         }
@@ -211,19 +285,14 @@ export default function VenueShow() {
             const data = await response.json();
             if (data.success) {
                 setNewTerminalApiKey(data.data.api_key);
-                setTerminalForm({
-                    terminal_code: '',
-                    name: '',
-                    type: 'terminal',
-                });
+                setTerminalForm({ terminal_code: '', name: '', type: 'terminal' });
                 fetchTerminals();
                 fetchVenue();
             } else {
-                alert(data.message || 'Failed to add terminal');
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to add terminal.' });
             }
         } catch (error) {
-            console.error('Failed to add terminal:', error);
-            alert('Failed to add terminal');
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to add terminal.' });
         } finally {
             setSavingTerminal(false);
         }
@@ -231,32 +300,35 @@ export default function VenueShow() {
 
     const handleStatusChange = async (newStatus: 'active' | 'suspended') => {
         const action = newStatus === 'active' ? 'activate' : 'suspend';
+        if (newStatus === 'suspended' && !confirm('Suspend this venue?')) return;
         try {
             const response = await fetch(`${apiBase}/${action}`, {
                 method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
-                },
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
                 credentials: 'same-origin',
             });
             const data = await response.json();
             if (data.success) {
                 fetchVenue();
+                toast.current?.show({
+                    severity: newStatus === 'active' ? 'success' : 'warn',
+                    summary: newStatus === 'active' ? 'Activated' : 'Suspended',
+                    detail: `Venue ${action}d.`,
+                });
             } else {
-                alert(data.message || `Failed to ${action} venue`);
+                toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || `Failed to ${action} venue.` });
             }
         } catch (error) {
-            console.error(`Failed to ${action} venue:`, error);
+            toast.current?.show({ severity: 'error', summary: 'Error', detail: `Failed to ${action} venue.` });
         }
     };
 
     if (loading) {
         return (
-            <UserLayout>
-                <Head title="Loading..." />
-                <div className="flex items-center justify-center py-20">
-                    <p className="text-[var(--acu-text-muted)]">Loading venue...</p>
+            <UserLayout title="Venue">
+                <Head title="Loading…" />
+                <div className="cgo-page">
+                    <div style={{ color: 'var(--cg-fg-3)', padding: '40px 0' }}>Loading venue…</div>
                 </div>
             </UserLayout>
         );
@@ -264,290 +336,331 @@ export default function VenueShow() {
 
     if (!venue) {
         return (
-            <UserLayout>
-                <Head title="Venue Not Found" />
-                <div className="flex flex-col items-center justify-center py-20">
-                    <p className="text-[var(--acu-text-muted)] mb-4">Venue not found</p>
-                    <Link href={`/platform/tenants/${tenantUuid}`}>
-                        <Button label="Back to Tenant" icon="pi pi-arrow-left" />
-                    </Link>
+            <UserLayout title="Venue">
+                <Head title="Venue not found" />
+                <div className="cgo-page">
+                    <div className="cgo-page-head">
+                        <div>
+                            <div className="cgo-eyebrow">Platform · Venue</div>
+                            <h1 className="cgo-title">Venue not found</h1>
+                            <div className="cgo-subtitle">This venue does not exist.</div>
+                        </div>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={() => router.visit(`/platform/tenants/${tenantUuid}`)}
+                        >
+                            ← Back to tenant
+                        </button>
+                    </div>
                 </div>
             </UserLayout>
         );
     }
 
-    const staffNameTemplate = (s: Staff) => (
-        <div>
-            <p className="font-medium">{s.display_name}</p>
-            {s.email && (
-                <p className="text-sm text-[var(--acu-text-muted)]">{s.email}</p>
-            )}
-        </div>
-    );
+    const addressLines = [
+        venue.address_line_1,
+        venue.address_line_2,
+        [venue.city, venue.region, venue.postal_code].filter(Boolean).join(', '),
+        venue.country_code,
+    ].filter(Boolean);
 
-    const staffUsernameTemplate = (s: Staff) => (
-        <code className="text-sm">{s.username}</code>
-    );
-
-    const staffRoleTemplate = (s: Staff) => (
-        <StatusBadge status={'inactive' as StatusVariant} label={s.role} />
-    );
-
-    const staffStatusTemplate = (s: Staff) => (
-        <StatusBadge status={s.status as StatusVariant} />
-    );
-
-    const staffLastLoginTemplate = (s: Staff) => (
-        <span className="text-[var(--acu-text-muted)]">
-            {s.last_login_at
-                ? new Date(s.last_login_at).toLocaleString()
-                : 'Never'}
-        </span>
-    );
-
-    const terminalCodeTemplate = (t: Terminal) => (
-        <code className="text-sm">{t.terminal_code}</code>
-    );
-
-    const terminalTypeTemplate = (t: Terminal) => (
-        <StatusBadge status={'inactive' as StatusVariant} label={t.type} />
-    );
-
-    const terminalStatusTemplate = (t: Terminal) => (
-        <StatusBadge status={t.status as StatusVariant} />
-    );
-
-    const terminalHeartbeatTemplate = (t: Terminal) => (
-        <span className="text-[var(--acu-text-muted)]">
-            {t.last_heartbeat_at
-                ? new Date(t.last_heartbeat_at).toLocaleString()
-                : 'Never'}
-        </span>
-    );
-
-    const terminalIpTemplate = (t: Terminal) => (
-        <span className="text-[var(--acu-text-muted)]">
-            {t.ip_address || '-'}
-        </span>
-    );
-
-    const roleOptions = [
-        { label: 'Owner', value: 'owner' },
-        { label: 'Manager', value: 'manager' },
-        { label: 'Staff', value: 'staff' },
-        { label: 'Cashier', value: 'cashier' },
+    const addressItems: InfoItem[] = [
+        {
+            label: 'Address',
+            span: 12,
+            value: addressLines.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {addressLines.map((line, i) => (
+                        <span key={i}>{line}</span>
+                    ))}
+                </div>
+            ) : '—',
+        },
+        { label: 'City', value: venue.city || '—', span: 6 },
+        { label: 'Country', value: venue.country_code || '—', mono: true, span: 6 },
+        { label: 'Region', value: venue.region || '—', span: 6 },
+        { label: 'Postal code', value: venue.postal_code || '—', mono: true, span: 6 },
     ];
 
-    const terminalTypeOptions = [
-        { label: 'Kiosk', value: 'kiosk' },
-        { label: 'Tablet', value: 'tablet' },
-        { label: 'Terminal', value: 'terminal' },
-        { label: 'POS', value: 'pos' },
+    const businessItems: InfoItem[] = [
+        { label: 'Slug', value: venue.slug, mono: true, span: 6 },
+        { label: 'Business name', value: venue.business_name || '—', span: 6 },
+        { label: 'License', value: venue.license_number || '—', mono: true, span: 6 },
+        { label: 'Currency', value: venue.currency || '—', mono: true, span: 3 },
+        { label: 'Timezone', value: venue.timezone || '—', mono: true, span: 3 },
+        { label: 'Phone', value: venue.phone || '—', mono: true, span: 6 },
+        { label: 'Email', value: venue.email || '—', span: 6 },
     ];
 
     return (
-        <UserLayout>
-            <Head title={venue.name} />
+        <UserLayout title={venue.name}>
+            <Head title={`${venue.name} · Venue`} />
+            <Toast ref={toast} />
 
-            <div className="space-y-6">
-                <PageHeader title={venue.name} subtitle={venue.slug}>
-                    <StatusBadge status={venue.status as StatusVariant} />
-                    <Button
-                        label="Refresh"
-                        icon="pi pi-refresh"
-                        severity="secondary"
-                        outlined
-                        onClick={() => { fetchVenue(); fetchStaff(); fetchTerminals(); }}
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Platform · Tenant · Venue</div>
+                        <h1 className="cgo-title">{venue.name}</h1>
+                        <div className="cgo-subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>{venue.slug}</span>
+                            <span className={`cgo-pill ${statusPill(venue.status)}`}>
+                                {venue.status}
+                            </span>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={() => router.visit(`/platform/tenants/${tenantUuid}`)}
+                        >
+                            ← Back
+                        </button>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={refreshAll}
+                        >
+                            Refresh
+                        </button>
+                        {venue.status === 'active' ? (
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--ghost cg-btn--sm"
+                                style={{ borderColor: 'var(--cg-neg)', color: 'var(--cg-neg)' }}
+                                onClick={() => handleStatusChange('suspended')}
+                            >
+                                Suspend
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--primary cg-btn--sm"
+                                onClick={() => handleStatusChange('active')}
+                            >
+                                Activate
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* KPI strip */}
+                <div className="cgo-kpis">
+                    <KpiCard label="Staff" value={formatCount(venue.staff_count)} meta="members" />
+                    <KpiCard label="Terminals" value={formatCount(venue.terminals_count)} meta="registered" />
+                    <KpiCard label="Voucher codes" value={formatCount(venue.voucher_codes_count)} meta="lifetime issued" />
+                    <KpiCard
+                        label="Active balance"
+                        value={formatCurrencyCompact(venue.stats?.active_codes_balance ?? 0)}
+                        brass
+                        meta={venue.currency || 'NAD'}
                     />
-                    {venue.status === 'active' ? (
-                        <Button
-                            label="Suspend Venue"
-                            severity="danger"
-                            onClick={() => handleStatusChange('suspended')}
-                        />
-                    ) : (
-                        <Button
-                            label="Activate Venue"
-                            onClick={() => handleStatusChange('active')}
-                        />
-                    )}
-                </PageHeader>
-
-                <div className="mb-4">
-                    <Link href={`/platform/tenants/${tenantUuid}`} className="inline-flex items-center gap-1 text-sm text-[var(--acu-text-muted)] hover:text-[var(--acu-text)]">
-                        <i className="pi pi-arrow-left text-xs" />
-                        Back to Tenant
-                    </Link>
                 </div>
 
-                {/* Stats */}
-                <div className="grid gap-4 md:grid-cols-4">
-                    <div className="acu-fieldset">
-                        <div className="p-4">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">Staff</span>
-                            <div className="text-2xl font-bold text-[var(--acu-text)]">{venue.staff_count}</div>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset">
-                        <div className="p-4">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">Terminals</span>
-                            <div className="text-2xl font-bold text-[var(--acu-text)]">{venue.terminals_count}</div>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset">
-                        <div className="p-4">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">Voucher Codes</span>
-                            <div className="text-2xl font-bold text-[var(--acu-text)]">{venue.voucher_codes_count}</div>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset">
-                        <div className="p-4">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--acu-text-muted)]">Active Balance</span>
-                            <div className="text-2xl font-bold text-[var(--acu-text)]">
-                                {formatCurrency(venue.stats.active_codes_balance, venue.currency || 'NAD')}
-                            </div>
-                        </div>
-                    </div>
+                {/* Address + Business */}
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 16,
+                        marginBottom: 24,
+                    }}
+                >
+                    <InfoPanel title="Location" items={addressItems} />
+                    <InfoPanel title="Business & contact" items={businessItems} />
                 </div>
 
-                {/* Venue Details */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-map-marker" />
-                            <span>Venue Details</span>
-                        </div>
-                    </div>
-                    <div className="acu-fieldset-body">
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div>
-                                <p className="text-sm text-[var(--acu-text-muted)]">Address</p>
-                                <p className="font-medium">{venue.address_line_1}</p>
-                                {venue.address_line_2 && <p>{venue.address_line_2}</p>}
-                                <p>{venue.city}, {venue.region} {venue.postal_code}</p>
-                                <p>{venue.country_code}</p>
-                            </div>
-                            <div className="space-y-2">
-                                {venue.phone && (
-                                    <div>
-                                        <p className="text-sm text-[var(--acu-text-muted)]">Phone</p>
-                                        <p className="font-medium">{venue.phone}</p>
-                                    </div>
-                                )}
-                                {venue.email && (
-                                    <div>
-                                        <p className="text-sm text-[var(--acu-text-muted)]">Email</p>
-                                        <p className="font-medium">{venue.email}</p>
-                                    </div>
-                                )}
-                                {venue.business_name && (
-                                    <div>
-                                        <p className="text-sm text-[var(--acu-text-muted)]">Business Name</p>
-                                        <p className="font-medium">{venue.business_name}</p>
-                                    </div>
-                                )}
-                                {venue.license_number && (
-                                    <div>
-                                        <p className="text-sm text-[var(--acu-text-muted)]">License Number</p>
-                                        <p className="font-medium">{venue.license_number}</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex gap-2 border-b border-[var(--acu-border)]">
-                    <Button
-                        label={`Staff (${staff.length})`}
-                        icon="pi pi-users"
-                        outlined={activeTab !== 'staff'}
+                {/* Tab chips */}
+                <div className="cgo-filterbar">
+                    <button
+                        type="button"
+                        className={`cgo-chip${activeTab === 'staff' ? ' active' : ''}`}
                         onClick={() => setActiveTab('staff')}
-                        size="small"
-                    />
-                    <Button
-                        label={`Terminals (${terminals.length})`}
-                        icon="pi pi-desktop"
-                        outlined={activeTab !== 'terminals'}
+                    >
+                        Staff <span className="cgo-chip-count">{staff.length}</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={`cgo-chip${activeTab === 'terminals' ? ' active' : ''}`}
                         onClick={() => setActiveTab('terminals')}
-                        size="small"
-                    />
+                    >
+                        Terminals <span className="cgo-chip-count">{terminals.length}</span>
+                    </button>
+                    <div className="cgo-right">
+                        {activeTab === 'staff' ? (
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--primary cg-btn--sm"
+                                onClick={() => setAddStaffOpen(true)}
+                            >
+                                + Add staff
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--primary cg-btn--sm"
+                                onClick={() => setAddTerminalOpen(true)}
+                            >
+                                + Add terminal
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Staff Tab */}
-                {activeTab === 'staff' && (
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-users" />
-                                <span>Staff Members</span>
-                            </div>
-                            <Button
-                                label="Add Staff"
-                                icon="pi pi-plus"
-                                size="small"
-                                onClick={() => setAddStaffOpen(true)}
-                            />
-                        </div>
-                        <div className="acu-fieldset-body">
-                            <DataTable
-                                value={staff}
-                                emptyMessage="No staff members"
-                                stripedRows
-                                size="small"
-                            >
-                                <Column header="Name" body={staffNameTemplate} />
-                                <Column header="Username" body={staffUsernameTemplate} />
-                                <Column header="Role" body={staffRoleTemplate} />
-                                <Column header="Status" body={staffStatusTemplate} />
-                                <Column header="Last Login" body={staffLastLoginTemplate} />
-                            </DataTable>
-                        </div>
-                    </div>
-                )}
-
-                {/* Terminals Tab */}
-                {activeTab === 'terminals' && (
-                    <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-blue)' } as React.CSSProperties}>
-                        <div className="acu-fieldset-header">
-                            <div className="acu-fieldset-title">
-                                <i className="pi pi-desktop" />
-                                <span>Terminals</span>
-                            </div>
-                            <Button
-                                label="Add Terminal"
-                                icon="pi pi-plus"
-                                size="small"
-                                onClick={() => setAddTerminalOpen(true)}
-                            />
-                        </div>
-                        <div className="acu-fieldset-body">
-                            <DataTable
-                                value={terminals}
-                                emptyMessage="No terminals"
-                                stripedRows
-                                size="small"
-                            >
-                                <Column header="Terminal" field="name" />
-                                <Column header="Code" body={terminalCodeTemplate} />
-                                <Column header="Type" body={terminalTypeTemplate} />
-                                <Column header="Status" body={terminalStatusTemplate} />
-                                <Column header="Last Heartbeat" body={terminalHeartbeatTemplate} />
-                                <Column header="IP Address" body={terminalIpTemplate} />
-                            </DataTable>
-                        </div>
-                    </div>
-                )}
+                {/* Active tab table */}
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}
+                >
+                    {activeTab === 'staff' ? (
+                        <table className="cgo-wagers">
+                            <thead>
+                                <tr>
+                                    <th style={{ minWidth: 220 }}>Name</th>
+                                    <th style={{ minWidth: 160 }}>Username</th>
+                                    <th style={{ width: 110 }}>Role</th>
+                                    <th style={{ width: 100 }}>Status</th>
+                                    <th style={{ width: 180 }}>Last login</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {staff.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                            No staff yet. Click <strong style={{ color: 'var(--cg-fg-2)' }}>+ Add staff</strong>.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    staff.map((s) => (
+                                        <tr key={s.uuid}>
+                                            <td>
+                                                <div className="cgo-name">{s.display_name}</div>
+                                                {s.email && <div className="cgo-uid">{s.email}</div>}
+                                            </td>
+                                            <td>
+                                                <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
+                                                    {s.username}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span style={{ fontSize: 12, color: 'var(--cg-fg-2)', textTransform: 'capitalize' }}>
+                                                    {s.role}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`cgo-pill ${statusPill(s.status)}`}>
+                                                    {s.status}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className="cgo-uid">
+                                                    {s.last_login_at ? formatDateTime(s.last_login_at) : 'Never'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <table className="cgo-wagers">
+                            <thead>
+                                <tr>
+                                    <th style={{ minWidth: 200 }}>Terminal</th>
+                                    <th style={{ minWidth: 140 }}>Code</th>
+                                    <th style={{ width: 110 }}>Type</th>
+                                    <th style={{ width: 100 }}>Status</th>
+                                    <th style={{ width: 180 }}>Last heartbeat</th>
+                                    <th style={{ width: 130 }}>IP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {terminals.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                            No terminals registered. Click <strong style={{ color: 'var(--cg-fg-2)' }}>+ Add terminal</strong>.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    terminals.map((t) => (
+                                        <tr key={t.uuid}>
+                                            <td>
+                                                <div className="cgo-name">{t.name}</div>
+                                            </td>
+                                            <td>
+                                                <span
+                                                    style={{
+                                                        display: 'inline-block',
+                                                        padding: '2px 8px',
+                                                        border: '1px solid var(--cg-rule-strong)',
+                                                        borderRadius: 4,
+                                                        background: 'var(--cg-ink-elevated)',
+                                                        color: 'var(--cg-brass-hi)',
+                                                        fontFamily: 'var(--cg-mono)',
+                                                        fontSize: 11,
+                                                        letterSpacing: '0.04em',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {t.terminal_code}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span style={{ fontSize: 12, color: 'var(--cg-fg-2)', textTransform: 'capitalize' }}>
+                                                    {t.type}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`cgo-pill ${statusPill(t.status)}`}>
+                                                    {t.status}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className="cgo-uid">
+                                                    {t.last_heartbeat_at ? formatDateTime(t.last_heartbeat_at) : 'Never'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
+                                                    {t.ip_address || '—'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
             </div>
 
-            {/* Add Staff Dialog */}
-            <Dialog header="Add Staff Member" visible={addStaffOpen} onHide={() => setAddStaffOpen(false)} style={{ width: '500px' }}>
-                <p className="text-sm text-[var(--acu-text-muted)] mb-4">Add a new staff member to {venue.name}</p>
+            {/* Add staff dialog */}
+            <Dialog
+                header={`Add staff · ${venue.name}`}
+                visible={addStaffOpen}
+                onHide={() => setAddStaffOpen(false)}
+                style={{ width: '500px' }}
+                modal
+                draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button label="Cancel" severity="secondary" outlined onClick={() => setAddStaffOpen(false)} />
+                        <Button
+                            label={savingStaff ? 'Adding…' : 'Add staff'}
+                            onClick={handleAddStaff}
+                            disabled={savingStaff || !staffForm.username || !staffForm.password || !staffForm.display_name}
+                            loading={savingStaff}
+                        />
+                    </div>
+                }
+            >
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Username *</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Username *</label>
                             <InputText
                                 value={staffForm.username}
                                 onChange={(e) => setStaffForm({ ...staffForm, username: e.target.value })}
@@ -556,18 +669,18 @@ export default function VenueShow() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Password *</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Password *</label>
                             <InputText
                                 type="password"
                                 value={staffForm.password}
                                 onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-                                placeholder="********"
+                                placeholder="••••••••"
                                 className="w-full"
                             />
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Display Name *</label>
+                        <label style={{ fontSize: 12, fontWeight: 500 }}>Display name *</label>
                         <InputText
                             value={staffForm.display_name}
                             onChange={(e) => setStaffForm({ ...staffForm, display_name: e.target.value })}
@@ -577,7 +690,7 @@ export default function VenueShow() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Email</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Email</label>
                             <InputText
                                 type="email"
                                 value={staffForm.email}
@@ -587,27 +700,27 @@ export default function VenueShow() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Phone</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Phone</label>
                             <InputText
                                 value={staffForm.phone}
                                 onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                                placeholder="+264 61 123 4567"
+                                placeholder="+264 61 …"
                                 className="w-full"
                             />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Role *</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Role *</label>
                             <Dropdown
                                 value={staffForm.role}
                                 onChange={(e) => setStaffForm({ ...staffForm, role: e.value })}
-                                options={roleOptions}
+                                options={ROLE_OPTIONS}
                                 className="w-full"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">PIN (4 digits)</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>PIN (4 digits)</label>
                             <InputText
                                 value={staffForm.pin}
                                 onChange={(e) => setStaffForm({ ...staffForm, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
@@ -618,52 +731,80 @@ export default function VenueShow() {
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button label="Cancel" severity="secondary" outlined onClick={() => setAddStaffOpen(false)} />
-                    <Button
-                        label={savingStaff ? 'Adding...' : 'Add Staff'}
-                        onClick={handleAddStaff}
-                        disabled={savingStaff || !staffForm.username || !staffForm.password || !staffForm.display_name}
-                        loading={savingStaff}
-                    />
-                </div>
             </Dialog>
 
-            {/* Add Terminal Dialog */}
+            {/* Add terminal dialog */}
             <Dialog
-                header={newTerminalApiKey ? 'Terminal Created' : 'Add Terminal'}
+                header={newTerminalApiKey ? 'Terminal created' : `Add terminal · ${venue.name}`}
                 visible={addTerminalOpen}
-                onHide={() => {
-                    setAddTerminalOpen(false);
-                    setNewTerminalApiKey(null);
-                }}
+                onHide={() => { setAddTerminalOpen(false); setNewTerminalApiKey(null); }}
                 style={{ width: '500px' }}
+                modal
+                draggable={false}
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            label={newTerminalApiKey ? 'Close' : 'Cancel'}
+                            severity="secondary"
+                            outlined
+                            onClick={() => { setAddTerminalOpen(false); setNewTerminalApiKey(null); }}
+                        />
+                        {!newTerminalApiKey && (
+                            <Button
+                                label={savingTerminal ? 'Adding…' : 'Add terminal'}
+                                onClick={handleAddTerminal}
+                                disabled={savingTerminal || !terminalForm.terminal_code || !terminalForm.name}
+                                loading={savingTerminal}
+                            />
+                        )}
+                    </div>
+                }
             >
-                <p className="text-sm text-[var(--acu-text-muted)] mb-4">
-                    {newTerminalApiKey
-                        ? 'Save the API key below - it will only be shown once!'
-                        : `Register a new terminal for ${venue.name}`}
-                </p>
                 {newTerminalApiKey ? (
                     <div className="space-y-4">
-                        <div className="rounded-lg border border-[var(--acu-border)] bg-[var(--acu-surface-ground)] p-4">
-                            <p className="text-sm text-[var(--acu-text-muted)] mb-2">API Key (save this now!):</p>
-                            <code className="text-sm break-all">{newTerminalApiKey}</code>
+                        <p style={{ fontSize: 13 }}>
+                            Save the API key below — it will only be shown once.
+                        </p>
+                        <div
+                            style={{
+                                background: 'var(--cg-ink-elevated)',
+                                border: '1px solid var(--cg-rule)',
+                                borderRadius: 6,
+                                padding: 14,
+                            }}
+                        >
+                            <div className="cgo-uid" style={{ marginBottom: 4 }}>API key</div>
+                            <code
+                                style={{
+                                    display: 'block',
+                                    fontFamily: 'var(--cg-mono)',
+                                    fontSize: 12,
+                                    color: 'var(--cg-brass-hi)',
+                                    wordBreak: 'break-all',
+                                }}
+                            >
+                                {newTerminalApiKey}
+                            </code>
                         </div>
-                        <Button
-                            label="Copy API Key"
-                            icon="pi pi-copy"
-                            className="w-full"
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
                             onClick={() => {
                                 navigator.clipboard.writeText(newTerminalApiKey);
-                                alert('API key copied to clipboard');
+                                toast.current?.show({ severity: 'info', summary: 'Copied', detail: 'API key copied to clipboard.' });
                             }}
-                        />
+                            style={{ width: '100%', justifyContent: 'center' }}
+                        >
+                            Copy API key
+                        </button>
                     </div>
                 ) : (
                     <div className="space-y-4">
+                        <p style={{ fontSize: 12, color: 'var(--cg-fg-3)' }}>
+                            Register a new terminal for {venue.name}.
+                        </p>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Terminal Code *</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Terminal code *</label>
                             <InputText
                                 value={terminalForm.terminal_code}
                                 onChange={(e) => setTerminalForm({ ...terminalForm, terminal_code: e.target.value })}
@@ -672,44 +813,25 @@ export default function VenueShow() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Name *</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Name *</label>
                             <InputText
                                 value={terminalForm.name}
                                 onChange={(e) => setTerminalForm({ ...terminalForm, name: e.target.value })}
-                                placeholder="Front Desk Terminal"
+                                placeholder="Front desk terminal"
                                 className="w-full"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Type *</label>
+                            <label style={{ fontSize: 12, fontWeight: 500 }}>Type *</label>
                             <Dropdown
                                 value={terminalForm.type}
                                 onChange={(e) => setTerminalForm({ ...terminalForm, type: e.value })}
-                                options={terminalTypeOptions}
+                                options={TERMINAL_TYPE_OPTIONS}
                                 className="w-full"
                             />
                         </div>
                     </div>
                 )}
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button
-                        label={newTerminalApiKey ? 'Close' : 'Cancel'}
-                        severity="secondary"
-                        outlined
-                        onClick={() => {
-                            setAddTerminalOpen(false);
-                            setNewTerminalApiKey(null);
-                        }}
-                    />
-                    {!newTerminalApiKey && (
-                        <Button
-                            label={savingTerminal ? 'Adding...' : 'Add Terminal'}
-                            onClick={handleAddTerminal}
-                            disabled={savingTerminal || !terminalForm.terminal_code || !terminalForm.name}
-                            loading={savingTerminal}
-                        />
-                    )}
-                </div>
             </Dialog>
         </UserLayout>
     );

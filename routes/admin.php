@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\RoleManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WithdrawalController as AdminWithdrawalController;
 use App\Http\Controllers\Api\FantasyHealthController;
+use App\Http\Controllers\Api\GameHealthController;
 use App\Http\Controllers\Admin\VenueManagementController;
 use App\Http\Controllers\Admin\WalletManagementController;
 use App\Http\Controllers\Admin\WalletTransactionController;
@@ -26,7 +27,9 @@ Route::middleware(['auth', EnsureTenantAdmin::class])->prefix('api/v1/admin')->n
     // Dashboard & Reports
     Route::get('dashboard', [ReportController::class, 'dashboard'])->name('dashboard');
 
-    // Fantasy backend health probe (used by the layout banner).
+    // Backend health per game in the admin's catalogue (used by the layout banner).
+    Route::get('games-health', [GameHealthController::class, 'index'])->name('games-health');
+    // Legacy single-game probe; kept for older clients.
     Route::get('fantasy-health', [FantasyHealthController::class, 'show'])->name('fantasy-health');
 
     Route::prefix('reports')->name('reports.')->group(function () {

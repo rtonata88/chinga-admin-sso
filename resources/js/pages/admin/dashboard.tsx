@@ -1,391 +1,356 @@
+// resources/js/pages/admin/dashboard.tsx
+//
+// Tenant overview, brass-on-ink. The KPI strip is scope-aware:
+// platform admins see cross-tenant aggregates (Total Tenants, Total
+// Wagered, Total Wins, Platform Profit); tenant admins see their
+// tenant's slice (Bets Placed, Total Wagered, Total Wins, Your
+// share). Server decides scope so a tenant admin can never accidentally
+// be shown platform-wide numbers.
+
+import {
+    KpiCard,
+    formatCount,
+    formatCurrencyCompact,
+    formatNAD,
+} from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import PageHeader from '@/components/acumatica/Common/PageHeader';
-import StatusBadge from '@/components/acumatica/Common/StatusBadge';
-import type { StatusVariant } from '@/types/acumatica';
-import { Head, Link, router } from '@inertiajs/react';
-import { DataTable } from 'primereact/datatable';
-import { Column } from 'primereact/column';
+import { Head } from '@inertiajs/react';
 
-interface UserStats {
-    total: number;
-    today: number;
-    this_week: number;
-    active: number;
+interface PlatformKpis {
+    total_tenants: number;
+    total_wagered: number;
+    total_wins: number;
+    platform_profit: number;
 }
 
-interface VenueStats {
-    total: number;
-    active: number;
+interface TenantKpis {
+    bets_placed: number;
+    total_wagered: number;
+    total_wins: number;
+    tenant_profit: number;
 }
 
-interface VoucherStats {
-    active: number;
-    total_balance: number;
+interface Period {
+    from: string;
+    to: string;
 }
 
-interface SecurityStats {
-    failed_logins_today: number;
-    locked_accounts: number;
-}
-
-interface Stats {
-    users: UserStats;
-    venues: VenueStats;
-    vouchers: VoucherStats;
-    security: SecurityStats;
-}
-
-interface RecentUser {
-    uuid: string;
-    name: string;
-    email: string;
-    status: string;
-    created_at: string;
-}
-
-interface FantasySummary {
+interface TenantBreakdown {
+    tenant_id: number | null;
+    tenant_uuid: string | null;
+    tenant_name: string;
+    business_model: string;
+    revenue_share_pct: number;
     bets_placed: number;
     active_players: number;
-    total_wagered: string;
-    total_paid_out: string;
-    ggr: string;
-    wins: number;
-    losses: number;
-    pending: number;
+    total_wagered: number;
+    total_paid_out: number;
+    ggr: number;
+    ngr: number;
+    tenant_profit: number;
+    platform_profit: number;
 }
 
-interface FantasyRound {
-    id: number;
-    round_number: number;
-    start_time: string;
-    end_time: string | null;
-    bet_count: number;
-    total_wagered: string;
-    total_paid_out: string;
+interface GameBreakdown {
+    game_uuid: string;
+    game_name: string;
+    bets_placed: number;
+    active_players: number;
+    total_wagered: number;
+    total_paid_out: number;
+    ggr: number;
+    ngr: number;
+    tenant_profit: number;
+    platform_profit: number;
 }
 
-interface FantasyData {
-    period: { from: string; to: string };
-    summary: FantasySummary;
-    recent_rounds: FantasyRound[];
+interface AdminDashboardProps {
+    period: Period;
+    kpis: PlatformKpis | TenantKpis;
+    scope: 'platform' | 'tenant';
+    tenant_name?: string | null;
+    tenants?: TenantBreakdown[];
+    by_game?: GameBreakdown[];
 }
 
-interface DashboardProps {
-    stats: Stats;
-    recent_users: RecentUser[];
-    fantasy: FantasyData | null;
-}
+const MONTH_FORMATTER = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
 
-function formatCurrency(amount: number): string {
-    return `NAD ${amount.toLocaleString()}`;
-}
+export default function AdminDashboard({ period, kpis, scope, tenant_name, tenants = [], by_game = [] }: AdminDashboardProps) {
+    const monthLabel = MONTH_FORMATTER.format(new Date(period.from));
+    const isTenantScope = scope === 'tenant';
 
-const defaultStats: Stats = {
-    users: { total: 0, today: 0, this_week: 0, active: 0 },
-    venues: { total: 0, active: 0 },
-    vouchers: { active: 0, total_balance: 0 },
-    security: { failed_logins_today: 0, locked_accounts: 0 },
-};
+    // Narrow union per scope so TS lets us read scope-specific keys.
+    const platformKpis = isTenantScope ? null : (kpis as PlatformKpis);
+    const tenantKpis = isTenantScope ? (kpis as TenantKpis) : null;
 
-interface StatCardProps {
-    icon: string;
-    accentColor: string;
-    title: string;
-    value: string | number;
-    subtitle: string;
-    glowColor?: string;
-}
-
-function StatCard({ icon, accentColor, title, value, subtitle, glowColor }: StatCardProps) {
     return (
-        <div
-            className="relative overflow-hidden rounded-xl p-5 transition-all duration-300"
-            style={{
-                background: 'var(--acu-surface-card)',
-                border: '1px solid var(--acu-border)',
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `${accentColor}30`;
-                e.currentTarget.style.boxShadow = `0 8px 32px ${glowColor || accentColor}15`;
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--acu-border)';
-                e.currentTarget.style.boxShadow = 'none';
-            }}
-        >
-            {/* Subtle gradient overlay */}
-            <div
-                className="absolute inset-0 opacity-[0.03]"
-                style={{
-                    background: `radial-gradient(circle at top right, ${accentColor}, transparent 70%)`,
-                }}
-            />
+        <UserLayout title={isTenantScope ? 'Overview' : 'Admin'}>
+            <Head title={isTenantScope ? `${tenant_name ?? 'Tenant'} · Overview` : 'Admin · Dashboard'} />
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">{isTenantScope ? 'Tenant' : 'Admin'}</div>
+                        <h1 className="cgo-title">
+                            {isTenantScope ? (tenant_name ?? 'Tenant overview') : 'Tenant overview'}
+                        </h1>
+                        <div className="cgo-subtitle">
+                            {isTenantScope
+                                ? `Activity for ${monthLabel}.`
+                                : `Cross-tenant activity for ${monthLabel}.`}
+                        </div>
+                    </div>
+                </div>
 
-            <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                    <span
-                        className="text-[10px] font-semibold uppercase tracking-[0.1em]"
-                        style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}
-                    >
-                        {title}
-                    </span>
-                    <div
-                        className="w-9 h-9 rounded-lg flex items-center justify-center"
-                        style={{
-                            background: `${accentColor}12`,
-                            border: `1px solid ${accentColor}20`,
-                        }}
-                    >
-                        <i className={`${icon} text-sm`} style={{ color: accentColor }} />
+                {/* KPI strip — month-to-date, scope-aware. */}
+                <div className="cgo-kpis">
+                    {isTenantScope ? (
+                        <>
+                            <KpiCard
+                                label="Bets placed"
+                                value={formatCount(tenantKpis!.bets_placed)}
+                                meta={monthLabel}
+                            />
+                            <KpiCard
+                                label="Total wagered"
+                                value={formatCurrencyCompact(tenantKpis!.total_wagered)}
+                                meta="staked by your players"
+                            />
+                            <KpiCard
+                                label="Total wins"
+                                value={formatCurrencyCompact(tenantKpis!.total_wins)}
+                                meta="paid out to winners"
+                            />
+                            <KpiCard
+                                label="Your share"
+                                value={formatCurrencyCompact(tenantKpis!.tenant_profit)}
+                                brass
+                                meta="after tax + platform split"
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <KpiCard
+                                label="Total tenants"
+                                value={formatCount(platformKpis!.total_tenants)}
+                                meta="all tenants on platform"
+                            />
+                            <KpiCard
+                                label="Total wagered"
+                                value={formatCurrencyCompact(platformKpis!.total_wagered)}
+                                meta={monthLabel}
+                            />
+                            <KpiCard
+                                label="Total wins"
+                                value={formatCurrencyCompact(platformKpis!.total_wins)}
+                                meta={monthLabel}
+                            />
+                            <KpiCard
+                                label="Platform profit"
+                                value={formatCurrencyCompact(platformKpis!.platform_profit)}
+                                brass
+                                meta={monthLabel}
+                            />
+                        </>
+                    )}
+                </div>
+
+                {/* By game · month-to-date. One row per game backend in the
+                    catalogue, summed over the tenants visible to this user. */}
+                <div
+                    className="cgo-table-bar"
+                    style={{
+                        borderRadius: '8px 8px 0 0',
+                        borderTop: '1px solid var(--cg-rule)',
+                        borderLeft: '1px solid var(--cg-rule)',
+                        borderRight: '1px solid var(--cg-rule)',
+                        marginTop: 0,
+                    }}
+                >
+                    <div className="cgo-table-bar-title">By game · {monthLabel}</div>
+                </div>
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', marginBottom: 24 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 200 }}>Game</th>
+                                <th className="cgo-r" style={{ width: 100 }}>Total bets</th>
+                                <th className="cgo-r" style={{ width: 110 }}>Players</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Total wagered</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Wins</th>
+                                <th className="cgo-r" style={{ width: 130 }}>GGR</th>
+                                <th className="cgo-r" style={{ width: 140 }}>
+                                    {isTenantScope ? 'Your share' : 'Platform profit'}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {by_game.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No game activity in {monthLabel}.
+                                    </td>
+                                </tr>
+                            ) : (
+                                by_game.map((g) => {
+                                    const profit = isTenantScope ? g.tenant_profit : g.platform_profit;
+                                    return (
+                                        <tr key={g.game_uuid}>
+                                            <td style={{ maxWidth: 240 }}>
+                                                <div className="cgo-name cgo-cell-clip" title={g.game_name}>
+                                                    {g.game_name}
+                                                </div>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">{formatCount(g.bets_placed)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-odds">{formatCount(g.active_players)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-stake">
+                                                    <span className="cgo-ccy">NAD</span>
+                                                    {formatNAD(g.total_wagered)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-stake">
+                                                    <span className="cgo-ccy">NAD</span>
+                                                    {formatNAD(g.total_paid_out)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span
+                                                    className="cgo-payout"
+                                                    style={{ color: g.ggr < 0 ? 'var(--cg-neg)' : undefined }}
+                                                >
+                                                    {formatNAD(g.ggr)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span
+                                                    className="cgo-payout"
+                                                    style={{ color: profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                                >
+                                                    {formatNAD(profit)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Tenant breakdown · month-to-date */}
+                <div
+                    className="cgo-table-bar"
+                    style={{
+                        borderRadius: '8px 8px 0 0',
+                        borderTop: '1px solid var(--cg-rule)',
+                        borderLeft: '1px solid var(--cg-rule)',
+                        borderRight: '1px solid var(--cg-rule)',
+                        marginTop: 0,
+                    }}
+                >
+                    <div className="cgo-table-bar-title">
+                        {isTenantScope ? `Breakdown · ${monthLabel}` : `Tenants · ${monthLabel}`}
                     </div>
                 </div>
                 <div
-                    className="text-[1.75rem] font-bold leading-none"
-                    style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', marginBottom: 32 }}
                 >
-                    {value}
-                </div>
-                <p
-                    className="text-xs mt-2"
-                    style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}
-                >
-                    {subtitle}
-                </p>
-            </div>
-        </div>
-    );
-}
-
-export default function Dashboard({
-    stats: propStats,
-    recent_users = [],
-    fantasy = null,
-}: Partial<DashboardProps>) {
-    const stats = propStats ?? defaultStats;
-
-    return (
-        <UserLayout title="Dashboard">
-            <Head title="Admin Dashboard" />
-
-            <div className="space-y-8">
-                <PageHeader title="Dashboard" subtitle="Overview of platform activity" />
-
-                {/* Stats Cards */}
-                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                    <StatCard
-                        icon="pi pi-users"
-                        accentColor="#58A6FF"
-                        title="Total Users"
-                        value={(stats.users?.total ?? 0).toLocaleString()}
-                        subtitle={`+${stats.users?.today ?? 0} today, +${stats.users?.this_week ?? 0} this week`}
-                    />
-                    <StatCard
-                        icon="pi pi-map-marker"
-                        accentColor="#3FB950"
-                        title="Active Venues"
-                        value={stats.venues?.active ?? 0}
-                        subtitle={`of ${stats.venues?.total ?? 0} total venues`}
-                    />
-                    <StatCard
-                        icon="pi pi-wallet"
-                        accentColor="#C9A84C"
-                        title="Voucher Balance"
-                        value={formatCurrency(stats.vouchers?.total_balance ?? 0)}
-                        subtitle={`across ${stats.vouchers?.active ?? 0} active codes`}
-                    />
-                </div>
-
-                {/* Security Alerts */}
-                {((stats.security?.failed_logins_today ?? 0) > 10 ||
-                    (stats.security?.locked_accounts ?? 0) > 0) && (
-                    <div
-                        className="rounded-xl overflow-hidden"
-                        style={{
-                            background: 'rgba(248, 81, 73, 0.04)',
-                            border: '1px solid rgba(248, 81, 73, 0.15)',
-                        }}
-                    >
-                        <div
-                            className="flex items-center gap-3 px-5 py-3"
-                            style={{ borderBottom: '1px solid rgba(248, 81, 73, 0.1)' }}
-                        >
-                            <i className="pi pi-exclamation-triangle text-sm" style={{ color: '#F85149' }} />
-                            <span
-                                className="text-sm font-semibold"
-                                style={{ color: '#F85149', fontFamily: 'var(--font-body)' }}
-                            >
-                                Security Alerts
-                            </span>
-                        </div>
-                        <div className="px-5 py-4 space-y-2">
-                            {(stats.security?.failed_logins_today ?? 0) > 10 && (
-                                <p className="text-sm flex items-center gap-2" style={{ color: 'var(--acu-text)' }}>
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#F85149' }} />
-                                    {stats.security?.failed_logins_today ?? 0} failed login attempts today
-                                </p>
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 200 }}>Tenant</th>
+                                <th className="cgo-r" style={{ width: 100 }}>Total bets</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Total wagered</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Wins</th>
+                                <th className="cgo-r" style={{ width: 140 }}>Tenant profit</th>
+                                <th className="cgo-r" style={{ width: 140 }}>Platform profit</th>
+                                <th className="cgo-r" style={{ width: 110 }}></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tenants.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No tenant activity in {monthLabel}.
+                                    </td>
+                                </tr>
+                            ) : (
+                                tenants.map((t) => (
+                                    <tr key={t.tenant_uuid ?? t.tenant_name}>
+                                        <td style={{ maxWidth: 240 }}>
+                                            <div
+                                                className="cgo-name cgo-cell-clip"
+                                                title={t.tenant_name}
+                                            >
+                                                {t.tenant_name}
+                                            </div>
+                                            <div className="cgo-uid">
+                                                {t.business_model.toUpperCase()}
+                                                {t.business_model === 'reseller' && t.revenue_share_pct > 0
+                                                    ? ` · ${t.revenue_share_pct.toFixed(0)}% share`
+                                                    : ''}
+                                            </div>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-odds">{formatCount(t.bets_placed)}</span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-stake">
+                                                <span className="cgo-ccy">NAD</span>
+                                                {formatNAD(t.total_wagered)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-stake">
+                                                <span className="cgo-ccy">NAD</span>
+                                                {formatNAD(t.total_paid_out)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span
+                                                className="cgo-payout"
+                                                style={{ color: t.tenant_profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                            >
+                                                {formatNAD(t.tenant_profit)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span
+                                                className="cgo-payout"
+                                                style={{ color: t.platform_profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                            >
+                                                {formatNAD(t.platform_profit)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            {t.business_model === 'reseller' && t.tenant_uuid ? (
+                                                <a
+                                                    href={`/tenant-overview/${t.tenant_uuid}/invoice?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`}
+                                                    target="_blank"
+                                                    rel="noopener"
+                                                    className="cg-btn cg-btn--ghost cg-btn--sm"
+                                                >
+                                                    Invoice
+                                                </a>
+                                            ) : null}
+                                        </td>
+                                    </tr>
+                                ))
                             )}
-                            {(stats.security?.locked_accounts ?? 0) > 0 && (
-                                <p className="text-sm flex items-center gap-2" style={{ color: 'var(--acu-text)' }}>
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#D29922' }} />
-                                    {stats.security?.locked_accounts ?? 0} accounts currently locked
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Chinga Fantasy — last 30 days (tenant-scoped) */}
-                {fantasy ? (
-                    <div className="space-y-5">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold" style={{ color: 'var(--acu-text)' }}>
-                                    Chinga Fantasy
-                                </h2>
-                                <p className="text-xs" style={{ color: 'var(--acu-text-light)' }}>
-                                    Last 30 days
-                                </p>
-                            </div>
-                        </div>
-                        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-                            <StatCard
-                                icon="pi pi-ticket"
-                                accentColor="#8B5CF6"
-                                title="Bets Placed"
-                                value={(fantasy.summary.bets_placed ?? 0).toLocaleString()}
-                                subtitle={`${fantasy.summary.active_players ?? 0} active players`}
-                            />
-                            <StatCard
-                                icon="pi pi-dollar"
-                                accentColor="#3FB950"
-                                title="Total Wagered"
-                                value={formatCurrency(parseFloat(fantasy.summary.total_wagered || '0'))}
-                                subtitle={`${fantasy.summary.wins ?? 0} wins · ${fantasy.summary.losses ?? 0} losses`}
-                            />
-                            <StatCard
-                                icon="pi pi-money-bill"
-                                accentColor="#F85149"
-                                title="Total Paid Out"
-                                value={formatCurrency(parseFloat(fantasy.summary.total_paid_out || '0'))}
-                                subtitle="To winners"
-                            />
-                            <StatCard
-                                icon="pi pi-chart-line"
-                                accentColor="#58A6FF"
-                                title="GGR"
-                                value={formatCurrency(parseFloat(fantasy.summary.ggr || '0'))}
-                                subtitle="Gross gaming revenue"
-                            />
-                        </div>
-                        {fantasy.recent_rounds.length > 0 && (
-                            <div className="acu-fieldset">
-                                <div className="acu-fieldset-header">
-                                    <div className="acu-fieldset-title">
-                                        <i className="pi pi-history" />
-                                        <span>Recent Rounds</span>
-                                    </div>
-                                    <Link
-                                        href="/admin/fantasy/rounds"
-                                        className="text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                                        style={{ color: 'var(--acu-primary)', fontFamily: 'var(--font-body)' }}
-                                    >
-                                        View all <i className="pi pi-arrow-right text-[10px]" />
-                                    </Link>
-                                </div>
-                                <div className="acu-fieldset-body p-0">
-                                    <DataTable
-                                        value={fantasy.recent_rounds}
-                                        size="small"
-                                        emptyMessage="No rounds yet"
-                                        showGridlines={false}
-                                        onRowClick={(e) => router.get(`/admin/fantasy/rounds/${(e.data as FantasyRound).id}`)}
-                                        rowHover
-                                        dataKey="id"
-                                    >
-                                        <Column field="round_number" header="Round" body={(row: FantasyRound) => `#${row.round_number}`} />
-                                        <Column
-                                            field="start_time"
-                                            header="Started"
-                                            body={(row: FantasyRound) => new Date(row.start_time).toLocaleString()}
-                                        />
-                                        <Column field="bet_count" header="Bets" />
-                                        <Column
-                                            field="total_wagered"
-                                            header="Wagered"
-                                            body={(row: FantasyRound) => formatCurrency(parseFloat(row.total_wagered))}
-                                        />
-                                        <Column
-                                            field="total_paid_out"
-                                            header="Paid Out"
-                                            body={(row: FantasyRound) => formatCurrency(parseFloat(row.total_paid_out))}
-                                        />
-                                        <Column
-                                            header=""
-                                            body={() => (
-                                                <i className="pi pi-chevron-right" style={{ color: 'var(--acu-text-light)' }} />
-                                            )}
-                                            style={{ width: '2rem' }}
-                                        />
-                                    </DataTable>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div
-                        className="rounded-xl px-5 py-4"
-                        style={{
-                            background: 'rgba(210, 153, 34, 0.04)',
-                            border: '1px solid rgba(210, 153, 34, 0.15)',
-                            color: 'var(--acu-text-light)',
-                        }}
-                    >
-                        <i className="pi pi-info-circle mr-2" />
-                        Chinga Fantasy metrics are unavailable. Check that the fantasy backend is reachable and SSO_INTERNAL_CLIENT_ID/SECRET are set.
-                    </div>
-                )}
-
-                {/* Recent Users */}
-                <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
-                    <div className="acu-fieldset-header">
-                        <div className="acu-fieldset-title">
-                            <i className="pi pi-user-plus" />
-                            <span>Recent Registrations</span>
-                            <span
-                                className="text-xs font-normal ml-1"
-                                style={{ color: 'var(--acu-text-light)' }}
-                            >
-                                ({recent_users.length})
-                            </span>
-                        </div>
-                        <Link
-                            href="/admin/users"
-                            className="text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                            style={{ color: 'var(--acu-primary)', fontFamily: 'var(--font-body)' }}
-                        >
-                            View all <i className="pi pi-arrow-right text-[10px]" />
-                        </Link>
-                    </div>
-                    <div className="acu-fieldset-body p-0">
-                        <DataTable
-                            value={recent_users}
-                            size="small"
-                            emptyMessage="No recent registrations"
-                            showGridlines={false}
-                            rows={5}
-                        >
-                            <Column field="name" header="Name" />
-                            <Column field="email" header="Email" />
-                            <Column
-                                field="status"
-                                header="Status"
-                                body={(row) => (
-                                    <StatusBadge status={(row.status || 'pending') as StatusVariant} />
-                                )}
-                            />
-                        </DataTable>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
+
             </div>
         </UserLayout>
     );

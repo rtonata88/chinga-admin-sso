@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chinga Games — Live Wagers Monitor</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--cg-ink);
+    color: var(--cg-fg-1);
+    font-family: var(--cg-body);
+    font-size: var(--cg-fs-body);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* ---------------- Layout ---------------- */
+  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+
+  /* ---------------- Sidebar ---------------- */
+  .rail {
+    background: var(--cg-ink-rail);
+    border-right: 1px solid var(--cg-rule);
+    padding: 24px 0;
+    display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+    padding: 4px 24px 28px;
+    border-bottom: 1px solid var(--cg-rule);
+    margin-bottom: 16px;
+  }
+  .brand-mark {
+    width: 32px; height: 32px;
+    background: var(--cg-brass);
+    color: var(--cg-ink);
+    display: grid; place-items: center;
+    font-family: var(--cg-display); font-weight: 900; font-size: 16px;
+    border-radius: 4px;
+  }
+  .brand-name { font-family: var(--cg-display); font-weight: 700; font-size: 15px; letter-spacing: 0.02em; }
+  .brand-sub  { font-size: 10px; color: var(--cg-fg-3); text-transform: uppercase; letter-spacing: 0.18em; margin-top: 2px;}
+
+  .nav-group { padding: 8px 12px; }
+  .nav-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.22em; color: var(--cg-fg-4);
+    padding: 12px 12px 8px; font-weight: 600;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    color: var(--cg-fg-2);
+    font-size: 13.5px;
+    cursor: pointer;
+    transition: background var(--cg-dur-fast) var(--cg-ease), color var(--cg-dur-fast) var(--cg-ease);
+  }
+  .nav-item:hover { background: rgba(242, 237, 227, 0.04); color: var(--cg-fg-1); }
+  .nav-item.active {
+    background: var(--cg-brass-wash-2);
+    color: var(--cg-brass-hi);
+    box-shadow: inset 2px 0 0 var(--cg-brass);
+  }
+  .nav-item .ico { width: 16px; height: 16px; flex: 0 0 16px; opacity: 0.85; }
+  .nav-item .badge {
+    margin-left: auto; font-family: var(--cg-mono); font-size: 10px;
+    background: var(--cg-neg); color: var(--cg-fg-1);
+    padding: 2px 6px; border-radius: 3px;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  .rail-foot {
+    margin-top: auto; padding: 16px 24px;
+    border-top: 1px solid var(--cg-rule);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, #4a3d23, #B68A3E);
+    color: var(--cg-ink);
+    display: grid; place-items: center;
+    font-family: var(--cg-display); font-weight: 700; font-size: 12px;
+  }
+  .me-name { font-size: 13px; font-weight: 600; }
+  .me-role { font-size: 10px; color: var(--cg-fg-3); text-transform: uppercase; letter-spacing: 0.16em; margin-top: 2px;}
+
+  /* ---------------- Main ---------------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+
+  .topbar {
+    height: 64px;
+    border-bottom: 1px solid var(--cg-rule);
+    display: flex; align-items: center;
+    padding: 0 32px;
+    gap: 24px;
+    background: var(--cg-ink);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .crumb { font-size: 12px; color: var(--cg-fg-3); }
+  .crumb b { color: var(--cg-fg-1); font-weight: 600; }
+  .search {
+    margin-left: auto;
+    width: 320px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px;
+    border: 1px solid var(--cg-rule-strong);
+    border-radius: 6px;
+    color: var(--cg-fg-3);
+    font-size: 13px;
+  }
+  .search:focus-within { border-color: var(--cg-brass); }
+  .search input { all: unset; flex: 1; color: var(--cg-fg-1); font-family: var(--cg-body); font-size: 13px; }
+  .kbd { font-family: var(--cg-mono); font-size: 10px; color: var(--cg-fg-4); border: 1px solid var(--cg-rule); padding: 2px 6px; border-radius: 3px;}
+  .top-icons { display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    width: 36px; height: 36px; display: grid; place-items: center;
+    border: 1px solid var(--cg-rule); border-radius: 6px; color: var(--cg-fg-2);
+    cursor: pointer; transition: border-color var(--cg-dur-fast) var(--cg-ease), color var(--cg-dur-fast) var(--cg-ease);
+    position: relative;
+  }
+  .icon-btn:hover { border-color: var(--cg-brass); color: var(--cg-brass-hi);}
+  .icon-btn .dot { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--cg-neg); box-shadow: 0 0 0 2px var(--cg-ink); }
+
+  /* ---------------- Page ---------------- */
+  .page { padding: 32px 32px 60px; max-width: 1480px; }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 28px; gap: 24px;}
+  .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: 0.22em; color: var(--cg-fg-3); font-weight: 600; margin-bottom: 10px;}
+  .title { font-family: var(--cg-display); font-weight: 800; font-size: 32px; letter-spacing: -0.015em; line-height: 1.1;}
+  .subtitle { color: var(--cg-fg-3); font-size: 13.5px; margin-top: 8px;}
+  .live-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--cg-pos); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; font-weight: 600;
+    margin-left: 12px;
+  }
+  .live-pill::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--cg-pos);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: 0.4; transform: scale(0.85);} }
+
+  .head-actions { display: flex; gap: 10px; }
+
+  /* ---------------- KPIs ---------------- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--cg-rule); border: 1px solid var(--cg-rule); border-radius: 8px; overflow: hidden; margin-bottom: 32px;}
+  .kpi { background: var(--cg-ink-card); padding: 24px 24px 22px; position: relative;}
+  .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--cg-fg-3); font-weight: 600; }
+  .kpi-num { font-family: var(--cg-condensed); font-weight: 700; font-size: 44px; letter-spacing: -0.015em; line-height: 1; margin-top: 14px; font-feature-settings: 'tnum' 1; }
+  .kpi-num.brass { color: var(--cg-brass-hi); }
+  .kpi-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-family: var(--cg-mono); font-size: 11px; font-feature-settings: 'tnum' 1;}
+  .delta-pos { color: var(--cg-pos); }
+  .delta-neg { color: var(--cg-neg); }
+  .kpi-foot .meta { color: var(--cg-fg-3);}
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 24px;}
+  .spark span { display: block; width: 3px; background: var(--cg-brass); opacity: 0.7;}
+
+  /* ---------------- Filters ---------------- */
+  .filterbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 18px;
+    border: 1px solid var(--cg-rule);
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: var(--cg-ink-elevated);
+    flex-wrap: wrap;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 30px; padding: 0 12px;
+    border: 1px solid var(--cg-rule-strong);
+    border-radius: 999px;
+    color: var(--cg-fg-2); font-size: 12px;
+    cursor: pointer;
+    transition: border-color var(--cg-dur-fast) var(--cg-ease), color var(--cg-dur-fast) var(--cg-ease);
+  }
+  .chip:hover { color: var(--cg-fg-1); border-color: var(--cg-rule-strong);}
+  .chip.active { border-color: var(--cg-brass); color: var(--cg-brass-hi); background: var(--cg-brass-wash);}
+  .chip.active::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--cg-brass);}
+  .filter-divider { width: 1px; height: 20px; background: var(--cg-rule-strong); margin: 0 6px;}
+  .filterbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* ---------------- Table ---------------- */
+  .table-wrap { border: 1px solid var(--cg-rule); border-radius: 0 0 8px 8px; overflow: hidden; background: var(--cg-ink-card);}
+  table.wagers { width: 100%; border-collapse: collapse; }
+  .wagers thead th {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; font-weight: 600;
+    color: var(--cg-fg-3); text-align: left;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--cg-rule-strong);
+    background: var(--cg-ink-elevated);
+    white-space: nowrap;
+  }
+  .wagers thead th.r { text-align: right; }
+  .wagers tbody td {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--cg-rule);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  .wagers tbody tr { transition: background var(--cg-dur-fast) var(--cg-ease);}
+  .wagers tbody tr:hover { background: rgba(242, 237, 227, 0.025); }
+  .wagers tbody tr.flagged { background: rgba(181, 82, 76, 0.05); }
+  .wagers tbody tr.flagged:hover { background: rgba(181, 82, 76, 0.09); }
+  .wagers tbody td.r { text-align: right; }
+  .wagers tbody tr:last-child td { border-bottom: 0; }
+
+  .ts { font-family: var(--cg-mono); font-size: 11.5px; color: var(--cg-fg-2); font-feature-settings: 'tnum' 1; white-space: nowrap;}
+  .ts .date { display: block; color: var(--cg-fg-4); font-size: 10px; margin-top: 2px;}
+  .id { font-family: var(--cg-mono); font-size: 11px; color: var(--cg-fg-3); font-feature-settings: 'tnum' 1; }
+
+  .user { display: flex; align-items: center; gap: 10px; }
+  .user .av { width: 28px; height: 28px; border-radius: 50%; background: var(--cg-ink-elevated); border: 1px solid var(--cg-rule-strong); display: grid; place-items: center; font-size: 10px; font-weight: 600; color: var(--cg-fg-2); font-family: var(--cg-display); }
+  .user .name { font-weight: 600; font-size: 13px; }
+  .user .uid { font-family: var(--cg-mono); font-size: 10.5px; color: var(--cg-fg-4); margin-top: 1px;}
+
+  .event { font-weight: 500; }
+  .event .market { display: block; color: var(--cg-fg-3); font-size: 11.5px; margin-top: 3px; letter-spacing: 0.01em;}
+  .selection { font-weight: 500; color: var(--cg-fg-1); }
+  .selection .pick { color: var(--cg-brass-hi); font-weight: 600; }
+
+  .stake { font-family: var(--cg-condensed); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; font-feature-settings: 'tnum' 1;}
+  .stake .ccy { font-family: var(--cg-body); font-weight: 500; font-size: 10px; color: var(--cg-fg-3); margin-right: 4px; letter-spacing: 0.1em;}
+  .odds { font-family: var(--cg-mono); font-weight: 500; font-size: 13.5px; color: var(--cg-fg-1); font-feature-settings: 'tnum' 1;}
+  .payout { font-family: var(--cg-condensed); font-weight: 700; font-size: 17px; color: var(--cg-brass-hi); font-feature-settings: 'tnum' 1;}
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600;
+    border-radius: 999px; border: 1px solid currentColor;
+  }
+  .pill::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .pill.live { color: var(--cg-pos); }
+  .pill.pending { color: var(--cg-warn); }
+  .pill.settled { color: var(--cg-info); }
+  .pill.flagged { color: var(--cg-neg); }
+  .pill.void { color: var(--cg-fg-3); }
+
+  .row-action {
+    width: 28px; height: 28px; border: 1px solid var(--cg-rule-strong); border-radius: 4px;
+    display: grid; place-items: center; color: var(--cg-fg-3);
+    cursor: pointer;
+    transition: all var(--cg-dur-fast) var(--cg-ease);
+  }
+  .row-action:hover { color: var(--cg-brass-hi); border-color: var(--cg-brass);}
+
+  /* ---------------- Footer of table ---------------- */
+  .table-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-top: 1px solid var(--cg-rule-strong);
+    background: var(--cg-ink-elevated);
+    font-size: 12px; color: var(--cg-fg-3);
+  }
+  .pager { display: flex; gap: 4px; }
+  .pager button {
+    all: unset;
+    width: 28px; height: 28px;
+    border: 1px solid var(--cg-rule-strong); border-radius: 4px;
+    display: grid; place-items: center;
+    color: var(--cg-fg-2); cursor: pointer;
+    font-family: var(--cg-mono); font-size: 11px;
+    transition: all var(--cg-dur-fast) var(--cg-ease);
+  }
+  .pager button:hover { color: var(--cg-brass-hi); border-color: var(--cg-brass); }
+  .pager button.curr { color: var(--cg-ink); background: var(--cg-brass); border-color: var(--cg-brass);}
+</style>
+</head>
+<body data-screen-label="Operator Console — Live Wagers">
+<div class="app">
+
+  <!-- ============== Sidebar ============== -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark">C</div>
+      <div>
+        <div class="brand-name">Chinga Games</div>
+        <div class="brand-sub">Operator Console</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Trading</div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item active">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13l3-5 3 3 5-7"/><path d="M10 4h3v3"/></svg>
+        Live wagers <span class="badge">14</span>
+      </div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 2.5"/></svg>
+        Events &amp; markets
+      </div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10"/><path d="M2 7h12"/></svg>
+        Voucher queue
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Customer</div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c1-3 4-4 6-4s5 1 6 4"/></svg>
+        Players
+      </div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h10v10H3z"/><path d="M6 7h4M6 10h4"/></svg>
+        KYC review
+      </div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1l6 3v4c0 4-3 6-6 7-3-1-6-3-6-7V4z"/></svg>
+        AML alerts <span class="badge">3</span>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Finance</div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5l6-3 6 3-6 3z"/><path d="M2 8l6 3 6-3"/><path d="M2 11l6 3 6-3"/></svg>
+        Reports
+      </div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v8M5 7h6"/></svg>
+        Payouts
+      </div>
+      <div class="nav-item">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M6 8l1.5 1.5L10 7"/></svg>
+        Settlements
+      </div>
+    </div>
+
+    <div class="rail-foot">
+      <div class="avatar">RT</div>
+      <div>
+        <div class="me-name">Ricardo Tonata</div>
+        <div class="me-role">Trading · L3</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============== Main ============== -->
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Trading <span style="color: var(--cg-fg-4);">/</span> <b>Live wagers</b></div>
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M11 11l3 3"/></svg>
+        <input placeholder="Search wagers, players, events…">
+        <span class="kbd">⌘K</span>
+      </div>
+      <div class="top-icons">
+        <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6a5 5 0 0110 0v3l1.5 2H1.5L3 9z"/><path d="M6 13a2 2 0 004 0"/></svg><span class="dot"></span></div>
+        <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg></div>
+      </div>
+    </header>
+
+    <div class="page">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Trading desk</div>
+          <h1 class="title">Live wagers monitor <span class="live-pill">Live · auto-refresh 5s</span></h1>
+          <div class="subtitle">All open positions across sportsbook, virtuals and casino. Updated 21:14:08 CAT.</div>
+        </div>
+        <div class="head-actions">
+          <button class="cg-btn cg-btn--ghost cg-btn--sm">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M8 3v10"/></svg>
+            New rule
+          </button>
+          <button class="cg-btn cg-btn--ghost cg-btn--sm">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12V4M3 4l3 3M3 4l-3 3M13 4v8M13 12l3-3M13 12l-3-3" transform="translate(0,0)"/></svg>
+            Export CSV
+          </button>
+          <button class="cg-btn cg-btn--primary cg-btn--sm">Settle batch</button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="kpi-label">Live wagers</div>
+          <div class="kpi-num">1,284</div>
+          <div class="kpi-foot">
+            <span class="delta-pos">▲ +12.4%</span>
+            <span class="meta">vs. yesterday</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Handle · 24h</div>
+          <div class="kpi-num brass">487.2K</div>
+          <div class="kpi-foot">
+            <span class="meta">NAD · gross</span>
+            <div class="spark">
+              <span style="height:30%"></span><span style="height:55%"></span><span style="height:42%"></span>
+              <span style="height:68%"></span><span style="height:50%"></span><span style="height:80%"></span>
+              <span style="height:62%"></span><span style="height:90%"></span>
+            </div>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Pending payouts</div>
+          <div class="kpi-num">14</div>
+          <div class="kpi-foot">
+            <span class="delta-neg">▲ 3 over SLA</span>
+            <span class="meta">NAD 38.6K total</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Active players · now</div>
+          <div class="kpi-num">2,917</div>
+          <div class="kpi-foot">
+            <span class="delta-pos">▲ +6.1%</span>
+            <span class="meta">peak today: 3,402</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filterbar">
+        <div class="chip active">All <span style="color: var(--cg-fg-3); font-family: var(--cg-mono); font-size: 10px;">1,284</span></div>
+        <div class="chip">Live <span style="color: var(--cg-fg-3); font-family: var(--cg-mono); font-size: 10px;">812</span></div>
+        <div class="chip">Pending <span style="color: var(--cg-fg-3); font-family: var(--cg-mono); font-size: 10px;">340</span></div>
+        <div class="chip">Flagged <span style="color: var(--cg-neg); font-family: var(--cg-mono); font-size: 10px;">14</span></div>
+        <div class="chip">Settled <span style="color: var(--cg-fg-3); font-family: var(--cg-mono); font-size: 10px;">118</span></div>
+        <div class="filter-divider"></div>
+        <div class="chip">Sport: All ▾</div>
+        <div class="chip">Stake ≥ NAD 500 ▾</div>
+        <div class="chip">Last 24h ▾</div>
+        <div class="right">
+          <span style="font-size: 11px; color: var(--cg-fg-4); text-transform: uppercase; letter-spacing: 0.16em;">Sort</span>
+          <div class="chip">Stake desc ▾</div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table class="wagers">
+          <thead>
+            <tr>
+              <th style="width: 130px;">Time</th>
+              <th>Player</th>
+              <th>Event &amp; market</th>
+              <th>Selection</th>
+              <th class="r">Stake</th>
+              <th class="r">Odds</th>
+              <th class="r">Potential</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <tr>
+              <td class="ts">21:14:02 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">JN</div>
+                  <div><div class="name">Johannes Nakaambo</div><div class="uid">PL-04719</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Brave Warriors vs Bafana Bafana<span class="market">AFCON Q · Match winner · Full time</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Brave Warriors</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>2,500</span></td>
+              <td class="r"><span class="odds">2.40</span></td>
+              <td class="r"><span class="payout">6,000</span></td>
+              <td><span class="pill live">Live</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr class="flagged">
+              <td class="ts">21:13:48 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">SM</div>
+                  <div><div class="name">Selma Mwetupunga</div><div class="uid">PL-12044 · VIP</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Man City vs Arsenal<span class="market">EPL · Both teams to score · Yes</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Yes</span> · BTTS</span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>15,000</span></td>
+              <td class="r"><span class="odds">1.72</span></td>
+              <td class="r"><span class="payout">25,800</span></td>
+              <td><span class="pill flagged">Flagged · AML</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr>
+              <td class="ts">21:12:31 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">PH</div>
+                  <div><div class="name">Petrus Hangula</div><div class="uid">PL-08812</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Lakers vs Celtics<span class="market">NBA · Total points · Over 224.5</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Over 224.5</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>800</span></td>
+              <td class="r"><span class="odds">1.91</span></td>
+              <td class="r"><span class="payout">1,528</span></td>
+              <td><span class="pill live">Live</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr>
+              <td class="ts">21:11:09 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">AN</div>
+                  <div><div class="name">Anna Nashilongo</div><div class="uid">PL-19031</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Real Madrid vs Barcelona<span class="market">La Liga · 1X2 · Draw</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Draw</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>450</span></td>
+              <td class="r"><span class="odds">3.60</span></td>
+              <td class="r"><span class="payout">1,620</span></td>
+              <td><span class="pill pending">Pending</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr>
+              <td class="ts">21:10:54 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">TK</div>
+                  <div><div class="name">Tangeni Kaunapawa</div><div class="uid">PL-22580 · VIP</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Acc · 4-leg · Sportsbook<span class="market">Liverpool win · BVB win · Inter win · PSG win</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Accumulator</span> · 4 legs</span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>5,000</span></td>
+              <td class="r"><span class="odds">11.45</span></td>
+              <td class="r"><span class="payout">57,250</span></td>
+              <td><span class="pill live">Live · 2/4</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr class="flagged">
+              <td class="ts">21:09:22 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">KS</div>
+                  <div><div class="name">Kambonde Shikongo</div><div class="uid">PL-30217</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Aviator · Round #884,201<span class="market">Casino · Crash · Cash-out 14.2x</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Cash-out 14.2x</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>3,200</span></td>
+              <td class="r"><span class="odds">14.20</span></td>
+              <td class="r"><span class="payout">45,440</span></td>
+              <td><span class="pill flagged">Flagged · Velocity</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr>
+              <td class="ts">21:08:46 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">EM</div>
+                  <div><div class="name">Esther Muharukua</div><div class="uid">PL-15904</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Chelsea vs Spurs<span class="market">EPL · Player to score · Palmer</span></div>
+              </td>
+              <td><span class="selection">Cole Palmer · <span class="pick">Anytime</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>250</span></td>
+              <td class="r"><span class="odds">2.10</span></td>
+              <td class="r"><span class="payout">525</span></td>
+              <td><span class="pill live">Live</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr>
+              <td class="ts">21:07:11 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">FN</div>
+                  <div><div class="name">Frans Nehemia</div><div class="uid">PL-04412</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Roulette · Table 12<span class="market">Casino · Live · Straight 17</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Straight 17</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>120</span></td>
+              <td class="r"><span class="odds">35.00</span></td>
+              <td class="r"><span class="payout">4,200</span></td>
+              <td><span class="pill settled">Settled · Loss</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr>
+              <td class="ts">21:06:33 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">LN</div>
+                  <div><div class="name">Lahja Ngula</div><div class="uid">PL-27719</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">F1 · Miami GP<span class="market">Motorsport · Race winner</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">Verstappen</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>1,000</span></td>
+              <td class="r"><span class="odds">1.55</span></td>
+              <td class="r"><span class="payout">1,550</span></td>
+              <td><span class="pill pending">Pending</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+            <tr>
+              <td class="ts">21:05:18 <span class="date">08 May</span></td>
+              <td>
+                <div class="user">
+                  <div class="av">DM</div>
+                  <div><div class="name">David Mungunda</div><div class="uid">PL-11203</div></div>
+                </div>
+              </td>
+              <td>
+                <div class="event">Virtual football · League C<span class="market">Virtuals · Correct score · 2-1</span></div>
+              </td>
+              <td><span class="selection"><span class="pick">2 — 1</span></span></td>
+              <td class="r"><span class="stake"><span class="ccy">NAD</span>50</span></td>
+              <td class="r"><span class="odds">8.50</span></td>
+              <td class="r"><span class="payout">425</span></td>
+              <td><span class="pill void">Void · Refund</span></td>
+              <td class="r"><div class="row-action">⋯</div></td>
+            </tr>
+
+          </tbody>
+        </table>
+
+        <div class="table-foot">
+          <div>Showing <b style="color: var(--cg-fg-1);">1 – 10</b> of <b style="color: var(--cg-fg-1); font-family: var(--cg-mono);">1,284</b> wagers</div>
+          <div class="pager">
+            <button>‹</button>
+            <button class="curr">1</button>
+            <button>2</button>
+            <button>3</button>
+            <button>4</button>
+            <button>…</button>
+            <button>129</button>
+            <button>›</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

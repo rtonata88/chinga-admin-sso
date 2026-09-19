@@ -88,7 +88,16 @@ trait HasRoles
 
     public function isTenantAdmin(?int $tenantId = null): bool
     {
-        $tenantId = $tenantId ?? app('current_tenant')?->id;
+        // Resolve scope in priority order:
+        //   1. explicit tenantId argument
+        //   2. container-bound current_tenant (subdomain / header / API token)
+        //   3. the user's own tenant_id (fallback for plain web requests
+        //      where ResolveTenant ran before the session was decoded —
+        //      e.g. /dashboard, /tenant-overview on the main domain)
+        // The role lookup itself is still scoped by pivot.tenant_id, so
+        // a user only resolves as admin of the tenant they're actually
+        // bound to.
+        $tenantId = $tenantId ?? app('current_tenant')?->id ?? $this->tenant_id;
 
         if (! $tenantId) {
             return false;

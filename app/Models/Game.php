@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -20,13 +21,17 @@ class Game extends Model
         'status',
         'version',
         'thumbnail_url',
+        'backend_url',
+        'launch_url',
         'settings',
+        'settings_schema',
     ];
 
     protected function casts(): array
     {
         return [
             'settings' => 'array',
+            'settings_schema' => 'array',
         ];
     }
 
@@ -54,9 +59,26 @@ class Game extends Model
         return $this->status === 'active';
     }
 
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', 'active');
+    }
+
+    /** Games that have an admin backend to talk to (health, stats, rounds). */
+    public function scopeWithBackend(Builder $query): Builder
+    {
+        return $query->whereNotNull('backend_url')->where('backend_url', '!=', '');
+    }
+
+    public function hasBackend(): bool
+    {
+        return is_string($this->backend_url) && $this->backend_url !== '';
+    }
+
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenant::class, 'tenant_games')
+            ->using(TenantGame::class)
             ->withPivot(['enabled', 'custom_settings'])
             ->withTimestamps();
     }

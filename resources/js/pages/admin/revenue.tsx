@@ -1,10 +1,14 @@
-import PageHeader from '@/components/acumatica/Common/PageHeader';
+// resources/js/pages/admin/revenue.tsx
+//
+// Tenant revenue, brass-on-ink to match /tenant-overview. Pulls from
+// `tenant_revenue_records`, which is populated by the daily
+// `revenue:calculate` artisan job (cron at 02:00). Default range is
+// year-to-date — narrower windows often look empty because the job
+// only writes a row per closed period, not in real time.
+
+import { KpiCard, formatCurrencyCompact } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { Head } from '@inertiajs/react';
-import { Button } from 'primereact/button';
-import { Calendar } from 'primereact/calendar';
-import { Column } from 'primereact/column';
-import { DataTable } from 'primereact/datatable';
 import { useEffect, useState } from 'react';
 
 interface RevenueTotals {
@@ -38,34 +42,35 @@ interface RevenueRecord {
     status: string;
 }
 
-interface StatCardProps {
-    icon: string;
-    accentColor: string;
-    title: string;
-    value: string;
+function formatNAD(value: number | null | undefined): string {
+    return Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
 }
 
-const currency = (value: number) =>
-    `NAD ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+function statusPill(status: string): string {
+    switch (status) {
+        case 'confirmed': return 'settled';
+        case 'pending': return 'pending';
+        case 'paid': return 'live';
+        default: return 'void';
+    }
+}
 
-function StatCard({ icon, accentColor, title, value }: StatCardProps) {
-    return (
-        <div className="relative overflow-hidden rounded-xl p-5 transition-all duration-300"
-            style={{ background: 'var(--acu-surface-card)', border: '1px solid var(--acu-border)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${accentColor}30`; e.currentTarget.style.boxShadow = `0 8px 32px ${accentColor}15`; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--acu-border)'; e.currentTarget.style.boxShadow = 'none'; }}>
-            <div className="absolute inset-0 opacity-[0.03]" style={{ background: `radial-gradient(circle at top right, ${accentColor}, transparent 70%)` }} />
-            <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>{title}</span>
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}20` }}>
-                        <i className={`${icon} text-sm`} style={{ color: accentColor }} />
-                    </div>
-                </div>
-                <div className="text-[1.75rem] font-bold leading-none" style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}>{value}</div>
-            </div>
-        </div>
-    );
+const DATE_FMT = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+function formatDate(iso: string): string {
+    return DATE_FMT.format(new Date(iso));
+}
+
+function todayIso(): string {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function yearStartIso(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-01-01`;
 }
 
 export default function TenantRevenue() {
@@ -74,20 +79,15 @@ export default function TenantRevenue() {
     const [records, setRecords] = useState<RevenueRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [recordsLoading, setRecordsLoading] = useState(true);
-    const [dateRange, setDateRange] = useState<(Date | null)[]>([
-        new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        new Date(),
-    ]);
-
-    const fromStr = dateRange[0]?.toISOString().split('T')[0] || '';
-    const toStr = dateRange[1]?.toISOString().split('T')[0] || '';
+    const [from, setFrom] = useState(yearStartIso());
+    const [to, setTo] = useState(todayIso());
 
     const fetchSummary = async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            if (fromStr) params.append('from', fromStr);
-            if (toStr) params.append('to', toStr);
+            if (from) params.append('from', from);
+            if (to) params.append('to', to);
 
             const res = await fetch(`/api/v1/admin/revenue/summary?${params}`, {
                 headers: { Accept: 'application/json' },
@@ -95,7 +95,7 @@ export default function TenantRevenue() {
             const data = await res.json();
             if (data.success) {
                 setTotals(data.data.totals);
-                setPerGame(data.data.per_game);
+                setPerGame(data.data.per_game || []);
             }
         } catch (error) {
             console.error('Failed to fetch revenue summary:', error);
@@ -108,15 +108,15 @@ export default function TenantRevenue() {
         setRecordsLoading(true);
         try {
             const params = new URLSearchParams();
-            if (fromStr) params.append('from', fromStr);
-            if (toStr) params.append('to', toStr);
+            if (from) params.append('from', from);
+            if (to) params.append('to', to);
 
             const res = await fetch(`/api/v1/admin/revenue?${params}`, {
                 headers: { Accept: 'application/json' },
             });
             const data = await res.json();
             if (data.success) {
-                setRecords(data.data);
+                setRecords(data.data || []);
             }
         } catch (error) {
             console.error('Failed to fetch revenue records:', error);
@@ -128,134 +128,296 @@ export default function TenantRevenue() {
     useEffect(() => {
         fetchSummary();
         fetchRecords();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleFilter = () => {
+    const applyFilter = () => {
         fetchSummary();
         fetchRecords();
     };
 
-    const statCards = totals
-        ? [
-              { title: 'Total Bets', value: currency(totals.total_bets), icon: 'pi pi-arrow-down', accentColor: '#58A6FF' },
-              { title: 'Total Wins', value: currency(totals.total_wins), icon: 'pi pi-arrow-up', accentColor: '#3FB950' },
-              { title: 'Gross Gaming Revenue', value: currency(totals.gross_gaming_revenue), icon: 'pi pi-chart-line', accentColor: '#BC8CFF' },
-              { title: 'Your Share', value: currency(totals.tenant_share), icon: 'pi pi-wallet', accentColor: '#3FB950' },
-              { title: 'Platform Share', value: currency(totals.chinga_share), icon: 'pi pi-building', accentColor: '#D29922' },
-          ]
-        : [];
+    const empty = !loading && (!totals || (totals.gross_gaming_revenue === 0 && records.length === 0));
 
     return (
         <UserLayout title="Revenue">
-            <Head title="Revenue" />
+            <Head title="Revenue · Admin" />
 
-            <div className="space-y-8">
-                <PageHeader title="Revenue" subtitle="Track your gaming revenue and earnings" />
-
-                {/* Date Filter */}
-                <div className="rounded-xl p-4" style={{ background: 'var(--acu-surface-card)', border: '1px solid var(--acu-border)' }}>
-                    <div className="flex items-center gap-2 mb-3">
-                        <i className="pi pi-filter text-sm" style={{ color: 'var(--acu-text-light)' }} />
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--acu-text-light)', fontFamily: 'var(--font-body)' }}>Date Range</span>
+            <div className="cgo-page">
+                {/* Page header */}
+                <div className="cgo-page-head">
+                    <div>
+                        <div className="cgo-eyebrow">Admin</div>
+                        <h1 className="cgo-title">Revenue</h1>
+                        <div className="cgo-subtitle">
+                            Summary KPIs are live. Records below are settled daily by the{' '}
+                            <code style={{ fontFamily: 'var(--cg-mono)', color: 'var(--cg-fg-2)' }}>
+                                revenue:calculate
+                            </code>
+                            {' '}job and represent immutable closed-period statements.
+                        </div>
                     </div>
-                    <div className="flex flex-wrap gap-3 items-end">
-                        <Calendar
-                            value={dateRange as Date[]}
-                            onChange={(e) => setDateRange(e.value as (Date | null)[])}
-                            selectionMode="range"
-                            dateFormat="yy-mm-dd"
-                            placeholder="Select date range"
-                            showIcon
-                            className="w-72"
-                        />
-                        <Button
-                            label="Apply"
-                            icon="pi pi-check"
-                            size="small"
-                            onClick={handleFilter}
-                        />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            onClick={applyFilter}
+                        >
+                            Refresh
+                        </button>
                     </div>
                 </div>
 
-                {/* Summary Cards */}
-                {loading ? (
-                    <div className="text-center py-8" style={{ color: 'var(--acu-text-muted)' }}>Loading...</div>
-                ) : (
-                    <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-                            {statCards.map((card) => (
-                                <StatCard
-                                    key={card.title}
-                                    icon={card.icon}
-                                    accentColor={card.accentColor}
-                                    title={card.title}
-                                    value={card.value}
-                                />
-                            ))}
-                        </div>
+                {/* KPI strip · 5-up. */}
+                <div className="cgo-kpis cgo-kpis--5">
+                    <KpiCard
+                        label="Total bets"
+                        value={totals ? formatCurrencyCompact(totals.total_bets) : '—'}
+                        meta="staked"
+                    />
+                    <KpiCard
+                        label="Total wins"
+                        value={totals ? formatCurrencyCompact(totals.total_wins) : '—'}
+                        meta="paid out"
+                    />
+                    <KpiCard
+                        label="Gross Gaming Revenue"
+                        value={totals ? formatCurrencyCompact(totals.gross_gaming_revenue) : '—'}
+                        meta="bets − wins"
+                    />
+                    <KpiCard
+                        label="Your share"
+                        value={totals ? formatCurrencyCompact(totals.tenant_share) : '—'}
+                        brass
+                        meta="after split"
+                    />
+                    <KpiCard
+                        label="Platform share"
+                        value={totals ? formatCurrencyCompact(totals.chinga_share) : '—'}
+                        meta="retained by platform"
+                    />
+                </div>
 
-                        {/* Revenue by Game */}
-                        {perGame.length > 0 && (
-                            <div className="rounded-xl overflow-hidden" style={{ background: 'var(--acu-surface-card)', border: '1px solid var(--acu-border)' }}>
-                                <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--acu-border)' }}>
-                                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#BC8CFF12', border: '1px solid #BC8CFF20' }}>
-                                        <i className="pi pi-play text-sm" style={{ color: '#BC8CFF' }} />
-                                    </div>
-                                    <span className="text-sm font-semibold" style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}>Revenue by Game</span>
-                                </div>
-                                <div>
-                                    <DataTable value={perGame} size="small" showGridlines={false}>
-                                        <Column header="Game" body={(row: GameRevenue) => row.game?.name || 'Unknown'} />
-                                        <Column header="Total Bets" body={(row: GameRevenue) => currency(row.total_bets)} />
-                                        <Column header="Total Wins" body={(row: GameRevenue) => currency(row.total_wins)} />
-                                        <Column header="GGR" body={(row: GameRevenue) => currency(row.gross_gaming_revenue)} />
-                                        <Column header="Your Share" body={(row: GameRevenue) => currency(row.tenant_share)} />
-                                    </DataTable>
-                                </div>
-                            </div>
-                        )}
+                {/* Filter bar — date range. */}
+                <div className="cgo-filterbar">
+                    <span className="cgo-sort-label">Period</span>
+                    <label className="cgo-input" style={{ minWidth: 150 }}>
+                        <input
+                            type="date"
+                            value={from}
+                            onChange={(e) => setFrom(e.target.value)}
+                            placeholder="From"
+                            style={{ minWidth: 130 }}
+                        />
+                    </label>
+                    <span style={{ color: 'var(--cg-fg-3)', fontSize: 12 }}>→</span>
+                    <label className="cgo-input" style={{ minWidth: 150 }}>
+                        <input
+                            type="date"
+                            value={to}
+                            onChange={(e) => setTo(e.target.value)}
+                            placeholder="To"
+                            style={{ minWidth: 130 }}
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        className="cg-btn cg-btn--ghost cg-btn--sm"
+                        onClick={applyFilter}
+                    >
+                        Apply
+                    </button>
+                    <div className="cgo-right">
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--text cg-btn--sm"
+                            onClick={() => { setFrom(yearStartIso()); setTo(todayIso()); setTimeout(applyFilter, 0); }}
+                        >
+                            Year-to-date
+                        </button>
+                        <button
+                            type="button"
+                            className="cg-btn cg-btn--text cg-btn--sm"
+                            onClick={() => {
+                                const d = new Date();
+                                const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+                                setFrom(start); setTo(todayIso()); setTimeout(applyFilter, 0);
+                            }}
+                        >
+                            This month
+                        </button>
+                    </div>
+                </div>
+
+                {/* Empty-state hint when nothing matches. */}
+                {empty && (
+                    <div
+                        style={{
+                            background: 'var(--cg-ink-card)',
+                            border: '1px solid var(--cg-rule)',
+                            borderTop: 0,
+                            borderRadius: '0 0 8px 8px',
+                            padding: '32px 24px',
+                            textAlign: 'center',
+                            color: 'var(--cg-fg-3)',
+                            fontSize: 13,
+                            marginBottom: 24,
+                        }}
+                    >
+                        <div style={{ marginBottom: 6 }}>No betting activity in this period.</div>
+                        <div style={{ fontSize: 11 }}>
+                            Summary KPIs are computed live from bets — they're zero because no
+                            wagers were placed in this window. Closed-period record rows below
+                            are written daily by the{' '}
+                            <code style={{ fontFamily: 'var(--cg-mono)' }}>revenue:calculate</code> job.
+                        </div>
+                    </div>
+                )}
+
+                {/* Revenue by Game */}
+                {perGame.length > 0 && (
+                    <>
+                        <div
+                            className="cgo-table-bar"
+                            style={{
+                                borderRadius: '8px 8px 0 0',
+                                borderTop: '1px solid var(--cg-rule)',
+                                borderLeft: '1px solid var(--cg-rule)',
+                                borderRight: '1px solid var(--cg-rule)',
+                                marginTop: 0,
+                            }}
+                        >
+                            <div className="cgo-table-bar-title">Revenue by game</div>
+                        </div>
+                        <div
+                            className="cgo-table-wrap"
+                            style={{ borderRadius: '0 0 8px 8px', marginBottom: 24 }}
+                        >
+                            <table className="cgo-wagers">
+                                <thead>
+                                    <tr>
+                                        <th style={{ minWidth: 200 }}>Game</th>
+                                        <th className="cgo-r" style={{ width: 140 }}>Total bets</th>
+                                        <th className="cgo-r" style={{ width: 140 }}>Total wins</th>
+                                        <th className="cgo-r" style={{ width: 140 }}>GGR</th>
+                                        <th className="cgo-r" style={{ width: 140 }}>Your share</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {perGame.map((row) => (
+                                        <tr key={row.game_id}>
+                                            <td>
+                                                <span className="cgo-name">{row.game?.name || 'Unknown'}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-stake">
+                                                    <span className="cgo-ccy">NAD</span>
+                                                    {formatNAD(row.total_bets)}
+                                                </span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-payout">{formatNAD(row.total_wins)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-payout">{formatNAD(row.gross_gaming_revenue)}</span>
+                                            </td>
+                                            <td className="cgo-r">
+                                                <span className="cgo-payout" style={{ color: 'var(--cg-brass-hi)' }}>
+                                                    {formatNAD(row.tenant_share)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </>
                 )}
 
-                {/* Detailed Records */}
-                <div className="rounded-xl overflow-hidden" style={{ background: 'var(--acu-surface-card)', border: '1px solid var(--acu-border)' }}>
-                    <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--acu-border)' }}>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#58A6FF12', border: '1px solid #58A6FF20' }}>
-                            <i className="pi pi-list text-sm" style={{ color: '#58A6FF' }} />
-                        </div>
-                        <span className="text-sm font-semibold" style={{ color: 'var(--acu-text)', fontFamily: 'var(--font-display)' }}>Revenue Records</span>
-                    </div>
-                    <div>
-                        <DataTable
-                            value={records}
-                            loading={recordsLoading}
-                            size="small"
-                            showGridlines={false}
-                            emptyMessage="No revenue records found for the selected period"
-                        >
-                            <Column header="Period" body={(row: RevenueRecord) => `${row.period_start} — ${row.period_end}`} />
-                            <Column header="Game" body={(row: RevenueRecord) => row.game?.name || 'Unknown'} />
-                            <Column header="Bets" body={(row: RevenueRecord) => currency(row.total_bets)} />
-                            <Column header="Wins" body={(row: RevenueRecord) => currency(row.total_wins)} />
-                            <Column header="GGR" body={(row: RevenueRecord) => currency(row.gross_gaming_revenue)} />
-                            <Column header="Your Share" body={(row: RevenueRecord) => currency(row.tenant_share)} />
-                            <Column
-                                header="Status"
-                                body={(row: RevenueRecord) => (
-                                    <span
-                                        className="text-xs px-2 py-0.5 rounded-md font-medium"
-                                        style={
-                                            row.status === 'confirmed'
-                                                ? { background: '#3FB95018', color: '#3FB950', border: '1px solid #3FB95030' }
-                                                : { background: '#D2992218', color: '#D29922', border: '1px solid #D2992230' }
-                                        }
-                                    >
-                                        {row.status}
-                                    </span>
-                                )}
-                            />
-                        </DataTable>
-                    </div>
+                {/* Revenue records */}
+                <div
+                    className="cgo-table-bar"
+                    style={{
+                        borderRadius: '8px 8px 0 0',
+                        borderTop: '1px solid var(--cg-rule)',
+                        borderLeft: '1px solid var(--cg-rule)',
+                        borderRight: '1px solid var(--cg-rule)',
+                        marginTop: 0,
+                    }}
+                >
+                    <div className="cgo-table-bar-title">Revenue records</div>
+                </div>
+                <div
+                    className="cgo-table-wrap cgo-table-wrap--scroll"
+                    style={{ borderRadius: '0 0 8px 8px', marginBottom: 24 }}
+                >
+                    <table className="cgo-wagers">
+                        <thead>
+                            <tr>
+                                <th style={{ minWidth: 200 }}>Period</th>
+                                <th style={{ minWidth: 180 }}>Game</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Bets</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Wins</th>
+                                <th className="cgo-r" style={{ width: 130 }}>GGR</th>
+                                <th className="cgo-r" style={{ width: 130 }}>Your share</th>
+                                <th style={{ width: 100 }}>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recordsLoading ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        Loading…
+                                    </td>
+                                </tr>
+                            ) : records.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                        No revenue records in this period.
+                                    </td>
+                                </tr>
+                            ) : (
+                                records.map((r) => (
+                                    <tr key={r.id}>
+                                        <td>
+                                            <div className="cgo-name">
+                                                {formatDate(r.period_start)} – {formatDate(r.period_end)}
+                                            </div>
+                                            <div className="cgo-uid" style={{ textTransform: 'capitalize' }}>
+                                                {r.period_type}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                                                {r.game?.name || 'Unknown'}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-stake">
+                                                <span className="cgo-ccy">NAD</span>
+                                                {formatNAD(r.total_bets)}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-payout">{formatNAD(r.total_wins)}</span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-payout">{formatNAD(r.gross_gaming_revenue)}</span>
+                                        </td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-payout" style={{ color: 'var(--cg-brass-hi)' }}>
+                                                {formatNAD(r.tenant_share)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`cgo-pill ${statusPill(r.status)}`}>
+                                                {r.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </UserLayout>

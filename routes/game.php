@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\GameSessionController;
+use App\Http\Controllers\Api\GameTenantsController;
 use App\Http\Controllers\Api\VoucherWebSessionController;
+use App\Http\Middleware\ResolveOAuthClient;
 use App\Http\Middleware\AuthenticateGameSession;
 use App\Http\Middleware\AuthenticateTerminal;
 use Illuminate\Support\Facades\Route;
@@ -47,9 +49,15 @@ Route::middleware(['api', AuthenticateGameSession::class])->prefix('api/v1/game'
 // Service-to-service settlement credit (client_credentials + wallet:write).
 // Used by game backends to pay out winnings against closed/expired sessions,
 // where the player's session token is no longer valid.
-Route::middleware(['api', EnsureClientIsResourceOwner::using('wallet:write')])
+Route::middleware(['api', EnsureClientIsResourceOwner::using('wallet:write'), ResolveOAuthClient::class])
     ->prefix('api/v1/game/service')->name('api.game.service.')->group(function () {
         Route::post('/credit', [GameSessionController::class, 'settlementCredit'])
             ->middleware('throttle:120,1')
             ->name('credit');
     });
+
+// Tenant discovery for game engines: which tenants have this game enabled.
+// client_credentials + gaming:read; the client must be bound to the game.
+Route::middleware(['api', EnsureClientIsResourceOwner::using('gaming:read'), ResolveOAuthClient::class])
+    ->get('api/v1/games/{gameUuid}/tenants', [GameTenantsController::class, 'index'])
+    ->name('api.games.tenants');

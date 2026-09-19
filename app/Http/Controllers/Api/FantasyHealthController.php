@@ -8,7 +8,8 @@ use Illuminate\Http\JsonResponse;
 
 /**
  * Returns the cached health status of the chinga-fantasy backend.
- * Consumed by the FantasyHealthBanner on every admin layout to surface
+ * Legacy single-game probe (the layout banner now uses GameHealthController)
+ * kept for older clients, to surface
  * connectivity issues without breaking the dashboards.
  */
 class FantasyHealthController extends Controller

@@ -1,0 +1,277 @@
+/* ==========================================================================
+   Chinga Games Design System — v2 "Boutique" tokens
+   Direction: private-bank meets modern editorial.
+   Ink + Brass + Paper.  Hairlines instead of shadows.  Generous space.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Archivo+Narrow:wght@600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+    /* ---- Ink (default — dark is hero) ---------------------------------- */
+    --cg-ink:           #0E0D0B;            /* warm near-black page */
+    --cg-ink-elevated:  #15130F;
+    --cg-ink-card:      #1A1814;
+    --cg-ink-rail:      #0A0907;            /* sidebar — even darker */
+
+    /* ---- Brass (the only accent) --------------------------------------- */
+    --cg-brass:         #B68A3E;            /* refined brass */
+    --cg-brass-hi:      #D6B782;            /* highlight / hairline glints */
+    --cg-brass-lo:      #8A6826;            /* shadow / pressed */
+    --cg-brass-wash:    rgba(182, 138, 62, 0.06);
+    --cg-brass-wash-2:  rgba(182, 138, 62, 0.12);
+
+    /* ---- Paper (light alt) --------------------------------------------- */
+    --cg-paper:           #F2EDE3;          /* warm paper */
+    --cg-paper-elevated:  #F6F1E6;
+    --cg-paper-card:      #FBF7EE;
+    --cg-ink-on-paper:    #1A1813;
+
+    /* ---- Text (on ink) -------------------------------------------------- */
+    --cg-fg-1:    #F2EDE3;                  /* primary text — paper white */
+    --cg-fg-2:    #C8BDA3;                  /* secondary */
+    --cg-fg-3:    #8A8068;                  /* tertiary / muted */
+    --cg-fg-4:    #5C5440;                  /* subtle / hint */
+
+    /* ---- Hairlines (the workhorse) ------------------------------------- */
+    --cg-rule:        rgba(242, 237, 227, 0.08);
+    --cg-rule-strong: rgba(242, 237, 227, 0.16);
+    --cg-rule-brass:  rgba(182, 138, 62, 0.32);
+
+    /* ---- Semantic (muted, never shouty) -------------------------------- */
+    --cg-pos:     #6FA86A;                  /* deep moss */
+    --cg-warn:    #C99441;
+    --cg-neg:     #B5524C;                  /* oxblood */
+    --cg-info:    #6B8AB8;                  /* slate blue */
+
+    /* ---- Type ---------------------------------------------------------- */
+    --cg-display:    'Archivo', 'Söhne', ui-sans-serif, system-ui, sans-serif;
+    --cg-condensed:  'Archivo Narrow', 'Archivo', ui-sans-serif, sans-serif;
+    --cg-body:       'Manrope', 'Söhne', 'Helvetica Neue', ui-sans-serif, system-ui, sans-serif;
+    --cg-mono:       'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+    --cg-fs-micro: 11px;                     /* eyebrow, badge */
+    --cg-fs-small: 12px;                     /* meta, captions */
+    --cg-fs-body:  14px;                     /* default body */
+    --cg-fs-md:    15px;                     /* generous body */
+    --cg-fs-lg:    18px;                     /* card title */
+    --cg-fs-xl:    24px;                     /* H3 */
+    --cg-fs-2xl:   34px;                     /* H2 */
+    --cg-fs-3xl:   52px;                     /* H1 (display serif) */
+    --cg-fs-4xl:   76px;                     /* hero (display serif) */
+
+    --cg-lh-display: 1.05;
+    --cg-lh-tight:   1.18;
+    --cg-lh-body:    1.55;
+    --cg-lh-loose:   1.7;
+
+    --cg-track-tight:   -0.02em;             /* display serif */
+    --cg-track-normal:  0;
+    --cg-track-wide:    0.08em;              /* eyebrows, status, labels */
+    --cg-track-widest:  0.22em;              /* monogrammed eyebrows */
+
+    /* ---- Spacing (8-pt + generous outer rhythm) ------------------------ */
+    --cg-s-1:  4px;
+    --cg-s-2:  8px;
+    --cg-s-3:  12px;
+    --cg-s-4:  16px;
+    --cg-s-5:  20px;
+    --cg-s-6:  24px;
+    --cg-s-7:  32px;
+    --cg-s-8:  40px;
+    --cg-s-9:  56px;
+    --cg-s-10: 80px;
+    --cg-s-11: 120px;
+
+    /* ---- Radii (sharper) ----------------------------------------------- */
+    --cg-r-0:   0;                           /* default — flat is premium */
+    --cg-r-1:   2px;
+    --cg-r-2:   4px;
+    --cg-r-3:   8px;                         /* cards, inputs */
+    --cg-r-4:   16px;                        /* dialogs */
+    --cg-r-pill: 9999px;
+
+    /* ---- Lift (almost no shadow — hairlines do the work) --------------- */
+    --cg-lift-0: 0 0 0 1px var(--cg-rule);
+    --cg-lift-1: 0 0 0 1px var(--cg-rule-strong);
+    --cg-lift-brass: 0 0 0 1px var(--cg-rule-brass), 0 24px 60px -24px rgba(182,138,62,0.35);
+    --cg-lift-modal: 0 0 0 1px var(--cg-rule-strong), 0 40px 100px -20px rgba(0,0,0,0.7);
+
+    /* ---- Motion -------------------------------------------------------- */
+    --cg-ease:      cubic-bezier(0.32, 0.72, 0.24, 1);
+    --cg-dur-fast:  140ms;
+    --cg-dur:       220ms;
+    --cg-dur-slow:  420ms;
+
+    /* ---- Layout -------------------------------------------------------- */
+    --cg-rail:    280px;                     /* sidebar */
+    --cg-topbar:  64px;
+    --cg-page-max: 1240px;
+    --cg-gutter:   48px;                     /* generous outer gutter */
+}
+
+/* ============================================================
+   Body defaults (apply on a wrapper or <body>)
+   ============================================================ */
+
+.cg-ink {
+    background: var(--cg-ink);
+    color: var(--cg-fg-1);
+    font-family: var(--cg-body);
+    font-size: var(--cg-fs-body);
+    line-height: var(--cg-lh-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+.cg-paper {
+    background: var(--cg-paper);
+    color: var(--cg-ink-on-paper);
+    font-family: var(--cg-body);
+    font-size: var(--cg-fs-body);
+    line-height: var(--cg-lh-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* ============================================================
+   Typography
+   ============================================================ */
+
+.cg-display {
+    font-family: var(--cg-display);
+    font-weight: 800;
+    line-height: var(--cg-lh-display);
+    letter-spacing: var(--cg-track-tight);
+}
+.cg-h1 { font-family: var(--cg-display); font-weight: 800; font-size: var(--cg-fs-3xl); line-height: var(--cg-lh-display); letter-spacing: var(--cg-track-tight); }
+.cg-h2 { font-family: var(--cg-display); font-weight: 700; font-size: var(--cg-fs-2xl); line-height: var(--cg-lh-tight);  letter-spacing: -0.015em; }
+.cg-h3 { font-family: var(--cg-body); font-weight: 700; font-size: var(--cg-fs-xl); line-height: var(--cg-lh-tight); letter-spacing: -0.005em; }
+.cg-h4 { font-family: var(--cg-body); font-weight: 600; font-size: var(--cg-fs-lg); line-height: var(--cg-lh-tight); }
+.cg-body { font-family: var(--cg-body); font-weight: 400; font-size: var(--cg-fs-body); line-height: var(--cg-lh-body); }
+.cg-meta { font-family: var(--cg-body); font-weight: 400; font-size: var(--cg-fs-small); color: var(--cg-fg-3); }
+.cg-eyebrow {
+    font-family: var(--cg-body);
+    font-size: var(--cg-fs-micro);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--cg-track-widest);
+    color: var(--cg-fg-3);
+}
+.cg-mono { font-family: var(--cg-mono); font-size: var(--cg-fs-small); letter-spacing: 0; font-feature-settings: 'tnum' 1; }
+.cg-num  { font-family: var(--cg-condensed); font-weight: 700; letter-spacing: -0.01em; font-feature-settings: 'tnum' 1; }
+
+/* ============================================================
+   Hairline rules (the brand's signature element)
+   ============================================================ */
+
+.cg-rule       { border: 0; border-top: 1px solid var(--cg-rule); }
+.cg-rule-x     { border: 0; border-top: 1px solid var(--cg-rule-strong); }
+.cg-rule-brass { border: 0; border-top: 1px solid var(--cg-rule-brass); }
+
+/* ============================================================
+   Status (small caps, hairline pills)
+   ============================================================ */
+
+.cg-status {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 12px;
+    font-family: var(--cg-body);
+    font-size: var(--cg-fs-micro);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: var(--cg-track-wide);
+    border-radius: var(--cg-r-pill);
+    border: 1px solid currentColor;
+    background: transparent;
+    color: var(--cg-fg-2);
+}
+.cg-status::before {
+    content: ""; width: 5px; height: 5px; border-radius: 999px; background: currentColor;
+}
+.cg-status--active    { color: var(--cg-pos); }
+.cg-status--pending   { color: var(--cg-warn); }
+.cg-status--completed { color: var(--cg-info); }
+.cg-status--error     { color: var(--cg-neg); }
+.cg-status--inactive  { color: var(--cg-fg-3); }
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+
+.cg-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    height: 40px; padding: 0 18px;
+    font-family: var(--cg-body); font-weight: 500; font-size: var(--cg-fs-body);
+    letter-spacing: 0.01em;
+    border-radius: var(--cg-r-3);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background var(--cg-dur) var(--cg-ease),
+                border-color var(--cg-dur) var(--cg-ease),
+                color var(--cg-dur) var(--cg-ease),
+                box-shadow var(--cg-dur) var(--cg-ease);
+}
+.cg-btn--primary {
+    background: var(--cg-brass);
+    color: var(--cg-ink);
+    border-color: var(--cg-brass);
+}
+.cg-btn--primary:hover { background: var(--cg-brass-hi); border-color: var(--cg-brass-hi); }
+
+.cg-btn--ghost {
+    background: transparent;
+    color: var(--cg-fg-1);
+    border-color: var(--cg-rule-strong);
+}
+.cg-btn--ghost:hover { border-color: var(--cg-brass); color: var(--cg-brass-hi); }
+
+.cg-btn--text {
+    background: transparent;
+    color: var(--cg-fg-2);
+    border-color: transparent;
+    padding: 0 8px;
+}
+.cg-btn--text:hover { color: var(--cg-brass-hi); }
+
+.cg-btn--sm { height: 32px; font-size: var(--cg-fs-small); padding: 0 12px; }
+.cg-btn--lg { height: 48px; padding: 0 26px; font-size: var(--cg-fs-md); }
+
+/* ============================================================
+   Inputs
+   ============================================================ */
+
+.cg-field { display: block; }
+.cg-field > label { display: block; font-size: var(--cg-fs-small); color: var(--cg-fg-2); margin-bottom: 8px; letter-spacing: 0.01em; }
+
+.cg-input, .cg-select, .cg-textarea {
+    width: 100%; height: 44px; padding: 0 14px;
+    background: transparent;
+    color: var(--cg-fg-1);
+    font-family: var(--cg-body); font-size: var(--cg-fs-body);
+    border: 0;
+    border-bottom: 1px solid var(--cg-rule-strong);
+    border-radius: 0;
+    outline: none;
+    transition: border-color var(--cg-dur) var(--cg-ease);
+}
+.cg-input:focus, .cg-select:focus, .cg-textarea:focus { border-bottom-color: var(--cg-brass); }
+.cg-input::placeholder { color: var(--cg-fg-4); }
+
+/* ============================================================
+   Card
+   ============================================================ */
+
+.cg-card {
+    background: var(--cg-ink-card);
+    border: 1px solid var(--cg-rule);
+    border-radius: var(--cg-r-3);
+    padding: var(--cg-s-7);
+    transition: border-color var(--cg-dur) var(--cg-ease);
+}
+.cg-card:hover { border-color: var(--cg-rule-strong); }
+.cg-card--brass {
+    background:
+      radial-gradient(circle at top right, var(--cg-brass-wash), transparent 60%),
+      var(--cg-ink-card);
+    border-color: var(--cg-rule-brass);
+}
