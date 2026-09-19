@@ -21,7 +21,9 @@ class WalletManagementController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Wallet::with('user');
+        // The operator is part of the identity of a wallet: the same email can hold one account, and
+        // one wallet, under several tenants. A platform admin's list spans them all.
+        $query = Wallet::with(['user', 'tenant:id,uuid,slug,name']);
 
         // Search by user name or email
         if ($search = $request->input('search')) {
@@ -77,7 +79,7 @@ class WalletManagementController extends Controller
      */
     public function show(Wallet $wallet): JsonResponse
     {
-        $wallet->load('user');
+        $wallet->load(['user', 'tenant:id,uuid,slug,name']);
         $recentTransactions = $wallet->transactions()
             ->with('performedBy')
             ->orderByDesc('created_at')

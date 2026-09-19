@@ -21,10 +21,18 @@ interface WalletUser {
     email: string;
 }
 
+interface WalletTenant {
+    uuid: string;
+    slug: string;
+    name: string;
+}
+
 interface Wallet {
     id: number;
     uuid: string;
     user: WalletUser;
+    /** The operator the wallet (and its account) belongs to; the same email can hold one under several. */
+    tenant?: WalletTenant | null;
     balance: string;
     currency: string;
     status: string;
@@ -302,6 +310,7 @@ export default function Wallets() {
                         <thead>
                             <tr>
                                 <th style={{ minWidth: 220 }}>User</th>
+                                <th style={{ minWidth: 150 }}>Operator</th>
                                 <th className="cgo-r" style={{ width: 140 }}>Balance</th>
                                 <th style={{ width: 80 }}>Currency</th>
                                 <th style={{ width: 110 }}>Status</th>
@@ -313,7 +322,7 @@ export default function Wallets() {
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
                                         Loading…
                                     </td>
                                 </tr>
@@ -331,6 +340,12 @@ export default function Wallets() {
                                                 {w.user?.name || '—'}
                                             </div>
                                             <div className="cgo-uid">{w.user?.email || '—'}</div>
+                                        </td>
+                                        <td>
+                                            <div className="cgo-name cgo-cell-clip" title={w.tenant?.name}>
+                                                {w.tenant?.name || '—'}
+                                            </div>
+                                            <div className="cgo-uid">{w.tenant?.slug || ''}</div>
                                         </td>
                                         <td className="cgo-r">
                                             <span className="cgo-stake" style={{ color: 'var(--cg-brass-hi)' }}>
@@ -451,7 +466,7 @@ export default function Wallets() {
 
             {/* Deposit dialog */}
             <Dialog
-                header={`Deposit · ${depositWallet?.user?.name || ''}`}
+                header={`Deposit · ${depositWallet?.user?.name || ''}${depositWallet?.tenant ? ` · ${depositWallet.tenant.name}` : ''}`}
                 visible={depositOpen}
                 style={{ width: '28rem' }}
                 onHide={() => setDepositOpen(false)}
@@ -507,7 +522,7 @@ export default function Wallets() {
 
             {/* Withdraw dialog */}
             <Dialog
-                header={`Withdraw · ${withdrawWallet?.user?.name || ''}`}
+                header={`Withdraw · ${withdrawWallet?.user?.name || ''}${withdrawWallet?.tenant ? ` · ${withdrawWallet.tenant.name}` : ''}`}
                 visible={withdrawOpen}
                 style={{ width: '28rem' }}
                 onHide={() => setWithdrawOpen(false)}
