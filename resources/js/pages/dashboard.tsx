@@ -26,7 +26,7 @@ import { useEffect } from 'react';
 // mean the page doesn't blink or jump. Polling pauses when the tab
 // is hidden so we don't burn HTTP in the background.
 const POLL_INTERVAL_MS = 5_000;
-const LIVE_PROPS = ['wager_stats', 'wager_spark', 'recent_bets', 'last_updated'];
+const LIVE_PROPS = ['wager_stats', 'wager_spark', 'recent_bets', 'per_game', 'feed_errors', 'last_updated'];
 
 function useDashboardPoll(enabled: boolean): void {
     useEffect(() => {
@@ -119,8 +119,12 @@ interface WagerStats {
 type WagerOutcome = 'win' | 'lost' | 'pending';
 
 interface RecentBet {
-    id: number | null;
+    id: string | number | null;
     placed_at: string | null;
+    game_name: string;
+    game_slug: string;
+    /** One line per game vocabulary: Fantasy picks, or a Vrrr Pha cash-out / crash multiplier. */
+    detail: string;
     player: { name: string; uuid_short: string | null; initials: string };
     tenant_uuid: string | null;
     tenant_name: string | null;
@@ -133,6 +137,16 @@ interface RecentBet {
     winning_amount: number;
 }
 
+interface PerGame {
+    game_uuid: string;
+    game_name: string;
+    bets_placed: number;
+    active_players: number;
+    total_wagered: number;
+    total_paid_out: number;
+    ggr: number;
+}
+
 interface DashboardProps {
     account?: Account;
     wallet?: WalletData | null;
@@ -140,6 +154,8 @@ interface DashboardProps {
     wager_stats?: WagerStats | null;
     wager_spark?: number[] | null;
     recent_bets?: RecentBet[];
+    per_game?: PerGame[];
+    feed_errors?: string[];
     last_updated?: string;
 }
 
@@ -180,7 +196,6 @@ export default function Dashboard(props: DashboardProps) {
     // Card 3 — Total wagered (raw activity; includes re-stakes)
     const wageredToday = num(today?.total_wagered);
     const wageredYesterday = num(yesterday?.total_wagered);
-    const wageredDelta = deltaPct(wageredToday, wageredYesterday);
 
     // Card 4 — Total wins (paid out to winners)
     const winsToday = num(today?.total_paid_out);
@@ -203,6 +218,8 @@ export default function Dashboard(props: DashboardProps) {
 
     const sparkHeights = sparkBars(props.wager_spark);
     const recentBets = props.recent_bets ?? [];
+    const perGame = props.per_game ?? [];
+    const feedErrors = props.feed_errors ?? [];
 
     return (
         <UserLayout title="Dashboard">
@@ -261,6 +278,42 @@ export default function Dashboard(props: DashboardProps) {
                 {/* Recent bets preview — header stays put while the body
                  * scrolls. The bar above sits OUTSIDE the scroll container
                  * so it doesn't move when scrolling either. */}
+                {feedErrors.length > 0 && (
+                    <div data-testid="feed-errors" style={{ background: 'var(--cg-ink-card)', border: '1px solid var(--cg-warn)', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                        <strong style={{ color: 'var(--cg-warn)' }}>Not included:</strong> {feedErrors.join(', ')} could not be reached. The figures above exclude {feedErrors.length === 1 ? 'that game' : 'those games'}.
+                    </div>
+                )}
+
+                {/* Per-game split of today's figures, so one game's day is visible inside the totals. */}
+                {perGame.length > 1 && (
+                    <div className="cgo-table-wrap" style={{ marginBottom: 18 }} data-testid="per-game">
+                        <table className="cgo-wagers">
+                            <thead>
+                                <tr>
+                                    <th>Game · today</th>
+                                    <th className="cgo-r" style={{ width: 90 }}>Players</th>
+                                    <th className="cgo-r" style={{ width: 90 }}>Bets</th>
+                                    <th className="cgo-r" style={{ width: 130 }}>Wagered</th>
+                                    <th className="cgo-r" style={{ width: 130 }}>Wins</th>
+                                    <th className="cgo-r" style={{ width: 130 }}>GGR</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {perGame.map((g) => (
+                                    <tr key={g.game_uuid}>
+                                        <td><span className="cgo-name">{g.game_name}</span></td>
+                                        <td className="cgo-r"><span className="cgo-odds">{formatCount(g.active_players)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-odds">{formatCount(g.bets_placed)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(g.total_wagered)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout">{formatNAD(g.total_paid_out)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout" style={{ color: g.ggr < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}>{formatNAD(g.ggr)}</span></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
                 <div className="cgo-table-bar" style={{ borderRadius: '8px 8px 0 0', borderTop: '1px solid var(--cg-rule)', borderLeft: '1px solid var(--cg-rule)', borderRight: '1px solid var(--cg-rule)' }}>
                     <div className="cgo-table-bar-title">Recent bets</div>
                     <Link href="/operator/wagers" className="cgo-table-bar-link">
@@ -274,7 +327,7 @@ export default function Dashboard(props: DashboardProps) {
                                 <th style={{ minWidth: 180 }}>Player</th>
                                 <th style={{ minWidth: 140 }}>Tenant</th>
                                 <th className="cgo-r" style={{ width: 80 }}>Round</th>
-                                <th style={{ minWidth: 200 }}>Picks</th>
+                                <th style={{ minWidth: 220 }}>Game · selection</th>
                                 <th className="cgo-r" style={{ width: 110 }}>Wager</th>
                                 <th className="cgo-r" style={{ width: 80 }}>Odds</th>
                                 <th className="cgo-r" style={{ width: 110 }}>Potential</th>
@@ -289,13 +342,10 @@ export default function Dashboard(props: DashboardProps) {
                                     </td>
                                 </tr>
                             ) : (
-                                recentBets.map((b) => {
+                                recentBets.map((b, i) => {
                                     const pill = outcomePill(b.outcome);
-                                    const picks = b.team_names.length > 0
-                                        ? b.team_names.slice(0, 2).join(', ') + (b.team_names.length > 2 ? ` +${b.team_names.length - 2}` : '')
-                                        : '—';
                                     return (
-                                        <tr key={b.id ?? Math.random()}>
+                                        <tr key={b.id ?? i}>
                                             <td style={{ maxWidth: 220 }}>
                                                 <div className="cgo-user">
                                                     <div className="cgo-av">{b.player.initials}</div>
@@ -323,17 +373,14 @@ export default function Dashboard(props: DashboardProps) {
                                             <td className="cgo-r">
                                                 <span className="cgo-odds">#{b.round_number ?? '—'}</span>
                                             </td>
-                                            <td style={{ maxWidth: 280 }}>
+                                            <td style={{ maxWidth: 300 }}>
+                                                <div className="cgo-uid" style={{ marginBottom: 2 }}>{b.game_name}</div>
                                                 <span
                                                     className="cgo-selection cgo-cell-clip"
                                                     style={{ display: 'block' }}
-                                                    title={b.team_names.join(', ')}
+                                                    title={b.team_names.length > 0 ? b.team_names.join(', ') : b.detail}
                                                 >
-                                                    {b.team_names.length > 0 ? (
-                                                        <span className="cgo-pick">{picks}</span>
-                                                    ) : (
-                                                        '—'
-                                                    )}
+                                                    <span className="cgo-pick">{b.detail}</span>
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
@@ -371,24 +418,14 @@ function outcomePill(outcome: string): { className: string; label: string } {
             return { className: 'cgo-pill live', label: 'Win' };
         case 'lost':
             return { className: 'cgo-pill flagged', label: 'Loss' };
+        case 'void':
+            return { className: 'cgo-pill void', label: 'Cancelled' };
         case 'pending':
         default:
             return { className: 'cgo-pill pending', label: 'Pending' };
     }
 }
 
-function formatTime(iso: string): string {
-    try {
-        const d = new Date(iso);
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        const ss = String(d.getSeconds()).padStart(2, '0');
-        const day = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
-        return `${hh}:${mm}:${ss} · ${day}`;
-    } catch {
-        return iso;
-    }
-}
 
 // Non-admin fallback. Trimmed-down account view in the brass idiom so
 // the page doesn't go blank for player accounts.

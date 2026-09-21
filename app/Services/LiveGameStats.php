@@ -82,7 +82,8 @@ class LiveGameStats
         return fn (?string $key): ?Tenant => $key ? ($byUuid->get($key) ?? $bySlug->get($key)) : null;
     }
 
-    private function tenantKey(Game $game, Tenant $tenant): string
+    /** The key a game's backend files this tenant under: Fantasy the slug (its quirk), everyone else the uuid. */
+    public function tenantKey(Game $game, Tenant $tenant): string
     {
         return $this->isFantasy($game) ? $tenant->slug : $tenant->uuid;
     }
