@@ -24,6 +24,7 @@ import {
     Gamepad2,
     Gauge,
     History,
+    Landmark,
     LayoutGrid,
     LineChart,
     ListChecks,
@@ -107,6 +108,12 @@ export function buildSystemNav({ isTenantAdmin, isPlatformAdmin, games = [] }: B
             { label: 'Wallet Transactions', href: '/admin/wallet-transactions', icon: History },
             { label: 'Withdrawals', href: '/admin/withdrawals', icon: Coins },
             { label: 'Revenue', href: '/admin/revenue', icon: DollarSign },
+        );
+        if (isPlatformAdmin) {
+            // Player liability vs bank balance: what the business may take out.
+            adminItems.push({ label: 'Treasury', href: '/platform/treasury', icon: Landmark });
+        }
+        adminItems.push(
             { label: 'Reports', href: '/admin/reports', icon: BarChart3 },
             { label: 'Audit Logs', href: '/admin/audit-logs', icon: ListChecks },
         );

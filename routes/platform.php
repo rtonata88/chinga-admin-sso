@@ -13,6 +13,7 @@ use App\Http\Controllers\Platform\RevenueController;
 use App\Http\Controllers\Platform\TenantController;
 use App\Http\Controllers\Platform\TenantGameController;
 use App\Http\Controllers\Platform\TenantVenueController;
+use App\Http\Controllers\Platform\TreasuryController;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -41,6 +42,9 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('pla
     Route::put('games/{game}/settings/global', [GameSettingsController::class, 'updateGlobal'])->name('games.settings.global');
     Route::put('games/{game}/settings/tenant/{tenantUuid}', [GameSettingsController::class, 'updateTenant'])->name('games.settings.tenant');
     Route::get('revenue', fn () => Inertia::render('platform/revenue/index'))->name('platform.revenue');
+    // Player liability and distributable profit, from the wallet ledger plus hand-entered bank figures.
+    Route::get('treasury', [TreasuryController::class, 'index'])->name('platform.treasury');
+    Route::put('treasury', [TreasuryController::class, 'update'])->name('platform.treasury.update');
     Route::get('users', fn () => Inertia::render('platform/users/index'))->name('platform.users');
 
 });
