@@ -179,8 +179,25 @@
             vertical-align: middle;
         }
         table tr:last-child td { border-bottom: 0; }
-        td.r { text-align: right; }
+        td.r, th.r { text-align: right; }
         td.label-cell { color: var(--ink-soft); }
+        table.games th {
+            padding: 4px 0;
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            border-bottom: 1px solid var(--rule-strong);
+            text-align: left;
+        }
+        table.games tr.unavailable td { color: var(--muted); font-style: italic; }
+        .incomplete {
+            border: 1px solid #b42318;
+            color: #b42318;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+            font-size: 10pt;
+        }
 
         .calc tr.subtotal td {
             font-weight: 600;
@@ -305,6 +322,49 @@
                 <div class="label">Bill to</div>
                 <div class="name">{{ $tenant['name'] }}</div>
             </div>
+        </div>
+
+        @if (! $invoice['complete'])
+            <div class="incomplete">
+                <strong>Incomplete.</strong> Figures could not be fetched for
+                {{ implode(', ', $activity['unavailable']) }}. Regenerate this invoice once the backend is reachable; the amount below excludes that activity.
+            </div>
+        @endif
+
+        <div class="section">
+            <h2>Activity by game</h2>
+            <table class="games">
+                <thead>
+                    <tr>
+                        <th>Game</th>
+                        <th class="r">Bets</th>
+                        <th class="r">Players</th>
+                        <th class="r">Wagered</th>
+                        <th class="r">Paid out</th>
+                        <th class="r">GGR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($activity['games'] as $g)
+                        <tr>
+                            <td class="label-cell">{{ $g['name'] }}</td>
+                            <td class="r">{{ number_format($g['bets_placed']) }}</td>
+                            <td class="r">{{ number_format($g['active_players']) }}</td>
+                            <td class="r">{{ $fmtMoney($g['total_wagered']) }}</td>
+                            <td class="r">{{ $fmtMoney($g['total_paid_out']) }}</td>
+                            <td class="r">{{ $fmtMoney($g['ggr']) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td class="label-cell" colspan="6">No game backends in the catalogue.</td></tr>
+                    @endforelse
+                    @foreach ($activity['unavailable'] as $name)
+                        <tr class="unavailable">
+                            <td class="label-cell">{{ $name }}</td>
+                            <td class="r" colspan="5">unavailable</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
 
         <div class="section">
