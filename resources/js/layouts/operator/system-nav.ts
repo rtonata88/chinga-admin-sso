@@ -15,6 +15,7 @@
 // pre-P7 behaviour (the /fantasy/* routes are platform-admin only).
 
 import {
+    Activity,
     BarChart3,
     Building2,
     Coins,
@@ -27,6 +28,7 @@ import {
     LineChart,
     ListChecks,
     MapPin,
+    Percent,
     Ticket,
     Trophy,
     Users,
@@ -49,11 +51,17 @@ interface BuildSystemNavInput {
     games?: NavGame[];
 }
 
-/** Game-specific admin pages, by slug. Vrrr Pha's consoles register here in M5. */
+/** Game-specific admin pages, by slug. */
 const GAME_EXTRAS: Record<string, NavLink[]> = {
     'chinga-fantasy': [
         { label: 'Teams', href: '/fantasy/teams', icon: Trophy },
         { label: 'Rounds', href: '/fantasy/rounds', icon: LineChart },
+    ],
+    // Vrrr Pha consoles (M5): round history with the seed audit, live exposure, realised RTP.
+    'vrrr-pha': [
+        { label: 'Rounds', href: '/vrrr-pha/rounds', icon: LineChart },
+        { label: 'Exposure', href: '/vrrr-pha/exposure', icon: Activity },
+        { label: 'RTP', href: '/vrrr-pha/rtp', icon: Percent },
     ],
 };
 

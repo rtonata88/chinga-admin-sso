@@ -1,5 +1,11 @@
 <?php
 
+use App\Http\Controllers\Admin\Games\FantasyRoundController;
+use App\Http\Controllers\Admin\Games\FantasySettingsController;
+use App\Http\Controllers\Admin\Games\FantasyTeamController;
+use App\Http\Controllers\Admin\Games\GameSettingsController;
+use App\Http\Controllers\Admin\Games\VrrrPhaConsoleController;
+use App\Http\Controllers\Operator\LiveWagersController;
 use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\GameController;
 use App\Http\Controllers\Platform\PlatformRoleManagementController;
@@ -7,11 +13,6 @@ use App\Http\Controllers\Platform\RevenueController;
 use App\Http\Controllers\Platform\TenantController;
 use App\Http\Controllers\Platform\TenantGameController;
 use App\Http\Controllers\Platform\TenantVenueController;
-use App\Http\Controllers\Admin\Games\FantasyTeamController;
-use App\Http\Controllers\Admin\Games\FantasySettingsController;
-use App\Http\Controllers\Admin\Games\FantasyRoundController;
-use App\Http\Controllers\Admin\Games\GameSettingsController;
-use App\Http\Controllers\Operator\LiveWagersController;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -61,6 +62,16 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('fan
     Route::get('rounds/{id}', [FantasyRoundController::class, 'show'])
         ->whereNumber('id')
         ->name('fantasy.rounds.show');
+});
+
+// Vrrr Pha consoles (PRD §8.3, §8.5): rounds with the seed audit, live exposure, realised RTP.
+Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('vrrr-pha')->name('vrrr-pha.')->group(function () {
+    Route::get('rounds', [VrrrPhaConsoleController::class, 'rounds'])->name('rounds');
+    Route::get('rounds/{id}', [VrrrPhaConsoleController::class, 'round'])
+        ->whereNumber('id')
+        ->name('rounds.show');
+    Route::get('exposure', [VrrrPhaConsoleController::class, 'exposure'])->name('exposure');
+    Route::get('rtp', [VrrrPhaConsoleController::class, 'rtp'])->name('rtp');
 });
 
 // Operator Console — trading desk views (Live Wagers Monitor first).

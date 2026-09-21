@@ -8,7 +8,8 @@ use App\Models\Game;
 /**
  * Resolves the admin client for a game by its catalogue row (PRD §4 P4).
  * Chinga Fantasy keeps its subclass for the jackpot endpoint and the
- * legacy URL fallback; every other game gets the generic HTTP client.
+ * legacy URL fallback, Vrrr Pha for its RTP, exposure and seed-audit
+ * consoles; every other game gets the generic HTTP client.
  */
 class GameAdminClientFactory
 {
@@ -16,6 +17,10 @@ class GameAdminClientFactory
     {
         if ($game->slug === FantasyAdminClient::GAME_SLUG) {
             return new FantasyAdminClient($game);
+        }
+
+        if ($game->slug === VrrrPhaAdminClient::GAME_SLUG) {
+            return new VrrrPhaAdminClient($game);
         }
 
         return new HttpGameAdminClient($game);
