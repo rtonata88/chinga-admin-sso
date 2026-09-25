@@ -192,6 +192,17 @@ test('the average winners per round follows grid size, tier weights and house ed
     expect(FantasySettingsSchema::expectedWinners(array_merge($defaults, ['tier_weights' => '1,2,3'])))->toBeNull();
 });
 
+test('launch caps are the defaults and the liability ceiling is a schema key', function () {
+    $defaults = (new \App\Support\SettingsSchema(FantasySettingsSchema::definition()))->defaults();
+    expect($defaults['max_bet_amount'])->toBe(20)
+        ->and($defaults['max_win_per_bet'])->toBe(2000)
+        ->and($defaults['max_total_stake_per_round'])->toBe(5000)
+        ->and($defaults['max_total_liability_per_round'])->toBe(20000);
+    $this->actingAs($this->platformAdmin)
+        ->put("/platform/games/{$this->fantasy->uuid}/settings/global", ['max_total_liability_per_round' => 50])
+        ->assertSessionHasErrors('max_total_liability_per_round');
+});
+
 test('pick_count cannot be changed from four', function () {
     $defaults = (new \App\Support\SettingsSchema(FantasySettingsSchema::definition()))->defaults();
     $this->actingAs($this->platformAdmin)
