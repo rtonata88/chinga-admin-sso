@@ -3,39 +3,90 @@
 namespace App\Support;
 
 /**
- * Chinga Fantasy's settings schema. One source for the migration backfill
- * and the seeder. Defaults mirror gameConfigService.DEFAULTS in
- * chinga-fantasy/app/services/gameConfigService.js and the bounds mirror
- * the validation rules the hardcoded form used to carry. If you change
- * either side, change both — they are a contract between the services.
+ * Chinga Fantasy v2 settings (PRD §11). house_edge is the only setting
+ * that moves RTP and is bounded here AND clamped in the engine; the
+ * bounds are the allowed RTP band (85%–98%), so a save outside it is
+ * refused by validation. tier_odds is the exact 2dp display odds per
+ * tier, comma-separated (the settings form has no number arrays); the
+ * engine derives every probability from it. pick_count is fixed at 4:
+ * it is the exponent in the odds formula, not a tunable. The v1 keys
+ * that made RTP an accident (display_teams, winning_teams_count,
+ * jackpot_percentage, odds range) are gone.
  */
 class FantasySettingsSchema
 {
+    public const RTP_MIN = 0.85;
+
+    public const RTP_MAX = 0.98;
+
     public static function definition(): array
     {
         return [
             'type' => 'object',
             'required' => [
-                'min_bet_amount', 'max_bet_amount', 'display_teams', 'round_betting_seconds',
-                'round_results_seconds', 'round_dialog_seconds', 'min_jackpot_amount',
-                'max_jackpot_amount', 'jackpot_percentage', 'winning_teams_count',
+                'house_edge', 'tier_odds', 'grid_size', 'pick_count', 'min_bet_amount', 'max_bet_amount',
+                'max_win_per_bet', 'max_total_stake_per_round', 'jackpot_share_of_edge', 'jackpot_cap',
+                'jackpot_activation', 'betting_seconds', 'results_seconds', 'settle_seconds',
             ],
             'properties' => [
+                'house_edge' => ['type' => 'number', 'title' => 'House edge', 'description' => 'The ONLY setting that changes RTP. RTP = 1 − edge: 0.10 is 90% back to players. Allowed 0.02–0.15 (RTP 98%–85%); the engine clamps it too.', 'minimum' => 1 - self::RTP_MAX, 'maximum' => 1 - self::RTP_MIN, 'default' => 0.10, 'x-group' => 'game'],
+                'tier_odds' => ['type' => 'string', 'title' => 'Tier odds', 'description' => 'Exact 2dp display odds per tier, favourite to longshot, comma-separated. Win chances are derived from these; never the other way round.', 'default' => '1.25,1.50,1.80,2.20,2.75,3.50,4.50', 'x-group' => 'game', 'x-tenant-overridable' => false],
+                'tier_weights' => ['type' => 'string', 'title' => 'Tier weights', 'description' => 'Optional relative teams per tier, comma-separated; blank means equal.', 'x-group' => 'game', 'x-tenant-overridable' => false],
+                'grid_size' => ['type' => 'integer', 'title' => 'Grid size', 'minimum' => 20, 'maximum' => 100, 'default' => 50, 'x-group' => 'game', 'x-tenant-overridable' => false],
+                'pick_count' => ['type' => 'integer', 'title' => 'Picks per ticket', 'description' => 'Fixed at 4: changing it changes the odds formula and is a code change.', 'minimum' => 4, 'maximum' => 4, 'default' => 4, 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'min_bet_amount' => ['type' => 'number', 'title' => 'Min bet (NAD)', 'minimum' => 1, 'default' => 5, 'x-group' => 'game', 'x-format' => 'currency'],
                 'max_bet_amount' => ['type' => 'number', 'title' => 'Max bet (NAD)', 'minimum' => 1, 'default' => 50, 'x-group' => 'game', 'x-format' => 'currency'],
-                'display_teams' => ['type' => 'integer', 'title' => 'Display teams', 'minimum' => 4, 'maximum' => 100, 'default' => 50, 'x-group' => 'game'],
-                'winning_teams_count' => ['type' => 'integer', 'title' => 'Winning teams', 'description' => 'How many teams are drawn as winners each round', 'minimum' => 4, 'maximum' => 50, 'default' => 20, 'x-group' => 'game'],
-                'round_betting_seconds' => ['type' => 'integer', 'title' => 'Betting phase (seconds)', 'minimum' => 10, 'maximum' => 300, 'default' => 30, 'x-group' => 'game'],
-                'round_results_seconds' => ['type' => 'integer', 'title' => 'Results phase (seconds)', 'minimum' => 5, 'maximum' => 120, 'default' => 30, 'x-group' => 'game'],
-                'round_dialog_seconds' => ['type' => 'integer', 'title' => 'Dialog phase (seconds)', 'minimum' => 5, 'maximum' => 120, 'default' => 30, 'x-group' => 'game'],
-                'min_jackpot_amount' => ['type' => 'number', 'title' => 'Min jackpot (NAD)', 'minimum' => 0, 'default' => 100, 'x-group' => 'game', 'x-format' => 'currency'],
-                'max_jackpot_amount' => ['type' => 'number', 'title' => 'Max jackpot (NAD)', 'description' => 'Jackpot stops growing once this cap is reached', 'minimum' => 0, 'default' => 50000, 'x-group' => 'game', 'x-format' => 'currency'],
-                'jackpot_percentage' => ['type' => 'integer', 'title' => 'Jackpot contribution %', 'description' => 'Of each losing deposit-funded bet that feeds the jackpot', 'minimum' => 0, 'maximum' => 100, 'default' => 15, 'x-group' => 'game', 'x-format' => 'percent'],
+                'max_win_per_bet' => ['type' => 'number', 'title' => 'Max win per ticket (NAD)', 'description' => 'Drives the per-ticket stake cap shown on the slip; a payout is never truncated.', 'minimum' => 100, 'default' => 16000, 'x-group' => 'game', 'x-format' => 'currency'],
+                'max_total_stake_per_round' => ['type' => 'number', 'title' => 'Max total stake per round (NAD)', 'description' => 'Exposure ceiling per tenant per round; further bets are refused once reached, never on the drawn outcome.', 'minimum' => 100, 'default' => 25000, 'x-group' => 'game', 'x-format' => 'currency'],
+                'jackpot_share_of_edge' => ['type' => 'number', 'title' => 'Jackpot share of edge', 'description' => 'Fraction of the house edge that funds the Chinga Bonus: 0.10 of a 0.10 edge is 1% of turnover.', 'minimum' => 0, 'maximum' => 1, 'default' => 0.10, 'x-group' => 'game'],
+                'jackpot_cap' => ['type' => 'number', 'title' => 'Jackpot cap (NAD)', 'description' => 'Accrual stops at the cap (published in the rules).', 'minimum' => 0, 'default' => 50000, 'x-group' => 'game', 'x-format' => 'currency'],
+                'jackpot_activation' => ['type' => 'number', 'title' => 'Jackpot activation (NAD)', 'description' => 'The pool must reach this before a bonus team is dealt.', 'minimum' => 0, 'default' => 100, 'x-group' => 'game', 'x-format' => 'currency'],
+                'jackpot_cap_policy' => ['type' => 'string', 'title' => 'At the cap', 'enum' => ['stop'], 'default' => 'stop', 'x-group' => 'game', 'x-tenant-overridable' => false, 'x-enum-labels' => ['stop' => 'Accrual stops']],
+                'betting_seconds' => ['type' => 'integer', 'title' => 'Betting phase (seconds)', 'minimum' => 5, 'maximum' => 300, 'default' => 30, 'x-group' => 'game'],
+                'results_seconds' => ['type' => 'integer', 'title' => 'Results phase (seconds)', 'minimum' => 3, 'maximum' => 120, 'default' => 30, 'x-group' => 'game'],
+                'settle_seconds' => ['type' => 'integer', 'title' => 'Settle phase (seconds)', 'minimum' => 3, 'maximum' => 120, 'default' => 30, 'x-group' => 'game'],
                 'default_business_model' => ['type' => 'string', 'title' => 'Default business model', 'enum' => ['reseller', 'direct'], 'default' => 'reseller', 'x-group' => 'commercial', 'x-tenant-overridable' => false, 'x-enum-labels' => ['reseller' => 'Reseller (betting shop, gets revenue share)', 'direct' => 'Direct (platform-sold, 100% to platform)']],
                 'default_revenue_share_pct' => ['type' => 'number', 'title' => 'Default revenue share %', 'description' => "Tenant's cut of NGR. e.g. 70% → tenant gets 70%, platform 30%.", 'minimum' => 0, 'maximum' => 100, 'default' => 70, 'x-group' => 'commercial', 'x-tenant-overridable' => false, 'x-format' => 'percent'],
                 'default_tax_pct' => ['type' => 'number', 'title' => 'Default gambling tax %', 'description' => 'Deducted from GGR before the share split.', 'minimum' => 0, 'maximum' => 100, 'default' => 0, 'x-group' => 'commercial', 'x-tenant-overridable' => false, 'x-format' => 'percent'],
-                'house_edge_target_pct' => ['type' => 'number', 'title' => 'House edge target %', 'description' => 'Informational target. e.g. 10% means we expect to keep 10% of every NAD wagered (RTP = 90%).', 'minimum' => 0, 'maximum' => 100, 'default' => 5, 'x-group' => 'commercial', 'x-tenant-overridable' => false, 'x-format' => 'percent'],
             ],
         ];
+    }
+
+    /** v1 keys carried into their v2 equivalents; everything else v1 is dropped. */
+    public static function migrateV1(array $old): array
+    {
+        $map = [
+            'min_bet_amount' => 'min_bet_amount',
+            'max_bet_amount' => 'max_bet_amount',
+            'max_jackpot_amount' => 'jackpot_cap',
+            'min_jackpot_amount' => 'jackpot_activation',
+            'round_betting_seconds' => 'betting_seconds',
+            'round_results_seconds' => 'results_seconds',
+            'round_dialog_seconds' => 'settle_seconds',
+            'default_business_model' => 'default_business_model',
+            'default_revenue_share_pct' => 'default_revenue_share_pct',
+            'default_tax_pct' => 'default_tax_pct',
+        ];
+        $new = [];
+        foreach ($map as $from => $to) {
+            if (array_key_exists($from, $old)) {
+                $new[$to] = $old[$from];
+            }
+        }
+        foreach (array_keys(self::definition()['properties']) as $key) {
+            if (array_key_exists($key, $old)) {
+                $new[$key] = $old[$key];
+            }
+        }
+
+        return $new;
+    }
+
+    /** Theoretical RTP for a settings array, or null when the edge is absent. */
+    public static function rtp(array $settings): ?float
+    {
+        $edge = $settings['house_edge'] ?? null;
+
+        return is_numeric($edge) ? 1 - (float) $edge : null;
     }
 }

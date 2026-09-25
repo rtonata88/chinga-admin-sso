@@ -117,3 +117,30 @@ test('a game that is down is named and the rest still shows', function () {
             ->where('feed_errors', ['Vrrr Pha'])
         );
 });
+
+test('Fantasy v2 rows (four picks at an exact combined price) are normalised as tickets, not crash bets', function () {
+    // A fresh fake: stubs merge and the first match wins, so fakeFeeds() must not be layered under this one.
+    Http::fake([
+        'sso.test/oauth/token' => Http::response(['access_token' => 'tok', 'expires_in' => 600]),
+        'fantasy.test/api/admin/stats/summary*' => Http::response(['bets_placed' => 1, 'active_players' => 1, 'total_wagered' => '10.00', 'total_paid_out' => '74.25']),
+        'fantasy.test/api/admin/stats/by-day*' => Http::response(['days' => []]),
+        'fantasy.test/api/admin/bets/recent*' => Http::response(['data' => [
+            ['id' => 5, 'user_uuid' => $this->player->uuid, 'tenant_uuid' => $this->tenant->uuid, 'sequence' => 44, 'round_number' => 44, 'stake' => '10.00', 'bet_amount' => '10.00',
+                'combined_odds' => '7.425', 'positions' => [0, 1, 2, 3], 'team_names' => ['Katutura Kings', 'Oshakati Storm', 'Walvis Wave', 'Rundu Rhinos'],
+                'outcome' => 'won', 'payout' => '74.25', 'winning_amount' => '74.25', 'potential_payout' => '74.25', 'placed_at' => '2026-09-21T11:00:00Z'],
+        ]]),
+        'crash.test/*' => Http::response('down', 503),
+    ]);
+
+    $this->actingAs($this->platformAdmin)
+        ->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('recent_bets.0.game_name', 'Chinga Fantasy')
+            ->where('recent_bets.0.detail', 'Katutura Kings, Oshakati Storm +2 · 7.43×')
+            ->where('recent_bets.0.outcome', 'win')
+            ->where('recent_bets.0.round_number', 44)
+            ->where('recent_bets.0.combined_odds', fn ($v) => (float) $v === 7.425)
+            ->where('recent_bets.0.potential_payout', fn ($v) => (float) $v === 74.25)
+        );
+});

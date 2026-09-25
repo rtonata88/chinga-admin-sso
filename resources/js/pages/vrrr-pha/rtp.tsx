@@ -40,7 +40,13 @@ interface TenantOption {
     slug: string;
 }
 
+interface GameProps {
+    name: string;
+    base: string;
+}
+
 interface Props {
+    game?: GameProps;
     rtp: Rtp | null;
     days: Day[];
     tenants: TenantOption[];
@@ -65,7 +71,7 @@ function deviation(realised: number | null, theoretical: number | null, bets: nu
     return { text, color: 'var(--cg-pos)' };
 }
 
-export default function RtpPage({ rtp, days = [], tenants = [], filters, error }: Props) {
+export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, rtp, days = [], tenants = [], filters, error }: Props) {
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
     const [from, setFrom] = useState(filters?.from ?? '');
     const [to, setTo] = useState(filters?.to ?? '');
@@ -78,7 +84,7 @@ export default function RtpPage({ rtp, days = [], tenants = [], filters, error }
         if (t) params.tenant_uuid = t;
         if (f) params.from = f;
         if (u) params.to = u;
-        router.get('/vrrr-pha/rtp', params, { preserveState: true, preserveScroll: true });
+        router.get(`${game.base}/rtp`, params, { preserveState: true, preserveScroll: true });
     };
 
     const realised = rtp?.realised_rtp === null || rtp?.realised_rtp === undefined ? null : num(rtp.realised_rtp);
@@ -86,12 +92,12 @@ export default function RtpPage({ rtp, days = [], tenants = [], filters, error }
     const dev = deviation(realised, theoretical, rtp?.bets_placed ?? 0);
 
     return (
-        <UserLayout title="Vrrr Pha RTP">
-            <Head title="Vrrr Pha RTP · Admin" />
+        <UserLayout title={`${game.name} RTP`}>
+            <Head title={`${game.name} RTP · Admin`} />
             <div className="cgo-page">
                 <div className="cgo-page-head">
                     <div>
-                        <div className="cgo-eyebrow">Vrrr Pha</div>
+                        <div className="cgo-eyebrow">{game.name}</div>
                         <h1 className="cgo-title">Return to player</h1>
                         <div className="cgo-subtitle">
                             Realised RTP over the window against the theoretical figure the rounds were drawn with.

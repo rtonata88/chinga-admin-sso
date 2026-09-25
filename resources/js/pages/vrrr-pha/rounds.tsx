@@ -44,7 +44,13 @@ interface Filters {
     total: number | null;
 }
 
+interface GameProps {
+    name: string;
+    base: string;
+}
+
 interface Props {
+    game?: GameProps;
     rounds: Round[];
     tenants: TenantOption[];
     tenantNames: Record<string, string>;
@@ -52,7 +58,7 @@ interface Props {
     error: string | null;
 }
 
-export default function Rounds({ rounds = [], tenants = [], tenantNames = {}, filters, error }: Props) {
+export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, rounds = [], tenants = [], tenantNames = {}, filters, error }: Props) {
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
 
     const applyFilters = (next: { tenant_uuid?: string | null; page?: number }) => {
@@ -60,7 +66,7 @@ export default function Rounds({ rounds = [], tenants = [], tenantNames = {}, fi
         const nextTenant = next.tenant_uuid !== undefined ? next.tenant_uuid : tenantUuid;
         if (nextTenant) params.tenant_uuid = nextTenant;
         if (next.page && next.page > 1) params.page = next.page;
-        router.get('/vrrr-pha/rounds', params, { preserveState: true, preserveScroll: true });
+        router.get(`${game.base}/rounds`, params, { preserveState: true, preserveScroll: true });
     };
 
     const isEmpty = rounds.length === 0;
@@ -83,12 +89,12 @@ export default function Rounds({ rounds = [], tenants = [], tenantNames = {}, fi
     }, [rounds]);
 
     return (
-        <UserLayout title="Vrrr Pha rounds">
-            <Head title="Vrrr Pha rounds · Admin" />
+        <UserLayout title={`${game.name} rounds`}>
+            <Head title={`${game.name} rounds · Admin`} />
             <div className="cgo-page">
                 <div className="cgo-page-head">
                     <div>
-                        <div className="cgo-eyebrow">Vrrr Pha</div>
+                        <div className="cgo-eyebrow">{game.name}</div>
                         <h1 className="cgo-title">Rounds</h1>
                         <div className="cgo-subtitle">
                             Round history — crash points, bets, and the seed audit for every settled round.
@@ -175,7 +181,7 @@ export default function Rounds({ rounds = [], tenants = [], tenantNames = {}, fi
                                     return (
                                         <tr
                                             key={r.id}
-                                            onClick={() => router.get(`/vrrr-pha/rounds/${r.id}`)}
+                                            onClick={() => router.get(`${game.base}/rounds/${r.id}`)}
                                             style={{ cursor: 'pointer' }}
                                         >
                                             <td>

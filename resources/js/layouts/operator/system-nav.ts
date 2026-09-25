@@ -57,6 +57,8 @@ const GAME_EXTRAS: Record<string, NavLink[]> = {
     'chinga-fantasy': [
         { label: 'Teams', href: '/fantasy/teams', icon: Trophy },
         { label: 'Rounds', href: '/fantasy/rounds', icon: LineChart },
+        { label: 'Exposure', href: '/fantasy/exposure', icon: Activity },
+        { label: 'RTP', href: '/fantasy/rtp', icon: Percent },
     ],
     // Vrrr Pha consoles (M5): round history with the seed audit, live exposure, realised RTP.
     'vrrr-pha': [

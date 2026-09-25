@@ -11,3 +11,5 @@ Artisan::command('inspire', function () {
 Schedule::command('revenue:calculate --period=daily')->dailyAt('02:00');
 Schedule::command('game-sessions:cleanup')->hourly();
 Schedule::command('wallets:reconcile')->dailyAt('03:00');
+// Realised vs theoretical RTP per game, the pricing-bug tripwire (Fantasy v2 PRD §11).
+Schedule::command('games:rtp-drift --days=7')->dailyAt('04:00');

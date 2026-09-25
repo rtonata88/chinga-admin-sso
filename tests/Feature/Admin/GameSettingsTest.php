@@ -47,21 +47,22 @@ test('settings page renders from the schema with saved values over defaults', fu
             ->component('games/settings')
             ->where('game.uuid', $this->fantasy->uuid)
             ->where('game.settings.min_bet_amount', 12)
-            ->where('game.settings.display_teams', 50)
-            ->has('schema.properties.display_teams')
-            ->where('schema.properties.display_teams.maximum', 100)
+            ->where('game.settings.grid_size', 50)
+            ->where('game.theoretical_rtp', 0.9)
+            ->has('schema.properties.grid_size')
+            ->where('schema.properties.grid_size.maximum', 100)
             ->has('tenants', 0)
         );
 });
 
 test('global update is validated from the schema and stores only schema keys', function () {
     $this->actingAs($this->platformAdmin)
-        ->put("/platform/games/{$this->fantasy->uuid}/settings/global", ['display_teams' => 1000])
-        ->assertSessionHasErrors(['display_teams']);
+        ->put("/platform/games/{$this->fantasy->uuid}/settings/global", ['grid_size' => 1000])
+        ->assertSessionHasErrors(['grid_size']);
 
     $valid = array_merge(
         (new \App\Support\SettingsSchema(FantasySettingsSchema::definition()))->defaults(),
-        ['display_teams' => 40, 'not_in_schema' => 'ignored'],
+        ['grid_size' => 40, 'not_in_schema' => 'ignored'],
     );
 
     $this->actingAs($this->platformAdmin)
@@ -70,7 +71,7 @@ test('global update is validated from the schema and stores only schema keys', f
         ->assertSessionHasNoErrors();
 
     $settings = $this->fantasy->fresh()->settings;
-    expect($settings['display_teams'])->toBe(40)
+    expect($settings['grid_size'])->toBe(40)
         ->and($settings)->not->toHaveKey('not_in_schema');
 });
 
@@ -156,4 +157,43 @@ test('the platform catalogue API rejects a schema outside the supported subset',
         ])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['settings_schema']);
+});
+
+test('the house edge is bounded to the RTP band and a change is logged with before and after RTP (PRD §11)', function () {
+    $defaults = (new \App\Support\SettingsSchema(FantasySettingsSchema::definition()))->defaults();
+
+    // 0.20 would be 80% RTP: outside the 85–98% band, refused at validation, nothing saved.
+    $this->actingAs($this->platformAdmin)
+        ->put("/platform/games/{$this->fantasy->uuid}/settings/global", array_merge($defaults, ['house_edge' => 0.2]))
+        ->assertSessionHasErrors(['house_edge']);
+    expect($this->fantasy->fresh()->settings)->not->toHaveKey('house_edge');
+
+    \Illuminate\Support\Facades\Log::spy();
+    $this->actingAs($this->platformAdmin)
+        ->put("/platform/games/{$this->fantasy->uuid}/settings/global", array_merge($defaults, ['house_edge' => 0.12]))
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Global settings updated. Theoretical RTP is now 88.00%.');
+    expect((float) $this->fantasy->fresh()->settings['house_edge'])->toBe(0.12);
+    \Illuminate\Support\Facades\Log::shouldHaveReceived('info')->withArgs(fn ($msg, $ctx) => $msg === 'game.rtp_changed' && $ctx['rtp_after'] === 0.88)->once();
+});
+
+test('pick_count cannot be changed from four', function () {
+    $defaults = (new \App\Support\SettingsSchema(FantasySettingsSchema::definition()))->defaults();
+    $this->actingAs($this->platformAdmin)
+        ->put("/platform/games/{$this->fantasy->uuid}/settings/global", array_merge($defaults, ['pick_count' => 5]))
+        ->assertSessionHasErrors(['pick_count']);
+});
+
+test('v1 settings migrate to their v2 keys and the accident-prone keys are dropped', function () {
+    $new = FantasySettingsSchema::migrateV1([
+        'min_bet_amount' => 12, 'max_bet_amount' => 60, 'display_teams' => 50, 'winning_teams_count' => 28,
+        'jackpot_percentage' => 15, 'max_jackpot_amount' => 40000, 'min_jackpot_amount' => 150,
+        'round_betting_seconds' => 25, 'default_revenue_share_pct' => 65,
+    ]);
+    expect($new)->toEqual([
+        'min_bet_amount' => 12, 'max_bet_amount' => 60, 'jackpot_cap' => 40000, 'jackpot_activation' => 150,
+        'betting_seconds' => 25, 'default_revenue_share_pct' => 65,
+    ]);
+    expect(FantasySettingsSchema::rtp(['house_edge' => 0.1]))->toBe(0.9)
+        ->and(FantasySettingsSchema::rtp([]))->toBeNull();
 });

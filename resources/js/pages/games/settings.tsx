@@ -29,7 +29,7 @@ interface TenantConfig {
 }
 
 interface Props {
-    game: { uuid: string; name: string; slug: string; settings: SettingsValues };
+    game: { uuid: string; name: string; slug: string; settings: SettingsValues; theoretical_rtp?: number | null };
     schema: SettingsSchema;
     tenants: TenantConfig[];
 }
@@ -123,6 +123,11 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                     <div>
                         <div className="cgo-eyebrow">{game.name}</div>
                         <h1 className="cgo-title">Settings</h1>
+                        {typeof game.theoretical_rtp === 'number' && (
+                            <div data-testid="theoretical-rtp" style={{ fontFamily: 'var(--cg-mono)', fontSize: 12, letterSpacing: '.06em', color: 'var(--cg-brass-hi)', margin: '4px 0 6px' }}>
+                                THEORETICAL RTP {(game.theoretical_rtp * 100).toFixed(2)}% · house edge is the only setting that changes it
+                            </div>
+                        )}
                         <div className="cgo-subtitle">
                             Game-wide defaults for <strong style={{ color: 'var(--cg-fg-1)' }}>{game.name}</strong> with
                             per-tenant overrides. Fields come from the game&apos;s settings schema.

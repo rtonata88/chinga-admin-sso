@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\Games\FantasyConsoleController;
 use App\Http\Controllers\Admin\Games\FantasyRoundController;
 use App\Http\Controllers\Admin\Games\FantasySettingsController;
 use App\Http\Controllers\Admin\Games\FantasyTeamController;
@@ -66,6 +67,12 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('fan
     Route::get('rounds/{id}', [FantasyRoundController::class, 'show'])
         ->whereNumber('id')
         ->name('fantasy.rounds.show');
+
+    // Fantasy v2 (PRD §5, §6): live exposure and realised RTP from the v2 engine.
+    Route::get('exposure', [FantasyConsoleController::class, 'exposure'])->name('fantasy.exposure');
+    Route::get('rtp', [FantasyConsoleController::class, 'rtp'])->name('fantasy.rtp');
+    Route::get('v2/rounds', [FantasyConsoleController::class, 'rounds'])->name('fantasy.v2.rounds');
+    Route::get('v2/rounds/{id}', [FantasyConsoleController::class, 'round'])->whereNumber('id')->name('fantasy.v2.rounds.show');
 });
 
 // Vrrr Pha consoles (PRD §8.3, §8.5): rounds with the seed audit, live exposure, realised RTP.

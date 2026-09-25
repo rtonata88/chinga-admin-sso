@@ -67,7 +67,13 @@ interface Verify {
     error?: string;
 }
 
+interface GameProps {
+    name: string;
+    base: string;
+}
+
 interface Props {
+    game?: GameProps;
     round: Round | null;
     bets: Bet[];
     verify: Verify | null;
@@ -92,7 +98,7 @@ function Field({ label, value, mono, wrap }: { label: string; value: string; mon
     );
 }
 
-export default function RoundDetail({ round, bets = [], verify, tenantNames = {}, error, backHref = '/vrrr-pha/rounds' }: Props) {
+export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, round, bets = [], verify, tenantNames = {}, error, backHref = `${game.base}/rounds` }: Props) {
     const back = (
         <Link href={backHref} className="cg-btn cg-btn--text cg-btn--sm" style={{ marginBottom: 12, display: 'inline-block' }}>
             ‹ Back to rounds
@@ -101,8 +107,8 @@ export default function RoundDetail({ round, bets = [], verify, tenantNames = {}
 
     if (error || !round) {
         return (
-            <UserLayout title="Vrrr Pha round">
-                <Head title="Vrrr Pha round · Admin" />
+            <UserLayout title={`${game.name} round`}>
+                <Head title={`${game.name} round · Admin`} />
                 <div className="cgo-page">
                     {back}
                     <div style={ERROR_BOX}>
@@ -122,12 +128,12 @@ export default function RoundDetail({ round, bets = [], verify, tenantNames = {}
 
     return (
         <UserLayout title={title}>
-            <Head title={`${title} · Vrrr Pha`} />
+            <Head title={`${title} · ${game.name}`} />
             <div className="cgo-page">
                 {back}
                 <div className="cgo-page-head">
                     <div>
-                        <div className="cgo-eyebrow">Vrrr Pha · {tenantLabel(round.tenant_uuid, tenantNames)}</div>
+                        <div className="cgo-eyebrow">{game.name} · {tenantLabel(round.tenant_uuid, tenantNames)}</div>
                         <h1 className="cgo-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             {title}
                             <span className={`cgo-pill ${state.pill}`}>{state.label}</span>

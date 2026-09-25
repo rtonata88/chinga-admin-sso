@@ -32,7 +32,13 @@ interface TenantOption {
     slug: string;
 }
 
+interface GameProps {
+    name: string;
+    base: string;
+}
+
 interface Props {
+    game?: GameProps;
     rows: Row[];
     tenants: TenantOption[];
     tenantNames: Record<string, string>;
@@ -43,7 +49,7 @@ interface Props {
 
 const REFRESH_MS = 10_000;
 
-export default function Exposure({ rows = [], tenants = [], tenantNames = {}, filters, fetchedAt, error }: Props) {
+export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, rows = [], tenants = [], tenantNames = {}, filters, fetchedAt, error }: Props) {
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
     const [live, setLive] = useState(true);
 
@@ -59,7 +65,7 @@ export default function Exposure({ rows = [], tenants = [], tenantNames = {}, fi
 
     const applyTenant = (v: string | null) => {
         setTenantUuid(v);
-        router.get('/vrrr-pha/exposure', v ? { tenant_uuid: v } : {}, { preserveState: true, preserveScroll: true });
+        router.get(`${game.base}/exposure`, v ? { tenant_uuid: v } : {}, { preserveState: true, preserveScroll: true });
     };
 
     const totals = useMemo(() => {
@@ -77,12 +83,12 @@ export default function Exposure({ rows = [], tenants = [], tenantNames = {}, fi
     }, [rows]);
 
     return (
-        <UserLayout title="Vrrr Pha exposure">
-            <Head title="Vrrr Pha exposure · Admin" />
+        <UserLayout title={`${game.name} exposure`}>
+            <Head title={`${game.name} exposure · Admin`} />
             <div className="cgo-page">
                 <div className="cgo-page-head">
                     <div>
-                        <div className="cgo-eyebrow">Vrrr Pha</div>
+                        <div className="cgo-eyebrow">{game.name}</div>
                         <h1 className="cgo-title">Exposure</h1>
                         <div className="cgo-subtitle">
                             Open rounds right now — stake committed against each tenant's per-round cap, and the worst case against max win.
@@ -167,7 +173,7 @@ export default function Exposure({ rows = [], tenants = [], tenantNames = {}, fi
                                         <tr
                                             key={r.round_id}
                                             className={r.alert ? 'flagged' : undefined}
-                                            onClick={() => router.get(`/vrrr-pha/rounds/${r.round_id}`)}
+                                            onClick={() => router.get(`${game.base}/rounds/${r.round_id}`)}
                                             style={{ cursor: 'pointer' }}
                                         >
                                             <td><span className="cgo-name" style={{ fontFamily: 'var(--cg-mono)' }}>#{r.sequence}</span></td>

@@ -114,16 +114,23 @@ class LiveActivity
     /** One row shape for every game; see the class docblock. */
     private function normalize(Game $game, array $b): array
     {
-        $isCrash = array_key_exists('stake', $b);
+        $isCrash = $game->slug === VrrrPhaAdminClient::GAME_SLUG;
         $outcome = (string) ($b['outcome'] ?? 'pending');
         $mapped = match ($outcome) {
-            'cashed', 'win' => 'win',
+            'cashed', 'win', 'won' => 'win',
             'busted', 'lost' => 'lost',
             'cancelled' => 'void',
             default => 'pending',
         };
         $mult = fn ($v) => number_format((float) $v, 2).'×';
-        if ($isCrash) {
+        if (! $isCrash && isset($b['combined_odds'], $b['positions'])) {
+            // Fantasy v2: four picks at an exact combined price; a win pays stake × odds (+ bonus).
+            $names = $b['team_names'] ?? [];
+            $detail = ($names ? implode(', ', array_slice($names, 0, 2)).(count($names) > 2 ? ' +'.(count($names) - 2) : '') : count($b['positions']).' picks')
+                .' · '.$mult($b['combined_odds']);
+            $odds = $b['combined_odds'];
+            $potential = $mapped === 'win' ? ($b['winning_amount'] ?? $b['payout'] ?? 0) : ($b['potential_payout'] ?? (float) ($b['stake'] ?? 0) * (float) $odds);
+        } elseif ($isCrash) {
             $detail = match ($outcome) {
                 'cashed' => 'Cashed out at '.$mult($b['cashout_multiplier'] ?? 0),
                 'busted' => 'Crashed at '.$mult($b['crash_point'] ?? 0),

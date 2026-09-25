@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\ProvablyFairAdminClient;
 use App\Models\Game;
 
 /**
@@ -14,7 +15,7 @@ use App\Models\Game;
  * constructor-injectable with no arguments. Tenants are always addressed
  * by uuid: the engine refuses a slug.
  */
-class VrrrPhaAdminClient extends HttpGameAdminClient
+class VrrrPhaAdminClient extends HttpGameAdminClient implements ProvablyFairAdminClient
 {
     public const GAME_SLUG = 'vrrr-pha';
 
