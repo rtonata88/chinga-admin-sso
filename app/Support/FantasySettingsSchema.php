@@ -31,8 +31,8 @@ class FantasySettingsSchema
             'properties' => [
                 'house_edge' => ['type' => 'number', 'title' => 'House edge', 'description' => 'The ONLY setting that changes RTP. RTP = 1 − edge: 0.10 is 90% back to players. Allowed 0.02–0.15 (RTP 98%–85%); the engine clamps it too.', 'minimum' => 1 - self::RTP_MAX, 'maximum' => 1 - self::RTP_MIN, 'default' => 0.10, 'x-group' => 'game'],
                 'tier_odds' => ['type' => 'string', 'title' => 'Tier odds', 'description' => 'Exact 2dp display odds per tier, favourite to longshot, comma-separated. Win chances are derived from these; never the other way round.', 'default' => '1.25,1.50,1.80,2.20,2.75,3.50,4.50', 'x-group' => 'game', 'x-tenant-overridable' => false],
-                'tier_weights' => ['type' => 'string', 'title' => 'Tier weights', 'description' => 'Optional relative teams per tier, comma-separated; blank means equal.', 'x-group' => 'game', 'x-tenant-overridable' => false],
-                'grid_size' => ['type' => 'integer', 'title' => 'Grid size', 'minimum' => 20, 'maximum' => 100, 'default' => 50, 'x-group' => 'game', 'x-tenant-overridable' => false],
+                'tier_weights' => ['type' => 'string', 'title' => 'Tier weights', 'description' => 'Relative teams per tier, favourite to longshot, comma-separated; blank means equal. With the grid size this sets the average number of winners per round (the default 12,10,9,7,6,5,3 on a grid of 52 gives about 28).', 'default' => '12,10,9,7,6,5,3', 'x-group' => 'game', 'x-tenant-overridable' => false],
+                'grid_size' => ['type' => 'integer', 'title' => 'Grid size', 'minimum' => 20, 'maximum' => 100, 'default' => 52, 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'pick_count' => ['type' => 'integer', 'title' => 'Picks per ticket', 'description' => 'Fixed at 4: changing it changes the odds formula and is a code change.', 'minimum' => 4, 'maximum' => 4, 'default' => 4, 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'min_bet_amount' => ['type' => 'number', 'title' => 'Min bet (NAD)', 'minimum' => 1, 'default' => 5, 'x-group' => 'game', 'x-format' => 'currency'],
                 'max_bet_amount' => ['type' => 'number', 'title' => 'Max bet (NAD)', 'minimum' => 1, 'default' => 50, 'x-group' => 'game', 'x-format' => 'currency'],
@@ -80,6 +80,89 @@ class FantasySettingsSchema
         }
 
         return $new;
+    }
+
+    /**
+     * Teams per tier for a settings array: the grid split by the tier
+     * weights, largest remainders first, ties to the lower tier. The same
+     * rule as tierCounts() in @chinga/fantasy-math.
+     *
+     * @return int[]|null
+     */
+    public static function tierCounts(array $settings): ?array
+    {
+        $odds = self::numberList($settings['tier_odds'] ?? null);
+        $grid = $settings['grid_size'] ?? null;
+        if ($odds === [] || ! is_numeric($grid) || (int) $grid < 1) {
+            return null;
+        }
+        $weights = self::numberList($settings['tier_weights'] ?? null);
+        if ($weights === []) {
+            $weights = array_fill(0, count($odds), 1.0);
+        }
+        if (count($weights) !== count($odds) || array_sum($weights) <= 0) {
+            return null;
+        }
+        $total = array_sum($weights);
+        $raw = array_map(fn (float $w) => $w / $total * (int) $grid, $weights);
+        $counts = array_map(fn (float $r) => (int) floor($r), $raw);
+        $remainder = (int) $grid - array_sum($counts);
+        $order = array_keys($raw);
+        usort($order, function (int $a, int $b) use ($raw, $counts) {
+            $fa = $raw[$a] - $counts[$a];
+            $fb = $raw[$b] - $counts[$b];
+
+            return $fb <=> $fa ?: $a <=> $b;
+        });
+        for ($i = 0; $i < $remainder; $i++) {
+            $counts[$order[$i % count($order)]]++;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Average winners per round: each team wins on its own with
+     * p = (1 − e)^(1/4) / odds, so the mean is the sum of p over the grid.
+     * It is not a setting in itself; grid size, tier weights and house
+     * edge set it, and outcomes stay independent.
+     */
+    public static function expectedWinners(array $settings): ?float
+    {
+        $counts = self::tierCounts($settings);
+        $odds = self::numberList($settings['tier_odds'] ?? null);
+        $edge = $settings['house_edge'] ?? null;
+        if ($counts === null || ! is_numeric($edge)) {
+            return null;
+        }
+        $factor = (1 - (float) $edge) ** 0.25;
+        $mean = 0.0;
+        foreach ($odds as $i => $o) {
+            if ($o <= 0) {
+                return null;
+            }
+            $mean += $counts[$i] * ($factor / $o);
+        }
+
+        return $mean;
+    }
+
+    /** @return float[] */
+    private static function numberList(mixed $raw): array
+    {
+        if (! is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+        $out = [];
+        foreach (explode(',', $raw) as $part) {
+            $part = trim($part);
+            if (! is_numeric($part)) {
+                return [];
+            }
+            $out[] = (float) $part;
+        }
+
+        return $out;
     }
 
     /** Theoretical RTP for a settings array, or null when the edge is absent. */

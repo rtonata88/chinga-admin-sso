@@ -28,6 +28,7 @@ class GameSettingsController extends Controller
         // values actually in effect rather than blanks.
         $effective = array_merge($schema->defaults(), $game->settings ?? []);
         $rtp = FantasySettingsSchema::rtp($effective);
+        $expectedWinners = $rtp === null ? null : FantasySettingsSchema::expectedWinners($effective);
 
         $tenants = $game->tenants()
             ->select('tenants.id', 'tenants.uuid', 'tenants.name', 'tenants.slug')
@@ -49,6 +50,9 @@ class GameSettingsController extends Controller
                 'settings' => (object) $effective,
                 // Shown next to the form when the game prices by house edge (PRD §11).
                 'theoretical_rtp' => $rtp,
+                // Average winners per round, set by grid size, tier weights and house edge (outcomes stay independent).
+                'expected_winners' => $expectedWinners,
+                'grid_size' => isset($effective['grid_size']) ? (int) $effective['grid_size'] : null,
             ],
             'schema' => $game->settings_schema ?? ['type' => 'object', 'properties' => (object) []],
             'tenants' => $tenants,

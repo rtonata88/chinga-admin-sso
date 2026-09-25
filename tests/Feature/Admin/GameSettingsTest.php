@@ -47,8 +47,10 @@ test('settings page renders from the schema with saved values over defaults', fu
             ->component('games/settings')
             ->where('game.uuid', $this->fantasy->uuid)
             ->where('game.settings.min_bet_amount', 12)
-            ->where('game.settings.grid_size', 50)
+            ->where('game.settings.grid_size', 52)
             ->where('game.theoretical_rtp', 0.9)
+            ->where('game.grid_size', 52)
+            ->where('game.expected_winners', fn ($w) => abs($w - 28.0) < 0.05)
             ->has('schema.properties.grid_size')
             ->where('schema.properties.grid_size.maximum', 100)
             ->has('tenants', 0)
@@ -175,6 +177,19 @@ test('the house edge is bounded to the RTP band and a change is logged with befo
         ->assertSessionHas('success', 'Global settings updated. Theoretical RTP is now 88.00%.');
     expect((float) $this->fantasy->fresh()->settings['house_edge'])->toBe(0.12);
     \Illuminate\Support\Facades\Log::shouldHaveReceived('info')->withArgs(fn ($msg, $ctx) => $msg === 'game.rtp_changed' && $ctx['rtp_after'] === 0.88)->once();
+});
+
+test('the average winners per round follows grid size, tier weights and house edge, never a fixed count', function () {
+    $defaults = (new \App\Support\SettingsSchema(FantasySettingsSchema::definition()))->defaults();
+    expect(FantasySettingsSchema::tierCounts($defaults))->toBe([12, 10, 9, 7, 6, 5, 3]);
+    expect(FantasySettingsSchema::expectedWinners($defaults))->toEqualWithDelta(28.0, 0.05);
+    // Equal tiers on a grid of 50 (the previous default): 8,7,7,7,7,7,7 and about 23.6 winners.
+    $old = array_merge($defaults, ['grid_size' => 50, 'tier_weights' => '']);
+    expect(FantasySettingsSchema::tierCounts($old))->toBe([8, 7, 7, 7, 7, 7, 7]);
+    expect(FantasySettingsSchema::expectedWinners($old))->toEqualWithDelta(23.6, 0.1);
+    // A lower edge raises every p and so the mean; a weight per tier is required.
+    expect(FantasySettingsSchema::expectedWinners(array_merge($defaults, ['house_edge' => 0.05])))->toBeGreaterThan(28.0);
+    expect(FantasySettingsSchema::expectedWinners(array_merge($defaults, ['tier_weights' => '1,2,3'])))->toBeNull();
 });
 
 test('pick_count cannot be changed from four', function () {
