@@ -90,6 +90,29 @@ class FantasyAdminClient extends HttpGameAdminClient implements ProvablyFairAdmi
         return $this->get("/api/admin/rounds/{$id}/verify");
     }
 
+    /** The v2 engine's team pool (gaming:read); v1 has no such endpoint. */
+    public function listTeams(): array
+    {
+        return $this->get('/api/admin/teams')['data'] ?? [];
+    }
+
+    /** @param array{name: string, short_name: string, colour: string, active?: bool} $team */
+    public function createTeam(array $team): array
+    {
+        return $this->send('POST', '/api/admin/teams', $team);
+    }
+
+    public function updateTeam(int $id, array $patch): array
+    {
+        return $this->send('PUT', "/api/admin/teams/{$id}", $patch);
+    }
+
+    /** Teams are never deleted (rounds reference them); the engine deactivates. */
+    public function deactivateTeam(int $id): array
+    {
+        return $this->send('DELETE', "/api/admin/teams/{$id}");
+    }
+
     public function listJackpotTransactions(?string $tenantUuid = null, int $limit = 50, int $offset = 0): array
     {
         return $this->get('/api/admin/jackpot-transactions', array_filter([

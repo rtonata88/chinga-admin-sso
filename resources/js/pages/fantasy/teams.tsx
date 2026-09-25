@@ -16,28 +16,23 @@ import { useEffect, useRef, useState } from 'react';
 
 interface Team {
     id: number;
-    uuid: string;
     name: string;
     short_name: string | null;
-    logo_url: string | null;
-    country: string | null;
-    league: string | null;
-    is_active: boolean;
-    created_at: string;
+    colour: string;
+    active: boolean;
 }
 
 interface Props {
     teams: { data: Team[]; current_page: number; last_page: number; total: number };
     filters: { search?: string; active?: string };
+    error?: string | null;
 }
 
 const emptyTeam = {
     name: '',
     short_name: '',
-    logo_url: '',
-    country: '',
-    league: '',
-    is_active: true,
+    colour: '#E4002B',
+    active: true,
 };
 
 const STATUS_FILTERS = [
@@ -46,7 +41,7 @@ const STATUS_FILTERS = [
     { label: 'Inactive', value: 'false' },
 ];
 
-export default function Teams({ teams, filters }: Props) {
+export default function Teams({ teams, filters, error = null }: Props) {
     const [search, setSearch] = useState(filters.search || '');
     const [activeFilter, setActiveFilter] = useState(filters.active ?? '');
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -87,10 +82,8 @@ export default function Teams({ teams, filters }: Props) {
         setForm({
             name: team.name,
             short_name: team.short_name || '',
-            logo_url: team.logo_url || '',
-            country: team.country || '',
-            league: team.league || '',
-            is_active: team.is_active,
+            colour: team.colour,
+            active: team.active,
         });
         setDialogOpen(true);
     };
@@ -102,16 +95,10 @@ export default function Teams({ teams, filters }: Props) {
 
     const handleSubmit = () => {
         setSaving(true);
-        const data = {
-            ...form,
-            short_name: form.short_name || null,
-            logo_url: form.logo_url || null,
-            country: form.country || null,
-            league: form.league || null,
-        };
+        const data = { ...form };
 
         if (editingTeam) {
-            router.put(`/fantasy/teams/${editingTeam.uuid}`, data, {
+            router.put(`/fantasy/teams/${editingTeam.id}`, data, {
                 onSuccess: () => { setDialogOpen(false); setSaving(false); },
                 onError: () => setSaving(false),
             });
@@ -125,7 +112,7 @@ export default function Teams({ teams, filters }: Props) {
 
     const handleDelete = () => {
         if (!deletingTeam) return;
-        router.delete(`/fantasy/teams/${deletingTeam.uuid}`, {
+        router.delete(`/fantasy/teams/${deletingTeam.id}`, {
             onSuccess: () => setDeleteDialogOpen(false),
         });
     };
@@ -136,6 +123,11 @@ export default function Teams({ teams, filters }: Props) {
             <Toast ref={toast} />
 
             <div className="cgo-page">
+                {error && (
+                    <div style={{ background: 'var(--cg-ink-card)', border: '1px solid var(--cg-neg)', borderRadius: 6, padding: 14, marginBottom: 18, fontSize: 13, color: 'var(--cg-fg-1)' }}>
+                        <strong style={{ color: 'var(--cg-neg)' }}>Error:</strong> {error}
+                    </div>
+                )}
                 {/* Page header */}
                 <div className="cgo-page-head">
                     <div>
@@ -182,7 +174,7 @@ export default function Teams({ teams, filters }: Props) {
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
-                                placeholder="Search name, country, league…"
+                                placeholder="Search name or short name…"
                                 style={{ minWidth: 260 }}
                             />
                         </label>
@@ -205,8 +197,7 @@ export default function Teams({ teams, filters }: Props) {
                         <thead>
                             <tr>
                                 <th style={{ minWidth: 240 }}>Team</th>
-                                <th style={{ minWidth: 140 }}>Country</th>
-                                <th style={{ minWidth: 160 }}>League</th>
+                                <th style={{ minWidth: 120 }}>Colour</th>
                                 <th style={{ width: 100 }}>Status</th>
                                 <th style={{ width: 110 }} />
                             </tr>
@@ -214,47 +205,34 @@ export default function Teams({ teams, filters }: Props) {
                         <tbody>
                             {teams.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
+                                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
                                         No teams match the current filters.
                                     </td>
                                 </tr>
                             ) : (
                                 teams.data.map((t) => (
-                                    <tr key={t.uuid}>
+                                    <tr key={t.id}>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                {t.logo_url ? (
-                                                    <img
-                                                        src={t.logo_url}
-                                                        alt={t.name}
-                                                        style={{
-                                                            width: 32,
-                                                            height: 32,
-                                                            borderRadius: 4,
-                                                            objectFit: 'cover',
-                                                            border: '1px solid var(--cg-rule)',
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <div
-                                                        style={{
-                                                            width: 32,
-                                                            height: 32,
-                                                            borderRadius: 4,
-                                                            display: 'grid',
-                                                            placeItems: 'center',
-                                                            background: 'var(--cg-ink-elevated)',
-                                                            border: '1px solid var(--cg-rule)',
-                                                            color: 'var(--cg-fg-3)',
-                                                            fontSize: 11,
-                                                            fontFamily: 'var(--cg-mono)',
-                                                            fontWeight: 700,
-                                                            letterSpacing: '0.04em',
-                                                        }}
-                                                    >
-                                                        {(t.short_name || t.name.substring(0, 2)).toUpperCase()}
-                                                    </div>
-                                                )}
+                                                <div
+                                                    style={{
+                                                        width: 32,
+                                                        height: 32,
+                                                        borderRadius: 4,
+                                                        display: 'grid',
+                                                        placeItems: 'center',
+                                                        background: 'var(--cg-ink-elevated)',
+                                                        border: '1px solid var(--cg-rule)',
+                                                        borderLeft: `4px solid ${t.colour}`,
+                                                        color: 'var(--cg-fg-2)',
+                                                        fontSize: 10,
+                                                        fontFamily: 'var(--cg-mono)',
+                                                        fontWeight: 700,
+                                                        letterSpacing: '0.04em',
+                                                    }}
+                                                >
+                                                    {(t.short_name || t.name.substring(0, 2)).toUpperCase()}
+                                                </div>
                                                 <div>
                                                     <div className="cgo-name">{t.name}</div>
                                                     {t.short_name && (
@@ -264,18 +242,14 @@ export default function Teams({ teams, filters }: Props) {
                                             </div>
                                         </td>
                                         <td>
-                                            <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
-                                                {t.country || '—'}
+                                            <span style={{ fontSize: 12, color: 'var(--cg-fg-2)', fontFamily: 'var(--cg-mono)' }}>
+                                                <span aria-hidden style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: t.colour, marginRight: 6, verticalAlign: 'middle' }} />
+                                                {t.colour}
                                             </span>
                                         </td>
                                         <td>
-                                            <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
-                                                {t.league || '—'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={`cgo-pill ${t.is_active ? 'live' : 'void'}`}>
-                                                {t.is_active ? 'active' : 'inactive'}
+                                            <span className={`cgo-pill ${t.active ? 'live' : 'void'}`}>
+                                                {t.active ? 'active' : 'inactive'}
                                             </span>
                                         </td>
                                         <td>
@@ -292,8 +266,8 @@ export default function Teams({ teams, filters }: Props) {
                                                 <button
                                                     type="button"
                                                     className="cgo-row-action"
-                                                    aria-label="Delete team"
-                                                    title="Delete team"
+                                                    aria-label="Deactivate team"
+                                                    title="Deactivate team"
                                                     style={{ color: 'var(--cg-neg)', borderColor: 'var(--cg-neg)' }}
                                                     onClick={() => openDeleteDialog(t)}
                                                 >
@@ -386,49 +360,35 @@ export default function Teams({ teams, filters }: Props) {
                             value={form.short_name}
                             onChange={(e) => setForm({ ...form, short_name: e.target.value })}
                             className="w-full"
-                            placeholder="e.g. NAM"
-                            maxLength={10}
+                            placeholder="e.g. KATKI"
+                            maxLength={6}
                         />
                     </div>
                     <div>
                         <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                            Logo URL
+                            Colour *
                         </label>
-                        <InputText
-                            value={form.logo_url}
-                            onChange={(e) => setForm({ ...form, logo_url: e.target.value })}
-                            className="w-full"
-                            placeholder="https://…"
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                                Country
-                            </label>
-                            <InputText
-                                value={form.country}
-                                onChange={(e) => setForm({ ...form, country: e.target.value })}
-                                className="w-full"
-                                placeholder="e.g. Namibia"
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                                type="color"
+                                aria-label="Colour"
+                                value={form.colour}
+                                onChange={(e) => setForm({ ...form, colour: e.target.value.toUpperCase() })}
+                                style={{ width: 40, height: 36, padding: 0, border: '1px solid var(--cg-rule)', background: 'transparent' }}
                             />
-                        </div>
-                        <div>
-                            <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                                League
-                            </label>
                             <InputText
-                                value={form.league}
-                                onChange={(e) => setForm({ ...form, league: e.target.value })}
+                                value={form.colour}
+                                onChange={(e) => setForm({ ...form, colour: e.target.value })}
                                 className="w-full"
-                                placeholder="e.g. Premier League"
+                                placeholder="#E4002B"
+                                maxLength={7}
                             />
                         </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <InputSwitch
-                            checked={form.is_active}
-                            onChange={(e) => setForm({ ...form, is_active: e.value ?? false })}
+                            checked={form.active}
+                            onChange={(e) => setForm({ ...form, active: e.value ?? false })}
                         />
                         <label style={{ fontSize: 13 }}>
                             Active{' '}
@@ -442,7 +402,7 @@ export default function Teams({ teams, filters }: Props) {
 
             {/* Delete confirmation dialog */}
             <Dialog
-                header="Delete team"
+                header="Deactivate team"
                 visible={deleteDialogOpen}
                 style={{ width: '24rem' }}
                 onHide={() => setDeleteDialogOpen(false)}
@@ -451,13 +411,13 @@ export default function Teams({ teams, filters }: Props) {
                 footer={
                     <div className="flex justify-end gap-2">
                         <Button label="Cancel" severity="secondary" outlined onClick={() => setDeleteDialogOpen(false)} />
-                        <Button label="Delete" severity="danger" onClick={handleDelete} />
+                        <Button label="Deactivate" severity="danger" onClick={handleDelete} />
                     </div>
                 }
             >
                 <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-                    Delete <strong>{deletingTeam?.name}</strong>? This cannot be undone, and the
-                    team will no longer appear in future rounds.
+                    Deactivate <strong>{deletingTeam?.name}</strong>? It stays in the history of the
+                    rounds it was dealt into and will not be dealt into new ones. You can reactivate it later.
                 </div>
             </Dialog>
         </UserLayout>

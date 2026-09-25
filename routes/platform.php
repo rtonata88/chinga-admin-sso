@@ -54,8 +54,8 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('pla
 Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('fantasy')->group(function () {
     Route::get('teams', [FantasyTeamController::class, 'index'])->name('fantasy.teams');
     Route::post('teams', [FantasyTeamController::class, 'store'])->name('fantasy.teams.store');
-    Route::put('teams/{team}', [FantasyTeamController::class, 'update'])->name('fantasy.teams.update');
-    Route::delete('teams/{team}', [FantasyTeamController::class, 'destroy'])->name('fantasy.teams.destroy');
+    Route::put('teams/{id}', [FantasyTeamController::class, 'update'])->whereNumber('id')->name('fantasy.teams.update');
+    Route::delete('teams/{id}', [FantasyTeamController::class, 'destroy'])->whereNumber('id')->name('fantasy.teams.destroy');
     Route::post('teams/bulk-toggle', [FantasyTeamController::class, 'bulkToggle'])->name('fantasy.teams.bulk-toggle');
 
     // Legacy: Fantasy settings moved to the schema-driven /platform/games/{game}/settings.

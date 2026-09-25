@@ -174,9 +174,33 @@ class HttpGameAdminClient implements GameAdminClient
     }
 
     /** client_credentials token against our own /oauth/token, shared by every game client. */
-    protected function getAccessToken(): string
+    /**
+     * A JSON write against the engine with a token carrying the given scope
+     * (gaming:write for content such as the team pool). Non-2xx replies throw
+     * with the engine's message so the caller can show it.
+     */
+    protected function send(string $method, string $path, array $body = [], string $scope = 'gaming:write'): array
     {
-        $cached = Cache::get(static::TOKEN_CACHE_KEY);
+        $baseUrl = $this->baseUrl();
+
+        $response = Http::withToken($this->getAccessToken($scope))
+            ->acceptJson()
+            ->timeout(10)
+            ->send(strtoupper($method), $baseUrl.$path, ['json' => $body]);
+
+        if (! $response->successful()) {
+            $message = $response->json('message') ?? $response->body();
+            throw new \RuntimeException("{$this->label()} admin {$method} {$path} failed: HTTP ".$response->status().' '.$message);
+        }
+
+        return $response->json() ?? [];
+    }
+
+    protected function getAccessToken(?string $scope = null): string
+    {
+        $scope ??= static::TOKEN_SCOPE;
+        $cacheKey = $scope === static::TOKEN_SCOPE ? static::TOKEN_CACHE_KEY : static::TOKEN_CACHE_KEY.':'.$scope;
+        $cached = Cache::get($cacheKey);
         if ($cached) {
             return $cached;
         }
@@ -199,7 +223,7 @@ class HttpGameAdminClient implements GameAdminClient
                 'grant_type' => 'client_credentials',
                 'client_id' => $clientId,
                 'client_secret' => $clientSecret,
-                'scope' => static::TOKEN_SCOPE,
+                'scope' => $scope,
             ]);
 
         if (! $response->successful()) {
@@ -217,7 +241,7 @@ class HttpGameAdminClient implements GameAdminClient
         }
 
         // Cache until 30s before expiry
-        Cache::put(static::TOKEN_CACHE_KEY, $token, max(30, $expiresIn - 30));
+        Cache::put($cacheKey, $token, max(30, $expiresIn - 30));
 
         return $token;
     }
