@@ -72,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
             'kyc' => 'Access your KYC verification status',
             'gaming:history' => 'Access your gaming history',
             'gaming:read' => 'Read gaming data (admin/reporting, service-to-service)',
+            'gaming:write' => 'Manage game content such as team pools (service-to-service)',
             'admin' => 'Administrative access',
         ]);
 
