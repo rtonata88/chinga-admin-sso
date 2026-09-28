@@ -128,7 +128,12 @@ return [
     */
 
     'refresh_cookie_domain' => env('AUTH_REFRESH_COOKIE_DOMAIN'),
-    'refresh_cookie_secure' => (bool) env('AUTH_REFRESH_COOKIE_SECURE', true),
+    // Secure by default on https. Over plain http (a local SSO) a secure cookie is dropped by the
+    // browser, the refresh never has a token to send, and players are logged out when the access
+    // token expires; so the default follows the scheme of APP_URL unless set explicitly.
+    'refresh_cookie_secure' => env('AUTH_REFRESH_COOKIE_SECURE') === null
+        ? str_starts_with((string) env('APP_URL', ''), 'https://')
+        : filter_var(env('AUTH_REFRESH_COOKIE_SECURE'), FILTER_VALIDATE_BOOL),
     'refresh_cookie_same_site' => env('AUTH_REFRESH_COOKIE_SAME_SITE', 'lax'),
 
 ];

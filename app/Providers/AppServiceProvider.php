@@ -54,8 +54,8 @@ class AppServiceProvider extends ServiceProvider
         // fantasy-voucher PAT is explicitly shortened to 20 minutes in the
         // voucher-session controller so voucher players must re-enter their
         // code after a 20-minute idle window.
-        Passport::tokensExpireIn(now()->addMinutes(10));
-        Passport::refreshTokensExpireIn(now()->addMinutes(20));
+        Passport::tokensExpireIn(now()->addMinutes((int) config('passport.access_tokens_expire_in_minutes', 10)));
+        Passport::refreshTokensExpireIn(now()->addMinutes((int) config('passport.refresh_tokens_expire_in_minutes', 20)));
         Passport::personalAccessTokensExpireIn(now()->addMonths(6));
 
         // Enable PKCE
