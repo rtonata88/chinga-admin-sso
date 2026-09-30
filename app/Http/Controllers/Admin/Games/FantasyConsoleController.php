@@ -21,4 +21,9 @@ class FantasyConsoleController extends ProvablyFairConsoleController
     {
         return '/fantasy';
     }
+
+    protected function terms(): array
+    {
+        return ['one' => 'ticket', 'many' => 'tickets', 'paid_out_meta' => 'to winning tickets'];
+    }
 }

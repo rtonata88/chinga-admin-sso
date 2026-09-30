@@ -40,9 +40,18 @@ interface TenantOption {
     slug: string;
 }
 
+/** The noun for one wager, from the console controller: bets for a crash game, tickets for the accumulator. */
+interface Terms {
+    one: string;
+    many: string;
+    paid_out_meta: string;
+}
+const BET_TERMS: Terms = { one: 'bet', many: 'bets', paid_out_meta: 'to cashed-out bets' };
+
 interface GameProps {
     name: string;
     base: string;
+    terms?: Terms;
 }
 
 interface Props {
@@ -71,7 +80,7 @@ function deviation(realised: number | null, theoretical: number | null, bets: nu
     return { text, color: 'var(--cg-pos)' };
 }
 
-export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, rtp, days = [], tenants = [], filters, error }: Props) {
+export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, rtp, days = [], tenants = [], filters, error }: Props) {
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
     const [from, setFrom] = useState(filters?.from ?? '');
     const [to, setTo] = useState(filters?.to ?? '');
@@ -119,7 +128,7 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }
                         meta={rtp?.house_edge ? `house edge ${formatRatioPct(rtp.house_edge)}` : 'from the latest round in scope'}
                     />
                     <KpiCard label="Wagered" value={formatCurrencyCompact(num(rtp?.total_wagered))} meta="staked in window" />
-                    <KpiCard label="Paid out" value={formatCurrencyCompact(num(rtp?.total_paid_out))} meta="to cashed-out bets" />
+                    <KpiCard label="Paid out" value={formatCurrencyCompact(num(rtp?.total_paid_out))} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
                     <KpiCard
                         label="Sample"
                         value={formatCount(rtp?.bets_placed ?? 0)}

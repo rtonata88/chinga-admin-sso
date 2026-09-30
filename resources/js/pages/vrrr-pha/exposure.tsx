@@ -32,9 +32,18 @@ interface TenantOption {
     slug: string;
 }
 
+/** The noun for one wager, from the console controller: bets for a crash game, tickets for the accumulator. */
+interface Terms {
+    one: string;
+    many: string;
+    paid_out_meta: string;
+}
+const BET_TERMS: Terms = { one: 'bet', many: 'bets', paid_out_meta: 'to cashed-out bets' };
+
 interface GameProps {
     name: string;
     base: string;
+    terms?: Terms;
 }
 
 interface Props {
@@ -49,7 +58,7 @@ interface Props {
 
 const REFRESH_MS = 10_000;
 
-export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, rows = [], tenants = [], tenantNames = {}, filters, fetchedAt, error }: Props) {
+export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, rows = [], tenants = [], tenantNames = {}, filters, fetchedAt, error }: Props) {
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
     const [live, setLive] = useState(true);
 
@@ -116,7 +125,7 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' 
 
                 <div className="cgo-kpis cgo-kpis--5">
                     <KpiCard label="Open rounds" value={formatCount(rows.length)} meta="not yet settled" />
-                    <KpiCard label="Staked" value={formatCurrencyCompact(totals.staked)} meta="all live bets" />
+                    <KpiCard label="Staked" value={formatCurrencyCompact(totals.staked)} meta={`all live ${(game.terms ?? BET_TERMS).many}`} />
                     <KpiCard label="Still in play" value={formatCurrencyCompact(totals.open)} meta="not cashed out or busted" />
                     <KpiCard label="Worst case" value={formatCurrencyCompact(totals.worst)} brass meta="max exposure, capped by max win" />
                     <KpiCard

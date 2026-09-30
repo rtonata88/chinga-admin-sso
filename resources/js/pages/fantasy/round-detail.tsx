@@ -160,7 +160,7 @@ export default function RoundDetail({ round, bets = [], error, backHref = '/fant
                     <div className="acu-fieldset-header">
                         <div className="acu-fieldset-title">
                             <i className="pi pi-ticket" />
-                            <span>Bets</span>
+                            <span>Tickets</span>
                             <span className="text-xs font-normal ml-1" style={{ color: 'var(--acu-text-light)' }}>
                                 ({bets.length})
                             </span>
@@ -171,7 +171,7 @@ export default function RoundDetail({ round, bets = [], error, backHref = '/fant
                             value={bets}
                             size="small"
                             showGridlines={false}
-                            emptyMessage="No bets in this round"
+                            emptyMessage="No tickets in this round"
                             dataKey="id"
                         >
                             <Column

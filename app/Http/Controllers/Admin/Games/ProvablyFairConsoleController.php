@@ -34,10 +34,21 @@ abstract class ProvablyFairConsoleController extends Controller
     /** The URL prefix the console pages live under, e.g. "/vrrr-pha". */
     abstract protected function base(): string;
 
+    /**
+     * The noun a person reads for one wager: a crash game takes bets, an
+     * accumulator sells tickets (four picks on one stake). "Bet" stays the verb.
+     *
+     * @return array{one: string, many: string, paid_out_meta: string}
+     */
+    protected function terms(): array
+    {
+        return ['one' => 'bet', 'many' => 'bets', 'paid_out_meta' => 'to cashed-out bets'];
+    }
+
     /** Props every console page reads to label and link itself. */
     private function gameProps(): array
     {
-        return ['game' => ['name' => $this->gameName(), 'base' => $this->base()]];
+        return ['game' => ['name' => $this->gameName(), 'base' => $this->base(), 'terms' => $this->terms()]];
     }
 
     public function rounds(Request $request): Response

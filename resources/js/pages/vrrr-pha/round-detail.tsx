@@ -67,9 +67,18 @@ interface Verify {
     error?: string;
 }
 
+/** The noun for one wager, from the console controller: bets for a crash game, tickets for the accumulator. */
+interface Terms {
+    one: string;
+    many: string;
+    paid_out_meta: string;
+}
+const BET_TERMS: Terms = { one: 'bet', many: 'bets', paid_out_meta: 'to cashed-out bets' };
+
 interface GameProps {
     name: string;
     base: string;
+    terms?: Terms;
 }
 
 interface Props {
@@ -98,7 +107,7 @@ function Field({ label, value, mono, wrap }: { label: string; value: string; mon
     );
 }
 
-export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, round, bets = [], verify, tenantNames = {}, error, backHref = `${game.base}/rounds` }: Props) {
+export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, round, bets = [], verify, tenantNames = {}, error, backHref = `${game.base}/rounds` }: Props) {
     const back = (
         <Link href={backHref} className="cg-btn cg-btn--text cg-btn--sm" style={{ marginBottom: 12, display: 'inline-block' }}>
             ‹ Back to rounds
@@ -156,7 +165,7 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                     />
                     <KpiCard label="Bets" value={formatCount(round.bet_count)} meta="excluding cancelled" />
                     <KpiCard label="Wagered" value={formatCurrencyCompact(wagered)} meta="staked" />
-                    <KpiCard label="Paid out" value={formatCurrencyCompact(paidOut)} meta="to cashed-out bets" />
+                    <KpiCard label="Paid out" value={formatCurrencyCompact(paidOut)} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
                     <KpiCard label="GGR" value={formatCurrencyCompact(ggr)} meta={`max exposure ${formatNAD(round.max_exposure)}`} />
                 </div>
 
@@ -233,7 +242,7 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                     <table className="cgo-wagers">
                         <thead>
                             <tr>
-                                <th style={{ width: 80 }}>Bet</th>
+                                <th style={{ width: 80 }}>{(game.terms ?? BET_TERMS).one.charAt(0).toUpperCase() + (game.terms ?? BET_TERMS).one.slice(1)}</th>
                                 <th style={{ width: 110 }}>Player</th>
                                 <th style={{ width: 170 }}>Placed</th>
                                 <th className="cgo-r" style={{ width: 110 }}>Stake</th>

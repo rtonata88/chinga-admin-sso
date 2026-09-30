@@ -44,9 +44,18 @@ interface Filters {
     total: number | null;
 }
 
+/** The noun for one wager, from the console controller: bets for a crash game, tickets for the accumulator. */
+interface Terms {
+    one: string;
+    many: string;
+    paid_out_meta: string;
+}
+const BET_TERMS: Terms = { one: 'bet', many: 'bets', paid_out_meta: 'to cashed-out bets' };
+
 interface GameProps {
     name: string;
     base: string;
+    terms?: Terms;
 }
 
 interface Props {
@@ -58,7 +67,7 @@ interface Props {
     error: string | null;
 }
 
-export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' }, rounds = [], tenants = [], tenantNames = {}, filters, error }: Props) {
+export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, rounds = [], tenants = [], tenantNames = {}, filters, error }: Props) {
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
 
     const applyFilters = (next: { tenant_uuid?: string | null; page?: number }) => {
@@ -116,7 +125,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha' },
                     />
                     <KpiCard label="Bets" value={formatCount(totals.bets)} meta="across visible rounds" />
                     <KpiCard label="Wagered" value={formatCurrencyCompact(totals.wagered)} meta="staked" />
-                    <KpiCard label="Paid out" value={formatCurrencyCompact(totals.paidOut)} meta="to cashed-out bets" />
+                    <KpiCard label="Paid out" value={formatCurrencyCompact(totals.paidOut)} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
                     <KpiCard label="GGR" value={formatCurrencyCompact(totals.ggr)} brass meta="wagered − paid out" />
                 </div>
 

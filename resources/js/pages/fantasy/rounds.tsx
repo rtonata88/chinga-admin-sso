@@ -148,7 +148,7 @@ export default function Rounds({
                         meta={`page ${page}`}
                     />
                     <KpiCard
-                        label="Total bets"
+                        label="Total tickets"
                         value={formatCount(totals.bets)}
                         meta="across visible rounds"
                     />
