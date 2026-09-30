@@ -25,7 +25,7 @@ class FantasySettingsSchema
             'type' => 'object',
             'required' => [
                 'house_edge', 'tier_odds', 'grid_size', 'grid_layout', 'pick_count', 'min_bet_amount', 'max_bet_amount',
-                'max_win_per_bet', 'max_total_stake_per_round', 'max_total_liability_per_round', 'payout_window_days', 'jackpot_share_of_edge', 'jackpot_cap',
+                'max_win_per_bet', 'max_total_stake_per_round', 'max_total_liability_per_round', 'payout_window_days', 'rounds_ahead', 'jackpot_share_of_edge', 'jackpot_cap',
                 'jackpot_activation', 'betting_seconds', 'results_seconds', 'settle_seconds',
             ],
             'properties' => [
@@ -39,6 +39,7 @@ class FantasySettingsSchema
                 'max_bet_amount' => ['type' => 'number', 'title' => 'Max stake per ticket (NAD)', 'description' => 'Launch default 20; raise per operator once a few weeks of turnover are known.', 'minimum' => 1, 'default' => 20, 'x-group' => 'game', 'x-format' => 'currency'],
                 'max_win_per_bet' => ['type' => 'number', 'title' => 'Max win per ticket (NAD)', 'description' => 'Drives the per-ticket stake cap shown on the slip; a payout is never truncated. Launch default 2,000: it is the cap, not the edge, that keeps an operator\'s first weeks out of the red.', 'minimum' => 100, 'default' => 2000, 'x-group' => 'game', 'x-format' => 'currency'],
                 'max_total_stake_per_round' => ['type' => 'number', 'title' => 'Max total stake per round (NAD)', 'description' => 'Stake ceiling per tenant per round; further tickets are refused once reached, never on the drawn outcome.', 'minimum' => 100, 'default' => 5000, 'x-group' => 'game', 'x-format' => 'currency'],
+                'rounds_ahead' => ['type' => 'integer', 'title' => 'Rounds dealt ahead', 'description' => 'Rounds dealt, committed and open for sale beyond the running one, so a counter always has a round to sell into. 1 keeps the next round on sale while the current one is drawn and settled.', 'minimum' => 0, 'maximum' => 3, 'default' => 1, 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'payout_window_days' => ['type' => 'integer', 'title' => 'Slip payout window (days)', 'description' => 'How long a winning over-the-counter slip can be paid out after its round. Printed on the slip and enforced at the counter.', 'minimum' => 1, 'maximum' => 90, 'default' => 7, 'x-group' => 'game'],
                 'max_total_liability_per_round' => ['type' => 'number', 'title' => 'Max total liability per round (NAD)', 'description' => 'Ceiling on what one round could pay out in total (the sum of every ticket\'s return if it wins). Protects against a venue backing the same four favourites together. Further tickets are refused once a new one would exceed it.', 'minimum' => 100, 'default' => 20000, 'x-group' => 'game', 'x-format' => 'currency'],
                 'jackpot_share_of_edge' => ['type' => 'number', 'title' => 'Jackpot share of edge', 'description' => 'Fraction of the house edge that funds the Chinga Bonus: 0.10 of a 0.10 edge is 1% of turnover.', 'minimum' => 0, 'maximum' => 1, 'default' => 0.10, 'x-group' => 'game'],
