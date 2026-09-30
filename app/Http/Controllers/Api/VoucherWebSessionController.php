@@ -75,10 +75,10 @@ class VoucherWebSessionController extends Controller
                     "voucher_transfer_{$code->uuid}"
                 );
 
-                // Zero out the voucher balance (funds now in wallet)
+                // Zero out the voucher balance (funds now in wallet). A counter float stays active: it logs in every shift.
                 $code->update([
                     'balance' => '0.00',
-                    'status' => 'cashed_out',
+                    'status' => $code->isCounter() ? 'active' : 'cashed_out',
                 ]);
             }
 
@@ -93,7 +93,8 @@ class VoucherWebSessionController extends Controller
             // carry a refresh token by design — a player who goes idle for
             // 20 minutes must re-enter their voucher code.
             $token = $user->createToken('fantasy-voucher', ['openid', 'profile', 'wallet', 'gaming:history']);
-            $token->token->forceFill(['expires_at' => now()->addMinutes(20)])->save();
+            // A player voucher idles out after 20 minutes; a counter float is staff on a shift and keeps its token for 12 hours.
+            $token->token->forceFill(['expires_at' => $code->isCounter() ? now()->addHours(12) : now()->addMinutes(20)])->save();
 
             return response()->json([
                 'user' => [

@@ -112,10 +112,14 @@ class VenueManagementController extends Controller
             ->withCount(['staff', 'terminals', 'voucherCodes'])
             ->firstOrFail();
 
-        // Get aggregate stats
+        // Get aggregate stats: player codes by their column, counter floats by their wallet (where the money lives once logged in).
         $activeCodesBalance = VoucherCode::where('venue_id', $venue->id)
             ->whereIn('status', ['active', 'in_use'])
+            ->where('kind', '!=', 'counter')
             ->sum('balance');
+        foreach (VoucherCode::where('venue_id', $venue->id)->where('kind', 'counter')->whereNotIn('status', ['deactivated', 'expired'])->get() as $float) {
+            $activeCodesBalance = bcadd((string) $activeCodesBalance, $float->displayBalance(), 2);
+        }
 
         $totalLoaded = VoucherCode::where('venue_id', $venue->id)->sum('total_loaded');
         $totalCashedOut = VoucherCode::where('venue_id', $venue->id)->sum('total_cashed_out');
@@ -509,9 +513,10 @@ class VenueManagementController extends Controller
             'data' => $codes->map(fn ($c) => [
                 'uuid' => $c->uuid,
                 'code' => $c->code,
-                'balance' => $c->balance,
+                'kind' => $c->kind,
+                'balance' => $c->displayBalance(),
                 'currency' => $c->currency,
-                'status' => $c->status,
+                'status' => $c->displayStatus(),
                 'total_loaded' => $c->total_loaded,
                 'total_cashed_out' => $c->total_cashed_out,
                 'last_activity_at' => $c->last_activity_at?->toIso8601String(),
@@ -661,9 +666,10 @@ class VenueManagementController extends Controller
                     'name' => $c->venue->name,
                 ],
                 'tenant_name' => $c->tenant?->name,
-                'balance' => $c->balance,
+                'kind' => $c->kind,
+                'balance' => $c->displayBalance(),
                 'currency' => $c->currency,
-                'status' => $c->status,
+                'status' => $c->displayStatus(),
                 'total_loaded' => $c->total_loaded,
                 'total_cashed_out' => $c->total_cashed_out,
                 'last_activity_at' => $c->last_activity_at?->toIso8601String(),

@@ -23,3 +23,21 @@ test('userinfo carries the venue for a counter float and nothing extra for a pla
     Passport::actingAs($playerUser, ['openid', 'profile']);
     $this->getJson('/api/v1/oauth/userinfo')->assertOk()->assertJsonMissing(['account_kind' => 'counter'])->assertJsonMissingPath('venue_id');
 });
+
+test('a counter float shows its wallet balance, stays active after logging in, and keeps its token for a shift', function () {
+    $tenant = Tenant::factory()->create(['slug' => 'lucky-star-betting', 'name' => 'Lucky Star Betting', 'status' => 'active']);
+    $venue = Venue::create(['tenant_id' => $tenant->id, 'name' => 'Tigers Bar', 'slug' => 'tigers-bar', 'address_line_1' => '1 Independence Ave', 'city' => 'Windhoek']);
+    $game = \App\Models\Game::factory()->fantasy()->create();
+    $tenant->games()->attach($game->id, ['enabled' => true]);
+    $user = User::factory()->create(['tenant_id' => $tenant->id, 'user_type' => 'voucher', 'status' => 'active']);
+    $code = VoucherCode::create(['tenant_id' => $tenant->id, 'venue_id' => $venue->id, 'code' => 'TIGERS02', 'balance' => '1000.00', 'currency' => 'NAD', 'status' => 'active', 'kind' => 'counter', 'user_id' => $user->id]);
+
+    $res = $this->withHeader('X-Tenant-ID', 'lucky-star-betting')
+        ->postJson('/api/v1/game/session/start/voucher-web', ['game_id' => $game->uuid, 'code' => 'TIGERS02']);
+    expect($res->status())->toBe(200, $res->getContent());
+    expect($res->json('balance'))->toBe('1000.00');
+    $code->refresh();
+    expect($code->status)->toBe('active')->and($code->balance)->toBe('0.00')->and($code->displayBalance())->toBe('1000.00')->and($code->displayStatus())->toBe('active');
+    $expires = \Laravel\Passport\Token::query()->where('user_id', $user->id)->latest('created_at')->first()?->expires_at;
+    expect($expires?->greaterThan(now()->addHours(11)))->toBeTrue();
+});

@@ -31,6 +31,7 @@ interface VoucherCode {
     total_cashed_out: number;
     last_activity_at: string | null;
     expires_at: string | null;
+    kind?: string;
     created_at: string;
 }
 

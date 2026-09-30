@@ -194,8 +194,13 @@ class User extends Authenticatable
      */
     public function getOrCreateWallet(?string $currency = null): Wallet
     {
-        $wallet = $this->wallet;
+        // The relation may be cached as null from before a wallet was created in this same request
+        // (a voucher session start creates it, then the game session service asks again), so ask
+        // the table rather than trusting the cache before inserting.
+        $wallet = $this->wallet ?? Wallet::where('user_id', $this->id)->first();
         if ($wallet) {
+            $this->setRelation('wallet', $wallet);
+
             return $wallet;
         }
 

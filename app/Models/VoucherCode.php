@@ -191,6 +191,33 @@ class VoucherCode extends Model
         return $this->kind === 'counter';
     }
 
+    /**
+     * The balance a person should see. A voucher's money moves into its linked wallet when it logs a game
+     * in, and a counter float lives there permanently (sales debit it, winnings credit it), so for a
+     * counter the wallet is the truth; a player voucher shows its own column as before.
+     */
+    public function displayBalance(): string
+    {
+        if ($this->isCounter() && $this->user_id) {
+            $wallet = \App\Models\Wallet::where('user_id', $this->user_id)->first();
+            if ($wallet) {
+                return (string) $wallet->balance;
+            }
+        }
+
+        return (string) $this->balance;
+    }
+
+    /** A counter float is never "cashed out" by logging in; it stays active until deactivated or expired. */
+    public function displayStatus(): string
+    {
+        if ($this->isCounter() && in_array($this->status, ['cashed_out', 'in_use'], true)) {
+            return 'active';
+        }
+
+        return (string) $this->status;
+    }
+
     public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class);
