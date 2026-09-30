@@ -77,6 +77,21 @@ class FantasyAdminClient extends HttpGameAdminClient implements ProvablyFairAdmi
     }
 
     /** Every open round's committed stake and worst case against the tenant cap (v2 engine). */
+    /**
+     * Over-the-counter figures per venue (tickets sold, stake taken, winnings, cash paid out, uncollected)
+     * for the venue report.
+     *
+     * @return array<int, array{venue_uuid: string, tickets: int, stake: string, won: string, paid_out: string, unpaid_won: string, rounds: int}>
+     */
+    public function statsByVenue(?string $tenantUuid = null, ?string $from = null, ?string $to = null): array
+    {
+        return $this->get('/api/admin/stats/by-venue', array_filter([
+            'tenant_uuid' => $tenantUuid,
+            'from' => $from,
+            'to' => $to,
+        ]))['venues'] ?? [];
+    }
+
     public function exposure(?string $tenantUuid = null): array
     {
         return $this->get('/api/admin/exposure', array_filter([

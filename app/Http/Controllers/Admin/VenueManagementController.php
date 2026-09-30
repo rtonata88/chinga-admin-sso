@@ -129,6 +129,8 @@ class VenueManagementController extends Controller
                     'total_loaded' => $totalLoaded,
                     'total_cashed_out' => $totalCashedOut,
                 ],
+                // Chinga Fantasy over the counter, last 30 days; null when the game engine cannot be reached.
+                'fantasy_counter' => $this->fantasyCounterFigures($venue),
             ],
         ]);
     }
@@ -700,5 +702,29 @@ class VenueManagementController extends Controller
             'success' => true,
             'data' => $stats,
         ]);
+    }
+
+    /** The venue's over-the-counter figures from the Fantasy engine for the last 30 days, or null if it is unreachable. */
+    private function fantasyCounterFigures(Venue $venue): ?array
+    {
+        try {
+            $tenantUuid = \App\Models\Tenant::find($venue->tenant_id)?->uuid;
+            $to = now();
+            $from = $to->copy()->subDays(30);
+            $rows = app(\App\Services\FantasyAdminClient::class)->statsByVenue($tenantUuid, $from->toIso8601String(), $to->toIso8601String());
+            $row = collect($rows)->firstWhere('venue_uuid', $venue->uuid);
+
+            return [
+                'period_days' => 30,
+                'tickets' => (int) ($row['tickets'] ?? 0),
+                'rounds' => (int) ($row['rounds'] ?? 0),
+                'stake' => (string) ($row['stake'] ?? '0.00'),
+                'won' => (string) ($row['won'] ?? '0.00'),
+                'paid_out' => (string) ($row['paid_out'] ?? '0.00'),
+                'unpaid_won' => (string) ($row['unpaid_won'] ?? '0.00'),
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

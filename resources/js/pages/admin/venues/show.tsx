@@ -41,6 +41,8 @@ interface VenueDetails {
         total_loaded: number;
         total_cashed_out: number;
     };
+    /** Chinga Fantasy over the counter, last 30 days; null when the engine could not be reached. */
+    fantasy_counter: { period_days: number; tickets: number; rounds: number; stake: string; won: string; paid_out: string; unpaid_won: string } | null;
     created_at: string;
 }
 
@@ -443,6 +445,22 @@ export default function VenueShow() {
                         meta={venue.currency || 'NAD'}
                     />
                 </div>
+
+                {/* Chinga Fantasy over the counter */}
+                <div style={{ margin: '4px 0 8px' }}>
+                    <div className="cgo-eyebrow">Chinga Fantasy · over the counter · last {venue.fantasy_counter?.period_days ?? 30} days</div>
+                </div>
+                {venue.fantasy_counter ? (
+                    <div className="cgo-kpis" data-testid="fantasy-counter">
+                        <KpiCard label="Tickets sold" value={formatCount(venue.fantasy_counter.tickets)} meta={`${formatCount(venue.fantasy_counter.rounds)} rounds`} />
+                        <KpiCard label="Stake taken" value={formatCurrencyCompact(Number(venue.fantasy_counter.stake))} meta="cash in at the counter" />
+                        <KpiCard label="Winnings" value={formatCurrencyCompact(Number(venue.fantasy_counter.won))} meta="credited to the float" />
+                        <KpiCard label="Paid out" value={formatCurrencyCompact(Number(venue.fantasy_counter.paid_out))} meta="cash out at the counter" />
+                        <KpiCard label="Uncollected" value={formatCurrencyCompact(Number(venue.fantasy_counter.unpaid_won))} brass meta="won, slip not yet presented" />
+                    </div>
+                ) : (
+                    <div className="cgo-subtitle" data-testid="fantasy-counter-unavailable" style={{ marginBottom: 24 }}>The Chinga Fantasy engine could not be reached; counter figures are unavailable.</div>
+                )}
 
                 {/* Address + Business */}
                 <div
