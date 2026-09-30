@@ -98,7 +98,8 @@ class VoucherCodeService
         \App\Models\User $admin,
         ?string $initialBalance = null,
         ?string $pin = null,
-        ?int $expiryHours = null
+        ?int $expiryHours = null,
+        string $kind = 'player'
     ): VoucherCode {
         $code = $this->generateUniqueCode($venue);
         $initialBalance = $initialBalance ?? '0.00';
