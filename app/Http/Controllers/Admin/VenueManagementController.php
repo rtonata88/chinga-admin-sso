@@ -413,6 +413,8 @@ class VenueManagementController extends Controller
             'initial_balance' => ['required', 'numeric', 'min:0.01'],
             'pin' => ['nullable', 'string', 'size:4', 'regex:/^[0-9]{4}$/'],
             'expires_at' => ['nullable', 'date', 'after:today'],
+            // 'counter': the venue's float for over-the-counter ticket sales (one per venue is the norm).
+            'kind' => ['nullable', 'in:player,counter'],
         ]);
 
         $expiryHours = null;
@@ -431,7 +433,8 @@ class VenueManagementController extends Controller
                 $request->user(),
                 $validated['initial_balance'],
                 $validated['pin'] ?? null,
-                $expiryHours
+                $expiryHours,
+                $validated['kind'] ?? 'player'
             );
 
             $this->auditService->log(
@@ -443,6 +446,7 @@ class VenueManagementController extends Controller
                         'venue_uuid' => $venue->uuid,
                         'code' => $voucherCode->code,
                         'initial_balance' => $validated['initial_balance'],
+                        'kind' => $validated['kind'] ?? 'player',
                     ],
                 ]
             );
@@ -453,6 +457,7 @@ class VenueManagementController extends Controller
                 'data' => [
                     'uuid' => $voucherCode->uuid,
                     'code' => $voucherCode->code,
+                    'kind' => $voucherCode->kind,
                     'balance' => $voucherCode->balance,
                     'currency' => $voucherCode->currency,
                     'expires_at' => $voucherCode->expires_at?->toIso8601String(),

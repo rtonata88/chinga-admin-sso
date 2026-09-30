@@ -31,7 +31,8 @@ class VoucherCodeService
         VenueStaff $createdBy,
         ?string $initialBalance = null,
         ?string $pin = null,
-        ?int $expiryHours = null
+        ?int $expiryHours = null,
+        string $kind = 'player'
     ): VoucherCode {
         $code = $this->generateUniqueCode($venue);
         $initialBalance = $initialBalance ?? '0.00';
@@ -106,6 +107,7 @@ class VoucherCodeService
             'tenant_id' => $venue->tenant_id,
             'venue_id' => $venue->id,
             'code' => $code,
+            'kind' => $kind,
             'pin' => $pin ? bcrypt($pin) : null,
             'balance' => $initialBalance,
             'currency' => $venue->currency,

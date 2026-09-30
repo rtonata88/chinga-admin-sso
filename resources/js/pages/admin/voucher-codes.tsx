@@ -166,6 +166,8 @@ export default function VoucherCodes() {
     const [selectedVenue, setSelectedVenue] = useState('');
     const [initialBalance, setInitialBalance] = useState('100');
     const [pin, setPin] = useState('');
+    // A counter float: the venue's account for over-the-counter ticket sales (many tickets a round, slips paid out at the counter).
+    const [counterFloat, setCounterFloat] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [generatedCode, setGeneratedCode] = useState<
         { code: string; balance: number; currency: string } | null
@@ -235,6 +237,7 @@ export default function VoucherCodes() {
                 body: JSON.stringify({
                     initial_balance: parseFloat(initialBalance),
                     pin: pin || undefined,
+                    kind: counterFloat ? 'counter' : 'player',
                 }),
             });
             const data = await response.json();
@@ -639,6 +642,19 @@ export default function VoucherCodes() {
                                 className="w-full"
                             />
                         </div>
+                        <label className="flex items-start gap-2" style={{ fontSize: 12, cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                data-testid="counter-float"
+                                checked={counterFloat}
+                                onChange={(e) => setCounterFloat(e.target.checked)}
+                                style={{ marginTop: 2 }}
+                            />
+                            <span>
+                                <strong>Counter float</strong> · the venue's account for over-the-counter ticket sales. The counter logs the game in
+                                with this code, sells any number of tickets a round against its balance, and pays winning slips out in cash.
+                            </span>
+                        </label>
                     </div>
                 )}
             </Dialog>

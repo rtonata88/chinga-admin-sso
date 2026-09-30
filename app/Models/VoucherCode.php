@@ -23,6 +23,7 @@ class VoucherCode extends Model
         'balance',
         'currency',
         'status',
+        'kind',
         'created_by_staff_id',
         'created_by_admin_id',
         'user_id',
@@ -182,6 +183,12 @@ class VoucherCode extends Model
     public function createdByAdmin(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_admin_id');
+    }
+
+    /** A venue's float: the counter account that sells tickets over the counter. */
+    public function isCounter(): bool
+    {
+        return $this->kind === 'counter';
     }
 
     public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo

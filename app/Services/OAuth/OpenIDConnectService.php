@@ -40,6 +40,17 @@ class OpenIDConnectService
             $claims = array_merge($claims, $this->getKycClaims($user));
         }
 
+        // Venue play: a counter float's user carries the venue, so the game knows this account sells
+        // tickets over the counter (many per round) and may pay slips out for that venue.
+        if ($user->isVoucherUser()) {
+            $code = \App\Models\VoucherCode::with('venue')->where('user_id', $user->id)->first();
+            if ($code?->isCounter()) {
+                $claims['account_kind'] = 'counter';
+                $claims['venue_id'] = $code->venue?->uuid;
+                $claims['venue_name'] = $code->venue?->name;
+            }
+        }
+
         return $claims;
     }
 
