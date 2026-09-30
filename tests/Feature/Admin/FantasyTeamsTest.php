@@ -45,11 +45,11 @@ test('creates, updates and deactivates through the engine with a gaming:write to
     ]);
 
     $this->actingAs($this->platformAdmin)
-        ->post('/fantasy/teams', ['name' => 'Karibib Kites', 'short_name' => 'karki', 'colour' => '#00ff88', 'active' => true])
+        ->post('/fantasy/teams', ['name' => 'Karibib Kites', 'short_name' => 'karki', 'colour' => '#00ff88', 'active' => true, 'position' => 7])
         ->assertRedirect()->assertSessionHas('success', 'Team created.');
     Http::assertSent(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/api/admin/teams')
         && $r->hasHeader('Authorization', 'Bearer write-tok')
-        && $r->data() === ['name' => 'Karibib Kites', 'short_name' => 'KARKI', 'colour' => '#00FF88', 'active' => true]);
+        && $r->data() === ['name' => 'Karibib Kites', 'short_name' => 'KARKI', 'colour' => '#00FF88', 'active' => true, 'position' => 7]);
     Http::assertSent(fn ($r) => str_ends_with($r->url(), '/oauth/token') && $r->data()['scope'] === 'gaming:write');
 
     $this->actingAs($this->platformAdmin)

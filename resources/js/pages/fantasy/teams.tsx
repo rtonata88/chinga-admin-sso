@@ -20,6 +20,7 @@ interface Team {
     short_name: string | null;
     colour: string;
     active: boolean;
+    position: number | null;
 }
 
 interface Props {
@@ -33,6 +34,7 @@ const emptyTeam = {
     short_name: '',
     colour: '#E4002B',
     active: true,
+    position: '' as string | number,
 };
 
 const STATUS_FILTERS = [
@@ -84,6 +86,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
             short_name: team.short_name || '',
             colour: team.colour,
             active: team.active,
+            position: team.position ?? '',
         });
         setDialogOpen(true);
     };
@@ -196,6 +199,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
                     <table className="cgo-wagers">
                         <thead>
                             <tr>
+                                <th style={{ width: 70 }}>Tile</th>
                                 <th style={{ minWidth: 240 }}>Team</th>
                                 <th style={{ minWidth: 120 }}>Colour</th>
                                 <th style={{ width: 100 }}>Status</th>
@@ -205,13 +209,14 @@ export default function Teams({ teams, filters, error = null }: Props) {
                         <tbody>
                             {teams.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
+                                    <td colSpan={5} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
                                         No teams match the current filters.
                                     </td>
                                 </tr>
                             ) : (
                                 teams.data.map((t) => (
                                     <tr key={t.id}>
+                                        <td className="cgo-mono" data-testid={`tile-${t.id}`}>{t.position === null ? '—' : String(t.position).padStart(2, '0')}</td>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                                 <div
@@ -362,6 +367,18 @@ export default function Teams({ teams, filters, error = null }: Props) {
                             className="w-full"
                             placeholder="e.g. KATKI"
                             maxLength={6}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                            Tile (fixed layout)
+                        </label>
+                        <InputText
+                            value={String(form.position)}
+                            onChange={(e) => setForm({ ...form, position: e.target.value.replace(/[^0-9]/g, '') })}
+                            className="w-full"
+                            placeholder="1 to grid size; blank = no tile"
+                            inputMode="numeric"
                         />
                     </div>
                     <div>

@@ -51,6 +51,7 @@ class FantasyTeamController extends Controller
             'short_name' => $t['shortName'] ?? null,
             'colour' => $t['colour'] ?? '#888888',
             'active' => (bool) ($t['active'] ?? false),
+            'position' => isset($t['position']) ? (int) $t['position'] : null,
         ], array_slice($filtered, ($page - 1) * self::PER_PAGE, self::PER_PAGE));
 
         return Inertia::render('fantasy/teams', [
@@ -101,6 +102,7 @@ class FantasyTeamController extends Controller
             'short_name' => ['required', 'string', 'max:6', 'regex:/^[A-Za-z0-9]+$/'],
             'colour' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'active' => ['boolean'],
+            'position' => ['nullable', 'integer', 'min:1', 'max:500'],
         ];
     }
 
@@ -111,6 +113,7 @@ class FantasyTeamController extends Controller
             'short_name' => strtoupper($v['short_name']),
             'colour' => strtoupper($v['colour']),
             ...(array_key_exists('active', $v) ? ['active' => (bool) $v['active']] : []),
+            ...(array_key_exists('position', $v) ? ['position' => $v['position'] === null || $v['position'] === '' ? null : (int) $v['position']] : []),
         ];
     }
 

@@ -24,7 +24,7 @@ class FantasySettingsSchema
         return [
             'type' => 'object',
             'required' => [
-                'house_edge', 'tier_odds', 'grid_size', 'pick_count', 'min_bet_amount', 'max_bet_amount',
+                'house_edge', 'tier_odds', 'grid_size', 'grid_layout', 'pick_count', 'min_bet_amount', 'max_bet_amount',
                 'max_win_per_bet', 'max_total_stake_per_round', 'max_total_liability_per_round', 'jackpot_share_of_edge', 'jackpot_cap',
                 'jackpot_activation', 'betting_seconds', 'results_seconds', 'settle_seconds',
             ],
@@ -33,6 +33,7 @@ class FantasySettingsSchema
                 'tier_odds' => ['type' => 'string', 'title' => 'Tier odds', 'description' => 'Exact 2dp display odds per tier, favourite to longshot, comma-separated. Win chances are derived from these; never the other way round.', 'default' => '1.25,1.50,1.80,2.20,2.75,3.50,4.50', 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'tier_weights' => ['type' => 'string', 'title' => 'Tier weights', 'description' => 'Relative teams per tier, favourite to longshot, comma-separated; blank means equal. With the grid size this sets the average number of winners per round (the default 12,10,9,7,6,5,3 on a grid of 52 gives about 28).', 'default' => '12,10,9,7,6,5,3', 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'grid_size' => ['type' => 'integer', 'title' => 'Grid size', 'minimum' => 20, 'maximum' => 100, 'default' => 52, 'x-group' => 'game', 'x-tenant-overridable' => false],
+                'grid_layout' => ['type' => 'string', 'title' => 'Grid layout', 'description' => 'Fixed: every team keeps its tile from round to round (the Teams page sets the positions) and exactly grid-size teams must be active, or no round opens. Shuffled: the grid is dealt from the pool each round. Tiers (odds and chances) are dealt fresh from the seed every round either way.', 'enum' => ['fixed', 'shuffled'], 'default' => 'fixed', 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'pick_count' => ['type' => 'integer', 'title' => 'Picks per ticket', 'description' => 'Fixed at 4: changing it changes the odds formula and is a code change.', 'minimum' => 4, 'maximum' => 4, 'default' => 4, 'x-group' => 'game', 'x-tenant-overridable' => false],
                 'min_bet_amount' => ['type' => 'number', 'title' => 'Min stake (NAD)', 'minimum' => 1, 'default' => 5, 'x-group' => 'game', 'x-format' => 'currency'],
                 'max_bet_amount' => ['type' => 'number', 'title' => 'Max stake per ticket (NAD)', 'description' => 'Launch default 20; raise per operator once a few weeks of turnover are known.', 'minimum' => 1, 'default' => 20, 'x-group' => 'game', 'x-format' => 'currency'],
