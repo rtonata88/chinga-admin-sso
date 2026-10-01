@@ -29,6 +29,8 @@ test('a counter float shows its wallet balance, stays active after logging in, a
     $venue = Venue::create(['tenant_id' => $tenant->id, 'name' => 'Tigers Bar', 'slug' => 'tigers-bar', 'address_line_1' => '1 Independence Ave', 'city' => 'Windhoek']);
     $game = \App\Models\Game::factory()->fantasy()->create();
     $tenant->games()->attach($game->id, ['enabled' => true]);
+    // The voucher session issues a personal access token: Passport needs its client in the test database.
+    app(\Laravel\Passport\ClientRepository::class)->createPersonalAccessGrantClient('Test PAT client');
     $user = User::factory()->create(['tenant_id' => $tenant->id, 'user_type' => 'voucher', 'status' => 'active']);
     $code = VoucherCode::create(['tenant_id' => $tenant->id, 'venue_id' => $venue->id, 'code' => 'TIGERS02', 'balance' => '1000.00', 'currency' => 'NAD', 'status' => 'active', 'kind' => 'counter', 'user_id' => $user->id]);
 
