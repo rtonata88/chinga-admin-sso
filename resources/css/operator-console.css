@@ -873,3 +873,212 @@ table.cgo-wagers {
   color: var(--cg-brass-hi);
 }
 
+/* ================================================================ */
+/* Form controls — PrimeReact inputs inside console pages and dialogs */
+/* ================================================================ */
+:is(.cgo-page, .cgo-dialog) .p-inputnumber-input,
+:is(.cgo-page, .cgo-dialog) .p-inputtext,
+:is(.cgo-page, .cgo-dialog) .p-dropdown,
+:is(.cgo-page, .cgo-dialog) .p-chips .p-inputtext {
+    background: var(--cg-ink-elevated) !important;
+    color: var(--cg-fg-1) !important;
+    border: 1px solid var(--cg-rule-strong) !important;
+    border-radius: 6px !important;
+    font-family: var(--cg-mono) !important;
+    font-feature-settings: 'tnum' 1 !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputnumber-input,
+:is(.cgo-page, .cgo-dialog) .p-inputtext {
+    padding: 8px 10px !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-dropdown .p-dropdown-label {
+    color: var(--cg-fg-1) !important;
+    font-family: var(--cg-mono) !important;
+    padding: 8px 10px !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputnumber-input:focus,
+:is(.cgo-page, .cgo-dialog) .p-inputtext:focus,
+:is(.cgo-page, .cgo-dialog) .p-dropdown.p-focus {
+    border-color: var(--cg-brass) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputnumber-button {
+    background: var(--cg-ink-elevated) !important;
+    border-color: var(--cg-rule-strong) !important;
+    color: var(--cg-fg-2) !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputnumber-button:hover {
+    color: var(--cg-brass-hi) !important;
+    border-color: var(--cg-brass) !important;
+}
+
+/* Field grid: two columns; the control sits at the bottom of its cell so
+   a row's inputs line up whatever the length of the hints above them. */
+:is(.cgo-page, .cgo-dialog) .cgo-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+    row-gap: 20px;
+}
+@media (max-width: 860px) {
+    :is(.cgo-page, .cgo-dialog) .cgo-field-grid { grid-template-columns: minmax(0, 1fr); }
+}
+:is(.cgo-page, .cgo-dialog) .cgo-field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+:is(.cgo-page, .cgo-dialog) .cgo-field .cgo-field-label { flex: 1 1 auto; }
+:is(.cgo-page, .cgo-dialog) .cgo-field .p-inputnumber,
+:is(.cgo-page, .cgo-dialog) .cgo-field .p-dropdown,
+:is(.cgo-page, .cgo-dialog) .cgo-field .p-chips,
+:is(.cgo-page, .cgo-dialog) .cgo-field > .p-inputtext {
+    width: 100%;
+}
+:is(.cgo-page, .cgo-dialog) .cgo-field .p-inputnumber-input { width: 100%; }
+:is(.cgo-page, .cgo-dialog) .cgo-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    font-size: 12px;
+    color: var(--cg-fg-2);
+}
+
+/* Switch: ink track, brass when on. The lara theme's knob was sized for a
+   light page and sat below the track here. */
+:is(.cgo-page, .cgo-dialog) .p-inputswitch {
+    width: 40px !important;
+    height: 22px !important;
+    display: inline-block;
+    position: relative;
+    flex: none;
+    vertical-align: middle;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputswitch .p-inputswitch-slider {
+    background: var(--cg-ink-elevated) !important;
+    border: 1px solid var(--cg-rule-strong) !important;
+    border-radius: 11px !important;
+    box-shadow: none !important;
+    position: absolute;
+    inset: 0;
+    transition: background var(--cg-dur) var(--cg-ease), border-color var(--cg-dur) var(--cg-ease);
+}
+:is(.cgo-page, .cgo-dialog) .p-inputswitch .p-inputswitch-slider::before {
+    width: 14px !important;
+    height: 14px !important;
+    left: 3px !important;
+    top: 50% !important;
+    margin-top: -7px !important;
+    border-radius: 50% !important;
+    background: var(--cg-fg-3) !important;
+    box-shadow: none !important;
+    transform: none !important;
+    transition: left var(--cg-dur) var(--cg-ease), background var(--cg-dur) var(--cg-ease);
+}
+:is(.cgo-page, .cgo-dialog) .p-inputswitch.p-highlight .p-inputswitch-slider,
+:is(.cgo-page, .cgo-dialog) .p-inputswitch.p-inputswitch-checked .p-inputswitch-slider {
+    background: var(--cg-brass) !important;
+    border-color: var(--cg-brass) !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputswitch.p-highlight .p-inputswitch-slider::before,
+:is(.cgo-page, .cgo-dialog) .p-inputswitch.p-inputswitch-checked .p-inputswitch-slider::before {
+    left: 21px !important;
+    transform: none !important;
+    background: var(--cg-ink) !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputswitch:not(.p-disabled):hover .p-inputswitch-slider {
+    border-color: var(--cg-brass) !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-inputswitch.p-focus .p-inputswitch-slider {
+    box-shadow: 0 0 0 2px var(--cg-brass-wash) !important;
+}
+
+/* Chips (list fields such as allowed countries): one input-shaped box,
+   mono brass tokens with a clear remove target. */
+:is(.cgo-page, .cgo-dialog) .p-chips { display: block; }
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-multiple-container {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 38px;
+    padding: 5px 8px !important;
+    margin: 0 !important;
+    list-style: none;
+}
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-multiple-container.p-focus,
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-multiple-container:focus-within {
+    border-color: var(--cg-brass) !important;
+    box-shadow: none !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-token {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    margin: 0 !important;
+    padding: 2px 6px 2px 8px !important;
+    border-radius: 4px !important;
+    background: var(--cg-brass-wash) !important;
+    color: var(--cg-brass-hi) !important;
+    font-family: var(--cg-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+}
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-token .p-chips-token-label { margin: 0 !important; }
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-token .p-chips-token-icon {
+    width: 12px;
+    height: 12px;
+    margin: 0 !important;
+    color: var(--cg-brass-hi);
+    cursor: pointer;
+}
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-input-token {
+    flex: 1 1 72px;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+:is(.cgo-page, .cgo-dialog) .p-chips .p-chips-input-token input {
+    width: 100%;
+    padding: 4px 2px !important;
+    background: transparent !important;
+    border: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    color: var(--cg-fg-1);
+    font-family: var(--cg-mono);
+    font-size: 13px;
+}
+
+
+/* Stacked field in a dialog: eyebrow label, optional hint, control. */
+.cgo-dialog .cgo-field { gap: 6px; justify-content: flex-end; }
+.cgo-dialog .cgo-field .cgo-field-label { flex: 0 0 auto; }
+.cgo-dialog .cgo-field + .cgo-field { margin-top: 16px; }
+.cgo-dialog .cgo-field-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--cg-fg-3); font-weight: 600; }
+.cgo-dialog .cgo-field-hint { font-size: 11px; color: var(--cg-fg-3); margin-top: -2px; }
+.cgo-dialog .p-dialog-content { padding: 22px 24px 24px !important; }
+.cgo-dialog .p-dialog-footer .p-button { font-size: 13px; }
+.cgo-dialog .p-dialog-footer .p-button.p-button-outlined { color: var(--cg-fg-2) !important; border-color: var(--cg-rule-strong) !important; }
+.cgo-dialog .p-dialog-footer .p-button.p-button-outlined:hover { color: var(--cg-fg-1) !important; border-color: var(--cg-brass) !important; background: transparent !important; }
+
+/* Colour field: swatch button + hex input in one row. */
+.cgo-colour-row { display: flex; align-items: center; gap: 8px; }
+.cgo-colour-row .cgo-swatch {
+  width: 38px; height: 38px; flex: none; padding: 0; border-radius: 6px;
+  border: 1px solid var(--cg-rule-strong); background: var(--cg-ink-elevated); cursor: pointer; display: grid; place-items: center;
+}
+.cgo-colour-row .cgo-swatch span { display: block; width: 22px; height: 22px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.35); }
+.cgo-colour-row .cgo-swatch:hover { border-color: var(--cg-brass); }
+.cgo-colour-row input[type='color'] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* Team badge in the catalogue table: colour bar + short name, never clipped. */
+.cgo-team-badge {
+  display: inline-flex; align-items: center; height: 32px; min-width: 32px; padding: 0 8px 0 9px;
+  border-radius: 4px; background: var(--cg-ink-elevated); border: 1px solid var(--cg-rule);
+  border-left-width: 4px; color: var(--cg-fg-2); font-family: var(--cg-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; white-space: nowrap; flex: none;
+}

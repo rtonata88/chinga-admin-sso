@@ -11,7 +11,7 @@ import { InputSwitch } from 'primereact/inputswitch';
 import { Toast } from 'primereact/toast';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { FieldLabel, FormControlStyles, PanelShell } from '@/components/games/panels';
+import { FieldLabel, PanelShell } from '@/components/games/panels';
 import {
     SchemaForm,
     keysInGroup,
@@ -326,7 +326,6 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                 )}
             </div>
 
-            <FormControlStyles />
         </UserLayout>
     );
 }

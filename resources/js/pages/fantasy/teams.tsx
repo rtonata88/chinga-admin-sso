@@ -53,6 +53,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
     const [form, setForm] = useState(emptyTeam);
     const [saving, setSaving] = useState(false);
     const toast = useRef<Toast>(null);
+    const colourInput = useRef<HTMLInputElement>(null);
 
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
 
@@ -192,10 +193,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
                 </div>
 
                 {/* Teams table */}
-                <div
-                    className="cgo-table-wrap cgo-table-wrap--scroll"
-                    style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}
-                >
+                <div className="cgo-table-wrap" style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}>
                     <table className="cgo-wagers">
                         <thead>
                             <tr>
@@ -219,25 +217,9 @@ export default function Teams({ teams, filters, error = null }: Props) {
                                         <td className="cgo-mono" data-testid={`tile-${t.id}`}>{t.position === null ? '—' : String(t.position).padStart(2, '0')}</td>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                <div
-                                                    style={{
-                                                        width: 32,
-                                                        height: 32,
-                                                        borderRadius: 4,
-                                                        display: 'grid',
-                                                        placeItems: 'center',
-                                                        background: 'var(--cg-ink-elevated)',
-                                                        border: '1px solid var(--cg-rule)',
-                                                        borderLeft: `4px solid ${t.colour}`,
-                                                        color: 'var(--cg-fg-2)',
-                                                        fontSize: 10,
-                                                        fontFamily: 'var(--cg-mono)',
-                                                        fontWeight: 700,
-                                                        letterSpacing: '0.04em',
-                                                    }}
-                                                >
+                                                <span className="cgo-team-badge" style={{ borderLeftColor: t.colour }} aria-hidden>
                                                     {(t.short_name || t.name.substring(0, 2)).toUpperCase()}
-                                                </div>
+                                                </span>
                                                 <div>
                                                     <div className="cgo-name">{t.name}</div>
                                                     {t.short_name && (
@@ -329,7 +311,8 @@ export default function Teams({ teams, filters, error = null }: Props) {
             <Dialog
                 header={editingTeam ? `Edit · ${editingTeam.name}` : 'New team'}
                 visible={dialogOpen}
-                style={{ width: '32rem' }}
+                className="cgo-dialog"
+                style={{ width: '32rem', maxWidth: '96vw' }}
                 onHide={() => setDialogOpen(false)}
                 modal
                 draggable={false}
@@ -345,73 +328,83 @@ export default function Teams({ teams, filters, error = null }: Props) {
                     </div>
                 }
             >
-                <div className="space-y-4">
-                    <div>
-                        <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                            Name *
-                        </label>
+                <div>
+                    <div className="cgo-field">
+                        <label className="cgo-field-label" htmlFor="team-name">Name</label>
                         <InputText
+                            id="team-name"
                             value={form.name}
                             onChange={(e) => setForm({ ...form, name: e.target.value })}
                             className="w-full"
                             placeholder="Team name"
+                            autoFocus
                         />
                     </div>
-                    <div>
-                        <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                            Short name
-                        </label>
-                        <InputText
-                            value={form.short_name}
-                            onChange={(e) => setForm({ ...form, short_name: e.target.value })}
-                            className="w-full"
-                            placeholder="e.g. KATKI"
-                            maxLength={6}
-                        />
+                    <div className="cgo-field-grid" style={{ marginTop: 16 }}>
+                        <div className="cgo-field">
+                            <label className="cgo-field-label" htmlFor="team-short">Short name</label>
+                            <div className="cgo-field-hint">Up to 6 characters, shown on the tile</div>
+                            <InputText
+                                id="team-short"
+                                value={form.short_name}
+                                onChange={(e) => setForm({ ...form, short_name: e.target.value.toUpperCase() })}
+                                className="w-full"
+                                placeholder="KATKI"
+                                maxLength={6}
+                            />
+                        </div>
+                        <div className="cgo-field">
+                            <label className="cgo-field-label" htmlFor="team-tile">Tile</label>
+                            <div className="cgo-field-hint">1 to grid size in the fixed layout; blank means no tile</div>
+                            <InputText
+                                id="team-tile"
+                                value={String(form.position)}
+                                onChange={(e) => setForm({ ...form, position: e.target.value.replace(/[^0-9]/g, '') })}
+                                className="w-full"
+                                placeholder="—"
+                                inputMode="numeric"
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                            Tile (fixed layout)
-                        </label>
-                        <InputText
-                            value={String(form.position)}
-                            onChange={(e) => setForm({ ...form, position: e.target.value.replace(/[^0-9]/g, '') })}
-                            className="w-full"
-                            placeholder="1 to grid size; blank = no tile"
-                            inputMode="numeric"
-                        />
-                    </div>
-                    <div>
-                        <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                            Colour *
-                        </label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="cgo-field" style={{ marginTop: 16 }}>
+                        <label className="cgo-field-label" htmlFor="team-colour">Colour</label>
+                        <div className="cgo-colour-row">
+                            <button
+                                type="button"
+                                className="cgo-swatch"
+                                aria-label="Pick a colour"
+                                title="Pick a colour"
+                                onClick={() => colourInput.current?.click()}
+                            >
+                                <span style={{ background: form.colour }} />
+                            </button>
                             <input
+                                ref={colourInput}
                                 type="color"
                                 aria-label="Colour"
-                                value={form.colour}
+                                tabIndex={-1}
+                                value={/^#[0-9A-Fa-f]{6}$/.test(form.colour) ? form.colour : '#000000'}
                                 onChange={(e) => setForm({ ...form, colour: e.target.value.toUpperCase() })}
-                                style={{ width: 40, height: 36, padding: 0, border: '1px solid var(--cg-rule)', background: 'transparent' }}
                             />
                             <InputText
+                                id="team-colour"
                                 value={form.colour}
-                                onChange={(e) => setForm({ ...form, colour: e.target.value })}
+                                onChange={(e) => setForm({ ...form, colour: e.target.value.toUpperCase() })}
                                 className="w-full"
                                 placeholder="#E4002B"
                                 maxLength={7}
                             />
                         </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div className="cgo-switch-row" style={{ marginTop: 18 }}>
                         <InputSwitch
+                            inputId="team-active"
                             checked={form.active}
                             onChange={(e) => setForm({ ...form, active: e.value ?? false })}
                         />
-                        <label style={{ fontSize: 13 }}>
+                        <label htmlFor="team-active" style={{ fontSize: 13, color: 'var(--cg-fg-1)' }}>
                             Active{' '}
-                            <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>
-                                · eligible to be drawn into rounds
-                            </span>
+                            <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>· eligible to be drawn into rounds</span>
                         </label>
                     </div>
                 </div>
@@ -421,7 +414,8 @@ export default function Teams({ teams, filters, error = null }: Props) {
             <Dialog
                 header="Deactivate team"
                 visible={deleteDialogOpen}
-                style={{ width: '24rem' }}
+                className="cgo-dialog"
+                style={{ width: '26rem', maxWidth: '96vw' }}
                 onHide={() => setDeleteDialogOpen(false)}
                 modal
                 draggable={false}
@@ -432,8 +426,8 @@ export default function Teams({ teams, filters, error = null }: Props) {
                     </div>
                 }
             >
-                <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-                    Deactivate <strong>{deletingTeam?.name}</strong>? It stays in the history of the
+                <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--cg-fg-2)' }}>
+                    Deactivate <strong style={{ color: 'var(--cg-fg-1)' }}>{deletingTeam?.name}</strong>? It stays in the history of the
                     rounds it was dealt into and will not be dealt into new ones. You can reactivate it later.
                 </div>
             </Dialog>
