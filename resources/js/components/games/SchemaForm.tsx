@@ -89,7 +89,7 @@ export function SchemaForm({
     const fieldId = (key: string) => (prefix ? `${prefix}-${key}` : key);
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 18 }}>
+        <div className="cgo-field-grid">
             {keys.map((key) => {
                 const p = schema.properties[key];
                 if (!p) return null;
@@ -133,7 +133,7 @@ export function SchemaForm({
                                 className="w-full"
                             />
                         ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 4 }}>
+                            <div className="cgo-switch-row">
                                 <InputSwitch
                                     inputId={id}
                                     checked={value === true}
@@ -186,7 +186,7 @@ export function SchemaForm({
                 }
 
                 return (
-                    <div key={key}>
+                    <div key={key} className="cgo-field">
                         <FieldLabel hint={p.description}>{label}</FieldLabel>
                         {control}
                     </div>

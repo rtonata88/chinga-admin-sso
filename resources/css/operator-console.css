@@ -322,6 +322,44 @@
   font-size: 13.5px;
   margin-top: 8px;
 }
+.cgo-stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 40px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dotted var(--cg-rule-strong);
+}
+.cgo-stat {
+  max-width: 420px;
+}
+.cgo-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--cg-fg-3);
+  font-weight: 600;
+}
+.cgo-stat-value {
+  font-family: var(--cg-condensed);
+  font-feature-settings: 'tnum' 1;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--cg-brass-hi);
+  margin-top: 2px;
+}
+.cgo-stat-of {
+  font-size: 14px;
+  color: var(--cg-fg-2);
+  font-weight: 600;
+}
+.cgo-stat-note {
+  font-size: 11.5px;
+  color: var(--cg-fg-3);
+  margin-top: 2px;
+  line-height: 1.5;
+}
 .cgo-live-pill {
   display: inline-flex;
   align-items: center;

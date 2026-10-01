@@ -123,20 +123,33 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                     <div>
                         <div className="cgo-eyebrow">{game.name}</div>
                         <h1 className="cgo-title">Settings</h1>
-                        {typeof game.theoretical_rtp === 'number' && (
-                            <div data-testid="theoretical-rtp" style={{ fontFamily: 'var(--cg-mono)', fontSize: 12, letterSpacing: '.06em', color: 'var(--cg-brass-hi)', margin: '4px 0 6px' }}>
-                                THEORETICAL RTP {(game.theoretical_rtp * 100).toFixed(2)}% · house edge is the only setting that changes it
-                            </div>
-                        )}
-                        {typeof game.expected_winners === 'number' && (
-                            <div data-testid="expected-winners" style={{ fontFamily: 'var(--cg-mono)', fontSize: 12, letterSpacing: '.06em', color: 'var(--cg-brass-hi)', margin: '0 0 6px' }}>
-                                AVERAGE WINNERS {game.expected_winners.toFixed(1)} OF {game.grid_size ?? '?'} PER ROUND · set by grid size, tier weights and house edge; every team is drawn independently
-                            </div>
-                        )}
                         <div className="cgo-subtitle">
                             Game-wide defaults for <strong style={{ color: 'var(--cg-fg-1)' }}>{game.name}</strong> with
                             per-tenant overrides. Fields come from the game&apos;s settings schema.
                         </div>
+                        {(typeof game.theoretical_rtp === 'number' || typeof game.expected_winners === 'number') && (
+                            <div className="cgo-stat-strip">
+                                {typeof game.theoretical_rtp === 'number' && (
+                                    <div className="cgo-stat" data-testid="theoretical-rtp">
+                                        <div className="cgo-stat-label">Theoretical RTP</div>
+                                        <div className="cgo-stat-value">{(game.theoretical_rtp * 100).toFixed(2)}%</div>
+                                        <div className="cgo-stat-note">House edge is the only setting that changes it.</div>
+                                    </div>
+                                )}
+                                {typeof game.expected_winners === 'number' && (
+                                    <div className="cgo-stat" data-testid="expected-winners">
+                                        <div className="cgo-stat-label">Average winners per round</div>
+                                        <div className="cgo-stat-value">
+                                            {game.expected_winners.toFixed(1)} <span className="cgo-stat-of">of {game.grid_size ?? '?'}</span>
+                                        </div>
+                                        <div className="cgo-stat-note">
+                                            Set by grid size, tier weights and house edge. Every team is drawn independently, so the
+                                            count varies round to round.
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -233,7 +246,7 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                                                 gap: 12,
                                             }}
                                         >
-                                            <span style={{ width: 18, color: 'var(--cg-fg-3)', fontFamily: 'var(--cg-mono)' }}>
+                                            <span style={{ width: 18, color: 'var(--cg-fg-3)', fontFamily: 'var(--cg-mono)', textAlign: 'center' }}>
                                                 {isOpen ? '−' : '+'}
                                             </span>
                                             <div style={{ flex: 1 }}>
