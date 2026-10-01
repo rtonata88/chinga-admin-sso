@@ -438,6 +438,11 @@ export default function VoucherCodes() {
                                             >
                                                 {c.code}
                                             </span>
+                                            {c.kind === 'counter' && (
+                                                <span className="cgo-pill" style={{ marginLeft: 8, color: 'var(--cg-brass-hi)', borderColor: 'var(--cg-brass)' }} title="Counter float: the venue's account for over-the-counter sales">
+                                                    Counter
+                                                </span>
+                                            )}
                                         </td>
                                         <td>
                                             <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
@@ -550,9 +555,9 @@ export default function VoucherCodes() {
 
             {/* Create voucher dialog */}
             <Dialog
-                header="Create voucher"
+                header={generatedCode ? (counterFloat ? 'Counter float created' : 'Voucher created') : 'Create a voucher'}
                 visible={generateOpen}
-                style={{ width: '32rem' }}
+                style={{ width: '40rem', maxWidth: '96vw' }}
                 onHide={closeGenerateDialog}
                 modal
                 draggable={false}
@@ -568,7 +573,7 @@ export default function VoucherCodes() {
                             <Button
                                 label={generating ? 'Creating…' : 'Create'}
                                 onClick={handleGenerate}
-                                disabled={!selectedVenue || generating}
+                                disabled={!selectedVenue || generating || (counterFloat && pin.length !== 4) || !(Number(initialBalance) > 0)}
                                 loading={generating}
                             />
                         )}
@@ -585,25 +590,43 @@ export default function VoucherCodes() {
                                 padding: 14,
                             }}
                         >
-                            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>
-                                Voucher created
-                            </div>
-                            <div className="flex justify-between items-center">
+                            <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>{counterFloat ? 'Counter login' : 'Voucher code'}</div>
+                            <div className="flex justify-between items-center" style={{ gap: 12 }}>
                                 <code
+                                    data-testid="created-code"
                                     style={{
                                         fontFamily: 'var(--cg-mono)',
                                         color: 'var(--cg-brass-hi)',
-                                        letterSpacing: '0.06em',
-                                        fontSize: '1.2rem',
-                                        fontWeight: 600,
+                                        letterSpacing: '0.18em',
+                                        fontSize: '1.9rem',
+                                        fontWeight: 700,
                                     }}
                                 >
                                     {generatedCode.code}
                                 </code>
-                                <span style={{ fontFamily: 'var(--cg-mono)', fontSize: '1.1rem' }}>
-                                    {generatedCode.currency || 'NAD'} {formatNAD(generatedCode.balance)}
-                                </span>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontFamily: 'var(--cg-mono)', fontSize: '1.1rem' }}>
+                                        {generatedCode.currency || 'NAD'} {formatNAD(generatedCode.balance)}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>{pin ? `PIN ${pin}` : 'no PIN'}</div>
+                                </div>
                             </div>
+                            <div style={{ fontSize: 12, color: 'var(--cg-fg-2)', marginTop: 10, lineHeight: 1.5 }}>
+                                {(() => { const v = venues.find((x) => x.uuid === selectedVenue); return v ? venueLabel(v) : ''; })()}
+                                {counterFloat ? (
+                                    <><br />Give the code and PIN to the counter. They log in at the game's <b style={{ color: 'var(--cg-fg-1)' }}>/counter</b> address, sell tickets against this float, and pay winning slips out in cash. The code is shown once here; it can be reprinted from the table.</>
+                                ) : (
+                                    <><br />The player enters this code (and PIN) in the game to play with the balance.</>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                className="cg-btn cg-btn--ghost cg-btn--sm"
+                                style={{ marginTop: 10 }}
+                                onClick={() => { void navigator.clipboard?.writeText(generatedCode.code); }}
+                            >
+                                Copy code
+                            </button>
                         </div>
                         <Button
                             label="Print receipt"
@@ -623,56 +646,120 @@ export default function VoucherCodes() {
                         />
                     </div>
                 ) : (
-                    <div className="space-y-4">
-                        <div className="flex flex-col gap-1">
-                            <label style={{ fontSize: 12, fontWeight: 500 }}>Venue</label>
+                    <div className="space-y-5">
+                        {/* 1. What kind */}
+                        <div>
+                            <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>1 · What is it for</div>
+                            <div role="radiogroup" aria-label="Voucher kind" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                {[
+                                    { value: false, title: 'Player voucher', text: 'Sold to one player. The balance moves into their wallet when they log the game in; single use.' },
+                                    { value: true, title: 'Counter float', text: "The venue's own account for over-the-counter ticket sales. The counter logs in with it every shift, sells any number of tickets a round against it, and pays winning slips out in cash." },
+                                ].map((k) => {
+                                    const active = counterFloat === k.value;
+                                    return (
+                                        <button
+                                            key={k.title}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={active}
+                                            data-testid={k.value ? 'counter-float' : 'player-voucher'}
+                                            onClick={() => { setCounterFloat(k.value); setInitialBalance(k.value ? '1000' : '100'); }}
+                                            style={{
+                                                textAlign: 'left',
+                                                padding: '12px 14px',
+                                                borderRadius: 6,
+                                                border: `1px solid ${active ? 'var(--cg-brass)' : 'var(--cg-rule)'}`,
+                                                background: active ? 'var(--cg-ink-elevated)' : 'transparent',
+                                                boxShadow: active ? '0 0 0 1px var(--cg-brass)' : 'none',
+                                                color: 'var(--cg-fg-1)',
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+                                                <span aria-hidden style={{ width: 10, height: 10, borderRadius: 999, border: '1px solid var(--cg-brass)', background: active ? 'var(--cg-brass)' : 'transparent' }} />
+                                                {k.title}
+                                            </div>
+                                            <div style={{ fontSize: 11.5, lineHeight: 1.45, color: 'var(--cg-fg-2)', marginTop: 6 }}>{k.text}</div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* 2. Where */}
+                        <div>
+                            <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>2 · Operator and venue</div>
                             <Dropdown
                                 value={selectedVenue}
                                 options={generateVenueOptions}
                                 optionGroupLabel="label"
                                 optionGroupChildren="items"
                                 onChange={(e) => setSelectedVenue(e.value)}
-                                placeholder="Select operator and venue"
+                                placeholder="Search by operator, venue or town"
                                 filter
                                 filterBy="label"
                                 className="w-full"
                             />
+                            <div style={{ fontSize: 11, color: 'var(--cg-fg-3)', marginTop: 6 }}>
+                                Venues are listed under their operator, so two venues with the same name cannot be confused.
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label style={{ fontSize: 12, fontWeight: 500 }}>Amount (NAD)</label>
-                            <InputText
-                                type="number"
-                                min={0.01}
-                                step={0.01}
-                                value={initialBalance}
-                                onChange={(e) => setInitialBalance(e.target.value)}
-                                className="w-full"
-                            />
+
+                        {/* 3. Money and PIN */}
+                        <div>
+                            <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>3 · {counterFloat ? 'Opening float' : 'Amount'} and PIN</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div className="flex flex-col gap-1">
+                                    <label style={{ fontSize: 12, fontWeight: 500 }}>{counterFloat ? 'Opening float (NAD)' : 'Amount (NAD)'}</label>
+                                    <InputText
+                                        type="number"
+                                        min={0.01}
+                                        step={0.01}
+                                        value={initialBalance}
+                                        onChange={(e) => setInitialBalance(e.target.value)}
+                                        className="w-full"
+                                        style={{ fontFamily: 'var(--cg-mono)', fontSize: 16 }}
+                                    />
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                        {(counterFloat ? [500, 1000, 2000, 5000] : [20, 50, 100, 200]).map((a) => (
+                                            <button key={a} type="button" className={`cgo-chip${Number(initialBalance) === a ? ' active' : ''}`} onClick={() => setInitialBalance(String(a))}>
+                                                {a.toLocaleString()}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label style={{ fontSize: 12, fontWeight: 500 }}>{counterFloat ? 'PIN · required' : 'PIN · optional'} (4 digits)</label>
+                                    <InputText
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={4}
+                                        placeholder="e.g. 1234"
+                                        value={pin}
+                                        onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
+                                        className="w-full"
+                                        style={{ fontFamily: 'var(--cg-mono)', fontSize: 16, letterSpacing: '0.2em' }}
+                                    />
+                                    <div style={{ fontSize: 11, color: 'var(--cg-fg-3)', marginTop: 4 }}>
+                                        {counterFloat ? 'The cashier types the code and this PIN to open the counter.' : 'Protects the voucher if the slip is lost.'}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label style={{ fontSize: 12, fontWeight: 500 }}>PIN (optional · 4 digits)</label>
-                            <InputText
-                                type="text"
-                                maxLength={4}
-                                placeholder="e.g. 1234"
-                                value={pin}
-                                onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
-                                className="w-full"
-                            />
+
+                        {/* Summary */}
+                        <div style={{ borderTop: '1px dashed var(--cg-rule)', paddingTop: 12, fontSize: 12, color: 'var(--cg-fg-2)' }} data-testid="create-summary">
+                            {selectedVenue ? (
+                                <>
+                                    Creating a <b style={{ color: 'var(--cg-fg-1)' }}>{counterFloat ? 'counter float' : 'player voucher'}</b> for{' '}
+                                    <b style={{ color: 'var(--cg-fg-1)' }}>{(() => { const v = venues.find((x) => x.uuid === selectedVenue); return v ? venueLabel(v) : '…'; })()}</b>
+                                    {' '}with <b style={{ color: 'var(--cg-brass-hi)', fontFamily: 'var(--cg-mono)' }}>N$ {formatNAD(Number(initialBalance) || 0)}</b>
+                                    {pin.length === 4 ? ', PIN set' : counterFloat ? ', PIN still needed' : ', no PIN'}.
+                                </>
+                            ) : (
+                                'Choose the operator and venue to continue.'
+                            )}
                         </div>
-                        <label className="flex items-start gap-2" style={{ fontSize: 12, cursor: 'pointer' }}>
-                            <input
-                                type="checkbox"
-                                data-testid="counter-float"
-                                checked={counterFloat}
-                                onChange={(e) => setCounterFloat(e.target.checked)}
-                                style={{ marginTop: 2 }}
-                            />
-                            <span>
-                                <strong>Counter float</strong> · the venue's account for over-the-counter ticket sales. The counter logs the game in
-                                with this code, sells any number of tickets a round against its balance, and pays winning slips out in cash.
-                            </span>
-                        </label>
                     </div>
                 )}
             </Dialog>
