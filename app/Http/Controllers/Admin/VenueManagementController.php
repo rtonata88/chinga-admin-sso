@@ -25,7 +25,9 @@ class VenueManagementController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Venue::withCount(['staff', 'terminals', 'voucherCodes']);
+        // The operator comes with every venue: many operators have venues with the same names, and a
+        // venue is only unambiguous as "operator · venue · city".
+        $query = Venue::with('tenant:id,name,slug')->withCount(['staff', 'terminals', 'voucherCodes']);
 
         // Search
         if ($search = $request->input('search')) {
@@ -46,11 +48,15 @@ class VenueManagementController extends Controller
         $sortDir = $request->input('sort_dir', 'desc');
         $query->orderBy($sortBy, $sortDir);
 
-        $venues = $query->paginate($request->input('per_page', 25));
+        $venues = $query->paginate(min(500, (int) $request->input('per_page', 25)));
 
         return response()->json([
             'success' => true,
-            'data' => $venues->items(),
+            'data' => collect($venues->items())->map(fn (Venue $v) => [
+                ...$v->toArray(),
+                'tenant_name' => $v->tenant?->name,
+                'tenant_slug' => $v->tenant?->slug,
+            ])->all(),
             'meta' => [
                 'current_page' => $venues->currentPage(),
                 'last_page' => $venues->lastPage(),

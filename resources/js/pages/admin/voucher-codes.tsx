@@ -17,7 +17,12 @@ import { useEffect, useMemo, useState } from 'react';
 interface Venue {
     uuid: string;
     name: string;
+    city?: string | null;
+    tenant_name?: string | null;
 }
+
+/** "Lucky Star Betting · Wanaheda · Windhoek": a venue is only unambiguous with its operator. */
+const venueLabel = (v: Venue) => [v.tenant_name ?? 'No operator', v.name, v.city ?? null].filter(Boolean).join(' · ');
 
 interface VoucherCode {
     uuid: string;
@@ -179,7 +184,7 @@ export default function VoucherCodes() {
 
     const fetchVenues = async () => {
         try {
-            const response = await fetch('/api/v1/admin/venues', {
+            const response = await fetch('/api/v1/admin/venues?per_page=500&sort_by=name&sort_dir=asc', {
                 headers: { Accept: 'application/json' },
                 credentials: 'same-origin',
             });
@@ -246,7 +251,7 @@ export default function VoucherCodes() {
                 setGeneratedCode(data.data);
                 fetchCodes();
 
-                const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
+                const venueName = (() => { const v = venues.find((x) => x.uuid === selectedVenue); return v ? venueLabel(v) : 'Unknown Venue'; })();
                 printVoucherReceipts([{
                     code: data.data.code,
                     balance: data.data.balance,
@@ -290,7 +295,15 @@ export default function VoucherCodes() {
         setInitialBalance('100');
     };
 
-    const generateVenueOptions = venues.map((v) => ({ label: v.name, value: v.uuid }));
+    // Grouped by operator in the dialog, searchable, so two venues called "Sports Bar" under different operators cannot be confused.
+    const generateVenueOptions = Object.values(
+        venues.reduce<Record<string, { label: string; items: { label: string; value: string }[] }>>((groups, v) => {
+            const key = v.tenant_name ?? 'No operator';
+            const group = groups[key] ?? (groups[key] = { label: key, items: [] });
+            group.items.push({ label: [v.name, v.city ?? null].filter(Boolean).join(' · '), value: v.uuid });
+            return groups;
+        }, {}),
+    ).sort((a, b) => a.label.localeCompare(b.label));
 
     return (
         <UserLayout title="Voucher codes">
@@ -351,7 +364,7 @@ export default function VoucherCodes() {
                             >
                                 <option value="">All venues</option>
                                 {venues.map((v) => (
-                                    <option key={v.uuid} value={v.uuid}>{v.name}</option>
+                                    <option key={v.uuid} value={v.uuid}>{venueLabel(v)}</option>
                                 ))}
                             </select>
                         </label>
@@ -596,7 +609,7 @@ export default function VoucherCodes() {
                             label="Print receipt"
                             icon="pi pi-print"
                             onClick={() => {
-                                const venueName = venues.find((v) => v.uuid === selectedVenue)?.name || 'Unknown Venue';
+                                const venueName = (() => { const v = venues.find((x) => x.uuid === selectedVenue); return v ? venueLabel(v) : 'Unknown Venue'; })();
                                 printVoucherReceipts([{
                                     code: generatedCode.code,
                                     balance: generatedCode.balance,
@@ -616,8 +629,12 @@ export default function VoucherCodes() {
                             <Dropdown
                                 value={selectedVenue}
                                 options={generateVenueOptions}
+                                optionGroupLabel="label"
+                                optionGroupChildren="items"
                                 onChange={(e) => setSelectedVenue(e.value)}
-                                placeholder="Select venue"
+                                placeholder="Select operator and venue"
+                                filter
+                                filterBy="label"
                                 className="w-full"
                             />
                         </div>
