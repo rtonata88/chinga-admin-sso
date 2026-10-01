@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\Scopes\TenantScope;
 use App\Models\User;
 use App\Services\Auth\AccountLockoutService;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -108,7 +109,11 @@ class FortifyServiceProvider extends ServiceProvider
             $tenantId = app('current_tenant')?->id;
 
             $input = $request->input(Fortify::username());
-            $query = User::withoutGlobalScopes()
+            // Search across tenants, but keep the soft-delete scope: a trashed account must
+            // never authenticate, and never shadow a live account with the same email
+            // (the session would store the trashed id and the next request would bounce
+            // straight back to the login page).
+            $query = User::withoutGlobalScope(TenantScope::class)
                 ->where(fn ($q) => $q->where('email', $input)->orWhere('username', $input));
 
             // If tenant context exists, scope to that tenant. Otherwise search all.

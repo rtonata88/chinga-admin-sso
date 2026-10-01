@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use App\Models\Scopes\TenantScope;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -40,12 +41,12 @@ class AuthProxyController extends Controller
         // tenant is refused here, before any token exists, and told which operator it is with.
         $tenant = app('current_tenant');
         if ($tenant instanceof Tenant) {
-            $elsewhere = User::withoutGlobalScopes()
+            $elsewhere = User::withoutGlobalScope(TenantScope::class)
                 ->where(fn ($q) => $q->where('email', $validated['username'])->orWhere('username', $validated['username']))
                 ->where('tenant_id', '!=', $tenant->id)
                 ->get()
                 ->first(fn (User $u) => Hash::check($validated['password'], $u->password));
-            $here = User::withoutGlobalScopes()
+            $here = User::withoutGlobalScope(TenantScope::class)
                 ->where(fn ($q) => $q->where('email', $validated['username'])->orWhere('username', $validated['username']))
                 ->where('tenant_id', $tenant->id)
                 ->exists();

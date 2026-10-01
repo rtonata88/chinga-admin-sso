@@ -82,3 +82,28 @@ test('users are rate limited', function () {
 
     $response->assertTooManyRequests();
 });
+test('a soft-deleted account cannot log in', function () {
+    $user = User::factory()->withoutTwoFactor()->create();
+    $user->delete();
+
+    $response = $this->from(route('login'))->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertGuest();
+    $response->assertSessionHasErrors('email');
+});
+
+test('a soft-deleted account does not shadow a live account with the same email', function () {
+    $trashed = User::factory()->withoutTwoFactor()->create(['email' => 'shared@example.com']);
+    $trashed->delete();
+    $live = User::factory()->withoutTwoFactor()->create(['email' => 'shared@example.com']);
+
+    $this->post(route('login.store'), ['email' => 'shared@example.com', 'password' => 'password']);
+
+    $this->assertAuthenticatedAs($live);
+
+    // The session must survive the next request (the bug was a bounce back to /login).
+    $this->get(route('dashboard'))->assertOk();
+});
