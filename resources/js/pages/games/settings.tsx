@@ -238,6 +238,7 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                                             onClick={() => toggle(tenant.uuid)}
                                             style={{
                                                 all: 'unset',
+                                                boxSizing: 'border-box',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 width: '100%',
