@@ -525,6 +525,23 @@ body .p-dropdown-panel .p-dropdown-items .p-dropdown-item.p-highlight {
 body .p-dropdown-panel .p-dropdown-items .p-dropdown-item.p-highlight:hover {
     background: rgba(201, 168, 76, 0.2) !important;
 }
+/* Option groups (an operator heading over its venues): the light theme paints these white, which read as a
+   white strip over the dark panel. They take the panel's own surface and the console's label style instead. */
+body .p-dropdown-panel .p-dropdown-items-wrapper {
+    background: var(--acu-surface-card) !important;
+}
+body .p-dropdown-panel .p-dropdown-items .p-dropdown-item-group {
+    background: var(--acu-surface-elevated) !important;
+    color: var(--acu-text-light) !important;
+    font-family: var(--font-body) !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    padding: 0.5rem 0.75rem 0.35rem !important;
+    margin: 4px 0 1px !important;
+    border-radius: 6px !important;
+}
 body .p-dropdown-panel .p-dropdown-items .p-dropdown-empty-message {
     color: var(--acu-text-light) !important;
     font-family: var(--font-body) !important;
