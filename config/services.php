@@ -49,6 +49,13 @@ return [
         'launch_url' => env('VRRR_PHA_LAUNCH_URL'),
     ],
 
+    // Kulipi Kuna engine, applied by KulipiKunaGameSeeder to games.backend_url /
+    // games.launch_url. Null by default, as for Vrrr Pha.
+    'kulipi_kuna' => [
+        'backend_url' => env('KULIPI_KUNA_BACKEND_URL'),
+        'launch_url' => env('KULIPI_KUNA_LAUNCH_URL'),
+    ],
+
     // SSO-internal OAuth client used to obtain a client_credentials token
     // for calling trusted partner services (e.g. chinga-fantasy admin APIs).
     'sso_internal' => [
