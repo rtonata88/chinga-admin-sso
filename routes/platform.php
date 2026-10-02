@@ -8,7 +8,9 @@ use App\Http\Controllers\Admin\Games\GameSettingsController;
 use App\Http\Controllers\Admin\Games\VrrrPhaConsoleController;
 use App\Http\Controllers\Operator\LiveWagersController;
 use App\Http\Controllers\Platform\DashboardController;
+use App\Http\Controllers\Platform\CompanyController;
 use App\Http\Controllers\Platform\GameController;
+use App\Http\Controllers\Platform\InvoiceController;
 use App\Http\Controllers\Platform\PlatformRoleManagementController;
 use App\Http\Controllers\Platform\RevenueController;
 use App\Http\Controllers\Platform\TenantController;
@@ -47,6 +49,13 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('pla
     Route::get('treasury', [TreasuryController::class, 'index'])->name('platform.treasury');
     Route::put('treasury', [TreasuryController::class, 'update'])->name('platform.treasury.update');
     Route::get('users', fn () => Inertia::render('platform/users/index'))->name('platform.users');
+    // The platform's own company details, printed on tenant invoices.
+    Route::get('company', [CompanyController::class, 'index'])->name('platform.company');
+    Route::put('company', [CompanyController::class, 'update'])->name('platform.company.update');
+    // Issued invoices: payments and voids (the list itself is shared with tenant admins, see web.php).
+    Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])->name('platform.invoices.payments.store');
+    Route::delete('invoices/{invoice}/payments/{payment}', [InvoiceController::class, 'destroyPayment'])->name('platform.invoices.payments.destroy');
+    Route::post('invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('platform.invoices.void');
 
 });
 

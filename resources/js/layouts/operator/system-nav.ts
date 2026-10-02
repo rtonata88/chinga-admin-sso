@@ -17,10 +17,12 @@
 import {
     Activity,
     BarChart3,
+    Briefcase,
     Building2,
     Coins,
     Cog,
     DollarSign,
+    FileText,
     Gamepad2,
     Gauge,
     History,
@@ -110,10 +112,14 @@ export function buildSystemNav({ isTenantAdmin, isPlatformAdmin, games = [] }: B
             { label: 'Wallet Transactions', href: '/admin/wallet-transactions', icon: History },
             { label: 'Withdrawals', href: '/admin/withdrawals', icon: Coins },
             { label: 'Revenue', href: '/admin/revenue', icon: DollarSign },
+            // Issued reseller invoices and their payments (tenant admins: their own, read-only).
+            { label: 'Invoices', href: '/invoices', icon: FileText },
         );
         if (isPlatformAdmin) {
             // Player liability vs bank balance: what the business may take out.
             adminItems.push({ label: 'Treasury', href: '/platform/treasury', icon: Landmark });
+            // The platform's own details as printed on invoices.
+            adminItems.push({ label: 'Company', href: '/platform/company', icon: Briefcase });
         }
         adminItems.push(
             { label: 'Reports', href: '/admin/reports', icon: BarChart3 },

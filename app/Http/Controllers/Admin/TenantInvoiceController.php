@@ -3,148 +3,187 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Game;
+use App\Models\CompanyProfile;
 use App\Models\Tenant;
-use App\Services\LiveGameStats;
+use App\Models\TenantInvoice;
+use App\Services\Billing\InvoiceService;
+use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
+/**
+ * The reseller invoice. `show` previews a period live from the game
+ * backends unless that period has already been issued, in which case the
+ * stored invoice is shown instead. `issue` freezes a preview (platform
+ * admins). `issued` renders a stored invoice by number for anyone allowed
+ * to see that tenant.
+ */
 class TenantInvoiceController extends Controller
 {
-    public function __construct(protected LiveGameStats $liveStats) {}
+    public function __construct(protected InvoiceService $invoices) {}
 
-    /**
-     * Render a printable invoice for a reseller tenant covering the
-     * given period. The amount due is `platform_profit` — the slice
-     * of NGR that flows to the platform after the tenant's revenue
-     * share. Direct tenants don't have a tenant↔platform billing
-     * relationship in this model and are rejected with 404.
-     *
-     * Activity is summed across every game backend in the catalogue
-     * (PRD §4 P6), the same source as the tenant overview the invoice
-     * is opened from, so the two agree. A backend that cannot be
-     * reached is listed on the invoice as unavailable and the document
-     * is marked incomplete rather than silently under-billing.
-     *
-     * The view is a self-contained A4 Blade document (not Inertia) so
-     * it prints cleanly: the same markup that's previewed in the
-     * browser is what lands on paper / in the saved PDF. Period
-     * defaults to the current calendar month if from/to aren't passed.
-     */
-    public function show(Request $request, string $tenantUuid): View
+    public function show(Request $request, string $tenantUuid): View|RedirectResponse
     {
+        $tenant = $this->tenantFor($request, $tenantUuid);
+        [$from, $to] = $this->period($request);
+
+        $existing = TenantInvoice::where('number', InvoiceService::number($tenant, $from))->first();
+        if ($existing && ! $existing->isVoid()) {
+            return redirect()->route('invoices.show', $existing->number);
+        }
+
+        $f = $this->invoices->compute($tenant, $from, $to);
+
+        return view('invoices.tenant', $this->viewData($tenant, $f, [
+            'number' => $f['number'],
+            'issued_at' => now()->toIso8601String(),
+            'due_at' => now()->addDays(CompanyProfile::current()->payment_terms_days)->toIso8601String(),
+            'complete' => $f['unavailable'] === [],
+            'status' => 'preview',
+            'can_issue' => $request->user()->isPlatformAdmin() && $f['unavailable'] === [],
+            'issue_url' => route('admin.tenant.invoice.issue', ['tenant_uuid' => $tenant->uuid]),
+            'period_query' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+        ], $f['games'], $f['unavailable'], null));
+    }
+
+    public function issue(Request $request, string $tenantUuid): RedirectResponse
+    {
+        abort_unless($request->user()->isPlatformAdmin(), 403);
+        $tenant = $this->tenantFor($request, $tenantUuid);
+        [$from, $to] = $this->period($request);
+
+        $invoice = $this->invoices->issue($tenant, $from, $to, $request->user(), CompanyProfile::current()->payment_terms_days);
+
+        return redirect()->route('invoices.show', $invoice->number)->with('success', "Invoice {$invoice->number} issued.");
+    }
+
+    public function issued(Request $request, string $number): View
+    {
+        $invoice = TenantInvoice::with(['tenant', 'payments.recorder'])->where('number', $number)->firstOrFail();
         $user = $request->user();
-
-        $tenant = Tenant::where('uuid', $tenantUuid)
-            ->orWhere('slug', $tenantUuid)
-            ->firstOrFail();
-
-        if (! $user->isPlatformAdmin() && $user->tenant_id !== $tenant->id) {
+        if (! $user->isPlatformAdmin() && $user->tenant_id !== $invoice->tenant_id) {
             abort(403);
         }
 
+        $f = [
+            'bets_placed' => $invoice->bets_placed,
+            'active_players' => $invoice->active_players,
+            'total_wagered' => (float) $invoice->total_wagered,
+            'total_paid_out' => (float) $invoice->total_paid_out,
+            'ggr' => (float) $invoice->ggr,
+            'tax_pct' => (float) $invoice->tax_pct,
+            'tax' => (float) $invoice->tax,
+            'ngr' => (float) $invoice->ngr,
+            'revenue_share_pct' => (float) $invoice->revenue_share_pct,
+            'tenant_share' => (float) $invoice->tenant_share,
+            'platform_share' => (float) $invoice->ngr - (float) $invoice->tenant_share,
+            'amount_due' => (float) $invoice->amount_due,
+            'period_from' => $invoice->period_from,
+            'period_to' => $invoice->period_to,
+        ];
+
+        return view('invoices.tenant', $this->viewData($invoice->tenant, $f, [
+            'number' => $invoice->number,
+            'issued_at' => $invoice->issued_at->toIso8601String(),
+            'due_at' => $invoice->due_at->toIso8601String(),
+            'complete' => true,
+            'status' => $invoice->status,
+            'overdue' => $invoice->isOverdue(),
+            'amount_paid' => (float) $invoice->amount_paid,
+            'outstanding' => $invoice->outstanding(),
+            'paid_at' => $invoice->paid_at?->toIso8601String(),
+            'voided_at' => $invoice->voided_at?->toIso8601String(),
+            'void_reason' => $invoice->void_reason,
+            'can_issue' => false,
+            'can_manage' => $user->isPlatformAdmin(),
+            'payment_url' => route('platform.invoices.payments.store', $invoice),
+            'void_url' => route('platform.invoices.void', $invoice),
+            'payments' => $invoice->payments->map(fn ($p) => [
+                'amount' => (float) $p->amount,
+                'paid_at' => $p->paid_at->toIso8601String(),
+                'method' => $p->method,
+                'reference' => $p->reference,
+                'note' => $p->note,
+                'recorded_by' => $p->recorder?->name,
+            ])->all(),
+        ], $invoice->games ?? [], [], $invoice));
+    }
+
+    private function tenantFor(Request $request, string $tenantUuid): Tenant
+    {
+        $user = $request->user();
+        $tenant = Tenant::where('uuid', $tenantUuid)->orWhere('slug', $tenantUuid)->firstOrFail();
+        if (! $user->isPlatformAdmin() && $user->tenant_id !== $tenant->id) {
+            abort(403);
+        }
         if (($tenant->business_model ?? 'reseller') !== 'reseller') {
             abort(404, 'Invoices are only generated for reseller tenants.');
         }
 
-        $from = $request->query('from')
-            ? \Carbon\Carbon::parse($request->query('from'))
-            : now()->startOfMonth();
-        $to = $request->query('to')
-            ? \Carbon\Carbon::parse($request->query('to'))
-            : now();
+        return $tenant;
+    }
 
-        // Every game with a backend, not only the tenant's currently
-        // enabled ones: a game disabled after the period still owes
-        // its figures. Engines answer zero for a tenant with no play.
-        $games = Game::query()
-            ->whereIn('status', ['active', 'development'])
-            ->orderBy('name')
-            ->get()
-            ->filter(fn (Game $game) => $game->hasBackend())
-            ->values();
+    /** @return array{0: Carbon, 1: Carbon} */
+    private function period(Request $request): array
+    {
+        $from = $request->input('from') ? Carbon::parse($request->input('from')) : now()->startOfMonth();
+        $to = $request->input('to') ? Carbon::parse($request->input('to')) : now();
 
-        $perGame = [];
-        $unavailable = [];
-        $bets = 0;
-        $players = 0;
-        $wagered = 0.0;
-        $paidOut = 0.0;
-        foreach ($this->liveStats->summaryForTenant($games, $tenant, $from->toIso8601String(), $to->toIso8601String()) as $entry) {
-            if ($entry['error'] !== null) {
-                $unavailable[] = $entry['game']->name;
+        return [$from, $to];
+    }
 
-                continue;
-            }
-            $s = $entry['stats'];
-            $gameWagered = (float) ($s['total_wagered'] ?? 0);
-            $gamePaidOut = (float) ($s['total_paid_out'] ?? 0);
-            $perGame[] = [
-                'name' => $entry['game']->name,
-                'bets_placed' => (int) ($s['bets_placed'] ?? 0),
-                'active_players' => (int) ($s['active_players'] ?? 0),
-                'total_wagered' => $gameWagered,
-                'total_paid_out' => $gamePaidOut,
-                'ggr' => $gameWagered - $gamePaidOut,
-            ];
-            $bets += (int) ($s['bets_placed'] ?? 0);
-            $players += (int) ($s['active_players'] ?? 0);
-            $wagered += $gameWagered;
-            $paidOut += $gamePaidOut;
-        }
-        $ggr = $wagered - $paidOut;
+    private function viewData(Tenant $tenant, array $f, array $invoice, array $games, array $unavailable, ?TenantInvoice $record): array
+    {
+        $company = CompanyProfile::current();
 
-        $taxPct = (float) ($tenant->tax_pct ?? 0);
-        $tax = $ggr > 0 ? $ggr * ($taxPct / 100) : 0;
-        $ngr = $ggr - $tax;
-
-        $sharePct = (float) ($tenant->revenue_share_pct ?? 0);
-        $tenantProfit = $ngr > 0 ? $ngr * ($sharePct / 100) : 0.0;
-        $platformProfit = $ngr - $tenantProfit;
-        $amountDue = max(0.0, $platformProfit);
-
-        return view('invoices.tenant', [
+        return [
+            'company' => [
+                'name' => $company->displayName(),
+                'trading_name' => $company->trading_name && $company->trading_name !== $company->displayName() ? $company->trading_name : null,
+                'registration_number' => $company->registration_number,
+                'vat_number' => $company->vat_number,
+                'address_lines' => $company->addressLines(),
+                'email' => $company->email ?: 'platform@playchinga.com',
+                'phone' => $company->phone,
+                'bank' => $company->hasBankDetails() ? [
+                    'bank_name' => $company->bank_name,
+                    'account_name' => $company->bank_account_name,
+                    'account_number' => $company->bank_account_number,
+                    'branch_code' => $company->bank_branch_code,
+                ] : null,
+                'payment_terms_days' => $company->payment_terms_days,
+            ],
             'tenant' => [
                 'uuid' => $tenant->uuid,
                 'name' => $tenant->name,
+                'legal_name' => $tenant->legal_name,
                 'business_model' => $tenant->business_model,
-                'revenue_share_pct' => $sharePct,
-                'tax_pct' => $taxPct,
+                'revenue_share_pct' => $f['revenue_share_pct'],
+                'tax_pct' => $f['tax_pct'],
             ],
             'period' => [
-                'from' => $from->toIso8601String(),
-                'to' => $to->toIso8601String(),
+                'from' => Carbon::parse($f['period_from'])->toIso8601String(),
+                'to' => Carbon::parse($f['period_to'])->toIso8601String(),
             ],
-            'invoice' => [
-                'number' => $this->invoiceNumber($tenant->uuid, $from),
-                'issued_at' => now()->toIso8601String(),
-                'due_at' => now()->addDays(14)->toIso8601String(),
-                'complete' => $unavailable === [],
-            ],
+            'invoice' => $invoice,
             'activity' => [
-                'bets_placed' => $bets,
-                // Summed per game: a player active in two games counts twice.
-                'active_players' => $players,
-                'total_wagered' => $wagered,
-                'total_paid_out' => $paidOut,
-                'games' => $perGame,
+                'bets_placed' => $f['bets_placed'],
+                'active_players' => $f['active_players'],
+                'total_wagered' => $f['total_wagered'],
+                'total_paid_out' => $f['total_paid_out'],
+                'games' => $games,
                 'unavailable' => $unavailable,
             ],
             'breakdown' => [
-                'ggr' => $ggr,
-                'tax' => $tax,
-                'ngr' => $ngr,
-                'tenant_profit' => $tenantProfit,
-                'platform_profit' => $platformProfit,
-                'amount_due' => $amountDue,
+                'ggr' => $f['ggr'],
+                'tax' => $f['tax'],
+                'ngr' => $f['ngr'],
+                'tenant_profit' => $f['tenant_share'],
+                'platform_profit' => $f['platform_share'],
+                'amount_due' => $f['amount_due'],
             ],
-        ]);
-    }
-
-    private function invoiceNumber(string $tenantUuid, \Carbon\Carbon $from): string
-    {
-        $prefix = strtoupper(substr(preg_replace('/[^a-z0-9]/i', '', $tenantUuid), 0, 6));
-
-        return sprintf('INV-%s-%s', $prefix, $from->format('Ym'));
+            'record' => $record,
+        ];
     }
 }

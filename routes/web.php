@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\Games\FantasyRoundController;
 use App\Http\Controllers\Admin\TenantInvoiceController;
+use App\Http\Controllers\Platform\InvoiceController;
 use App\Http\Controllers\UserDashboardController;
 use App\Http\Middleware\EnsureTenantAdmin;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,11 @@ Route::middleware(['auth', 'verified', EnsureTenantAdmin::class])->group(functio
     Route::get('tenant-overview', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('tenant-overview/{tenant_uuid}/invoice', [TenantInvoiceController::class, 'show'])
         ->name('admin.tenant.invoice');
+    Route::post('tenant-overview/{tenant_uuid}/invoice/issue', [TenantInvoiceController::class, 'issue'])
+        ->name('admin.tenant.invoice.issue');
+    // Issued invoices: the list (platform admins see every tenant, tenant admins their own) and the printable view.
+    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/{number}', [TenantInvoiceController::class, 'issued'])->name('invoices.show');
     // Backwards-compat redirect for /admin bookmarks. Keep until we're
     // confident no external link points here.
     Route::get('admin', fn () => redirect('/tenant-overview'));

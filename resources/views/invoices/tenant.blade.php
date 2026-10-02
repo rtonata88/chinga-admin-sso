@@ -196,6 +196,32 @@
         table.games tr.unavailable td { color: var(--muted); font-style: italic; }
         table.games tfoot td { border-top: 1px solid var(--rule-strong); border-bottom: 0; font-weight: 600; }
         table.games tfoot td.label-cell { color: var(--ink); }
+        .stamp {
+            display: inline-block; padding: 3px 10px; border-radius: 3px;
+            font-size: 8pt; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+            border: 1.5px solid currentColor;
+        }
+        .stamp.preview { color: var(--muted); }
+        .stamp.issued { color: #1d4ed8; }
+        .stamp.part_paid { color: #b45309; }
+        .stamp.paid { color: #15803d; }
+        .stamp.void { color: #b42318; }
+        .stamp.overdue { color: #b42318; }
+        .payto {
+            margin-top: 5mm; padding: 8px 12px; border: 1px solid var(--rule-strong); border-radius: 4px;
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 6mm; font-size: 9pt;
+        }
+        .payto .label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+        .payto .value { color: var(--ink); font-variant-numeric: tabular-nums; }
+        .ops { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .ops form { display: inline-flex; gap: 6px; align-items: center; margin: 0; }
+        .ops input, .ops select {
+            height: 32px; padding: 0 8px; font: inherit; font-size: 13px; border: 1px solid var(--rule-strong); border-radius: 6px; background: #fff;
+        }
+        .ops input[name=amount] { width: 110px; } .ops input[name=reference] { width: 140px; } .ops input[name=note] { width: 160px; }
+        .flash { max-width: 210mm; margin: 10px auto 0; padding: 8px 8mm; font-size: 13px; color: #15803d; }
+        .flash.error { color: #b42318; }
+        @media print { .flash { display: none !important; } }
         .incomplete {
             border: 1px solid #b42318;
             color: #b42318;
@@ -278,23 +304,77 @@
         $fmtDate  = fn($iso) => \Carbon\Carbon::parse($iso)->format('j M Y');
     @endphp
 
+    @php
+        $status = $invoice['status'] ?? 'preview';
+        $isPreview = $status === 'preview';
+        $outstanding = (float) ($invoice['outstanding'] ?? $breakdown['amount_due']);
+    @endphp
     <div class="toolbar">
-        <h1>Invoice preview</h1>
-        <div class="btn-row">
-            <a href="{{ url('/tenant-overview') }}" class="btn">Back</a>
-            <button type="button" class="btn btn--primary" onclick="window.print()">Print / Save PDF</button>
+        <h1>{{ $isPreview ? 'Invoice preview · not yet issued' : 'Invoice '.$invoice['number'] }}</h1>
+        <div class="btn-row ops">
+            <a href="{{ url('/invoices') }}" class="btn">All invoices</a>
+            @if ($isPreview && ! empty($invoice['can_issue']))
+                <form method="post" action="{{ $invoice['issue_url'] }}" onsubmit="return confirm('Issue invoice {{ $invoice['number'] }} for this period? The figures are frozen as shown.');">
+                    @csrf
+                    <input type="hidden" name="from" value="{{ $invoice['period_query']['from'] }}">
+                    <input type="hidden" name="to" value="{{ $invoice['period_query']['to'] }}">
+                    <button type="submit" class="btn">Issue invoice</button>
+                </form>
+            @endif
+            @if (! $isPreview && ! empty($invoice['can_manage']) && ! in_array($status, ['paid', 'void'], true))
+                <form method="post" action="{{ $invoice['payment_url'] }}">
+                    @csrf
+                    <input type="number" name="amount" step="0.01" min="0.01" max="{{ number_format($outstanding, 2, '.', '') }}" value="{{ number_format($outstanding, 2, '.', '') }}" required aria-label="Amount">
+                    <input type="date" name="paid_at" value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}" required aria-label="Paid on">
+                    <select name="method" aria-label="Method">
+                        <option value="bank_transfer">Bank transfer</option>
+                        <option value="cash">Cash</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <input type="text" name="reference" placeholder="Reference" aria-label="Reference">
+                    <button type="submit" class="btn btn--primary">Record payment</button>
+                </form>
+                @if (empty($invoice['amount_paid']))
+                    <form method="post" action="{{ $invoice['void_url'] }}" onsubmit="return confirm('Void invoice {{ $invoice['number'] }}? It stays on file as void.');">
+                        @csrf
+                        <button type="submit" class="btn">Void</button>
+                    </form>
+                @endif
+            @endif
+            <button type="button" class="btn {{ $isPreview ? '' : 'btn--primary' }}" onclick="window.print()">Print / Save PDF</button>
         </div>
     </div>
+    @if (session('success'))
+        <div class="flash">{{ session('success') }}</div>
+    @endif
+    @if ($errors->any())
+        <div class="flash error">{{ $errors->first() }}</div>
+    @endif
 
     <div class="sheet">
         <div class="doc-head">
             <div class="brand">
-                <div class="logo">Chinga</div>
-                <div class="tagline">Gaming platform · Windhoek, Namibia</div>
+                <div class="logo">{{ $company['trading_name'] ?? ($company['name'] === 'Chinga Platform' ? 'Chinga' : $company['name']) }}</div>
+                <div class="tagline">{{ $company['address_lines'] ? implode(' · ', array_slice($company['address_lines'], -2)) : 'Gaming platform · Windhoek, Namibia' }}</div>
             </div>
             <div class="invoice-title">
                 <div class="word">INVOICE</div>
                 <div class="number">{{ $invoice['number'] }}</div>
+                <div style="margin-top: 6px;">
+                    @if ($isPreview)
+                        <span class="stamp preview">Preview</span>
+                    @elseif ($status === 'paid')
+                        <span class="stamp paid">Paid{{ ! empty($invoice['paid_at']) ? ' · '.$fmtDate($invoice['paid_at']) : '' }}</span>
+                    @elseif ($status === 'void')
+                        <span class="stamp void">Void</span>
+                    @elseif (! empty($invoice['overdue']))
+                        <span class="stamp overdue">Overdue</span>
+                    @elseif ($status === 'part_paid')
+                        <span class="stamp part_paid">Part paid</span>
+                    @else
+                        <span class="stamp issued">Issued</span>
+                    @endif
+                </div>
             </div>
         </div>
 
@@ -320,12 +400,16 @@
         <div class="parties">
             <div>
                 <div class="label">From</div>
-                <div class="name">Chinga Platform</div>
-                <div class="sub">platform@playchinga.com</div>
+                <div class="name">{{ $company['name'] }}</div>
+                @if ($company['registration_number'])<div class="sub">Reg. no. {{ $company['registration_number'] }}</div>@endif
+                @if ($company['vat_number'])<div class="sub">VAT no. {{ $company['vat_number'] }}</div>@endif
+                @foreach ($company['address_lines'] as $line)<div class="sub">{{ $line }}</div>@endforeach
+                <div class="sub">{{ $company['email'] }}{{ $company['phone'] ? ' · '.$company['phone'] : '' }}</div>
             </div>
             <div>
                 <div class="label">Bill to</div>
                 <div class="name">{{ $tenant['name'] }}</div>
+                @if (! empty($tenant['legal_name']) && $tenant['legal_name'] !== $tenant['name'])<div class="sub">{{ $tenant['legal_name'] }}</div>@endif
             </div>
         </div>
 
@@ -371,7 +455,7 @@
                 </tbody>
                 @if (count($activity['games']) > 0)
                 <tfoot>
-                    <tr class="total">
+                    <tr class="games-total">
                         <td class="label-cell">Total</td>
                         <td class="r">{{ number_format($activity['bets_placed']) }}</td>
                         <td class="r">{{ number_format($activity['active_players']) }}</td>
@@ -408,17 +492,42 @@
             </table>
 
             <div class="total">
-                <div class="label">Amount due</div>
-                <div class="amount">{{ $fmtMoney($breakdown['amount_due']) }}</div>
+                <div class="label">{{ ! $isPreview && ! empty($invoice['amount_paid']) && $status !== 'void' ? 'Outstanding' : 'Amount due' }}</div>
+                <div class="amount">{{ $fmtMoney(! $isPreview && $status !== 'void' ? $outstanding : $breakdown['amount_due']) }}</div>
             </div>
+            @if (! $isPreview && ! empty($invoice['amount_paid']))
+                <table class="calc" style="margin-top: 3mm;">
+                    <tbody>
+                        <tr class="subtotal"><td>Invoiced</td><td class="r">{{ $fmtMoney($breakdown['amount_due']) }}</td></tr>
+                        @foreach ($invoice['payments'] ?? [] as $p)
+                            <tr class="deduction">
+                                <td>Payment {{ $fmtDate($p['paid_at']) }} · {{ str_replace('_', ' ', $p['method']) }}{{ $p['reference'] ? ' · '.$p['reference'] : '' }}{{ $p['note'] ? ' · '.$p['note'] : '' }}</td>
+                                <td class="r">− {{ $fmtMoney($p['amount']) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+            @if ($company['bank'] && $status !== 'void')
+                <div class="payto">
+                    <div><div class="label">Pay to</div><div class="value">{{ $company['bank']['account_name'] ?? $company['name'] }}</div></div>
+                    <div><div class="label">Bank</div><div class="value">{{ $company['bank']['bank_name'] }}</div></div>
+                    <div><div class="label">Account</div><div class="value">{{ $company['bank']['account_number'] }}</div></div>
+                    <div><div class="label">Branch</div><div class="value">{{ $company['bank']['branch_code'] ?: '—' }}</div></div>
+                </div>
+            @endif
         </div>
 
         <div class="terms">
-            <strong>Payment terms.</strong> This invoice is payable within
-            14 days of the issue date. Please reference invoice number
-            <strong>{{ $invoice['number'] }}</strong> on the bank transfer.
-            Late payments may incur interest at the rate set out in the
-            reseller agreement. Queries: platform@playchinga.com.
+            @if ($status === 'void')
+                <strong>Void.</strong> This invoice was cancelled{{ ! empty($invoice['voided_at']) ? ' on '.$fmtDate($invoice['voided_at']) : '' }}{{ ! empty($invoice['void_reason']) ? ': '.$invoice['void_reason'] : '' }}. Nothing is payable against it.
+            @else
+                <strong>Payment terms.</strong> This invoice is payable within
+                {{ $company['payment_terms_days'] }} days of the issue date. Please reference invoice number
+                <strong>{{ $invoice['number'] }}</strong> on the bank transfer.
+                Late payments may incur interest at the rate set out in the
+                reseller agreement. Queries: {{ $company['email'] }}.
+            @endif
         </div>
     </div>
 </body>
