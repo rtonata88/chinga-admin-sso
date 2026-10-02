@@ -190,6 +190,9 @@
             border-bottom: 1px solid var(--rule-strong);
             text-align: left;
         }
+        /* Numeric headings sit over right-aligned figures; this rule must outrank table.games th above. */
+        table.games th.r { text-align: right; }
+        table.games th.r, table.games td.r { padding-left: 12px; white-space: nowrap; }
         table.games tr.unavailable td { color: var(--muted); font-style: italic; }
         .incomplete {
             border: 1px solid #b42318;
