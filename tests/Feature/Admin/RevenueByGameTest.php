@@ -35,8 +35,8 @@ function fakeStats(array $tenant, array $other, bool $crashDown = false): void
 {
     // Fantasy keys tenants by SLUG (its known quirk); the crash engine by real UUID.
     $fantasyRows = [
-        ['tenant_uuid' => $tenant['slug'], 'total_wagered' => 1000, 'total_paid_out' => 900, 'bets_placed' => 10, 'active_players' => 3],
-        ['tenant_uuid' => $other['slug'], 'total_wagered' => 200, 'total_paid_out' => 100, 'bets_placed' => 2, 'active_players' => 1],
+        ['tenant_uuid' => $tenant['uuid'], 'total_wagered' => 1000, 'total_paid_out' => 900, 'bets_placed' => 10, 'active_players' => 3],
+        ['tenant_uuid' => $other['uuid'], 'total_wagered' => 200, 'total_paid_out' => 100, 'bets_placed' => 2, 'active_players' => 1],
     ];
     $crashRows = [
         ['tenant_uuid' => $tenant['uuid'], 'total_wagered' => 500, 'total_paid_out' => 400, 'bets_placed' => 5, 'active_players' => 2],
@@ -91,9 +91,10 @@ test('tenant admin revenue summary queries each game with the right tenant key',
     expect((float) $data['totals']['total_bets'])->toBe(1500.0)
         ->and(collect($data['per_game'])->pluck('total_bets')->map(fn ($v) => (float) $v)->sort()->values()->all())->toBe([500.0, 1000.0]);
 
-    // The crash engine stores real UUIDs and must never be asked by slug.
-    Http::assertNotSent(fn ($r) => str_starts_with($r->url(), 'http://crash.test')
-        && ($r->data()['tenant_uuid'] ?? null) === $this->tenant->slug);
+    // Every engine stores real UUIDs and is never asked by slug.
+    Http::assertNotSent(fn ($r) => ($r->data()['tenant_uuid'] ?? null) === $this->tenant->slug);
+    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'http://fantasy.test/api/admin/stats/summary')
+        && ($r->data()['tenant_uuid'] ?? null) === $this->tenant->uuid);
     Http::assertSent(fn ($r) => str_starts_with($r->url(), 'http://crash.test/api/admin/stats/summary')
         && ($r->data()['tenant_uuid'] ?? null) === $this->tenant->uuid);
 });

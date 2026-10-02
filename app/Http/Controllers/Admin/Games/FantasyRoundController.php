@@ -13,22 +13,9 @@ class FantasyRoundController extends Controller
 {
     public function __construct(protected FantasyAdminClient $client) {}
 
-    /**
-     * chinga-fantasy stores tenant slug (e.g. "lucky-star-betting") in its
-     * tenant_uuid columns rather than the actual SSO UUID. Translate here
-     * so callers can pass either form.
-     * TODO: backfill the data and drop this shim.
-     */
-    private function resolveFantasyTenantId(?string $uuid): ?string
-    {
-        if (!$uuid) return null;
-        return Tenant::where('uuid', $uuid)->value('slug') ?? $uuid;
-    }
-
     public function index(Request $request)
     {
         $tenantUuid = $request->query('tenant_uuid') ?: null;
-        $fantasyTenant = $this->resolveFantasyTenantId($tenantUuid);
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 25;
         $offset = ($page - 1) * $perPage;
@@ -37,7 +24,7 @@ class FantasyRoundController extends Controller
         $error = null;
 
         try {
-            $response = $this->client->listRounds($fantasyTenant, $perPage, $offset);
+            $response = $this->client->listRounds($tenantUuid, $perPage, $offset);
             $rounds = $response['data'] ?? [];
         } catch (\Throwable $e) {
             Log::warning('FantasyRound index failed', ['error' => $e->getMessage()]);
@@ -103,8 +90,7 @@ class FantasyRoundController extends Controller
         $error = null;
 
         try {
-            // Pass slug — that's what chinga-fantasy.rounds.tenant_uuid stores.
-            $response = $this->client->listRounds($tenant->slug, $perPage, $offset);
+            $response = $this->client->listRounds($tenant->uuid, $perPage, $offset);
             $rounds = $response['data'] ?? [];
         } catch (\Throwable $e) {
             Log::warning('FantasyRound tenantIndex failed', ['error' => $e->getMessage()]);
@@ -143,11 +129,8 @@ class FantasyRoundController extends Controller
             $bets = $betsResponse['data'] ?? [];
 
             // Sanity: tenant admin can only see rounds belonging to their tenant.
-            // chinga-fantasy stores slug in tenant_uuid (see resolveFantasyTenantId).
             $roundTenantId = $round['tenant_uuid'] ?? null;
-            if ($round && $roundTenantId !== null
-                && $roundTenantId !== $tenant->slug
-                && $roundTenantId !== $tenant->uuid) {
+            if ($round && $roundTenantId !== null && $roundTenantId !== $tenant->uuid) {
                 abort(404);
             }
         } catch (\Throwable $e) {

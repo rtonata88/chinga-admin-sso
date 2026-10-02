@@ -45,7 +45,7 @@ function fakeFeeds(array $tenant, bool $crashDown = false): void
         'fantasy.test/api/admin/stats/summary*' => $summary(10, '1000.00', '900.00', 3),
         'fantasy.test/api/admin/stats/by-day*' => Http::response(['days' => [['day' => '2026-09-20', 'total_wagered' => '500.00'], ['day' => '2026-09-21', 'total_wagered' => '1000.00']]]),
         'fantasy.test/api/admin/bets/recent*' => Http::response(['data' => [
-            ['id' => 1, 'user_uuid' => test()->player->uuid, 'tenant_uuid' => $tenant['slug'], 'round_number' => 12, 'team_names' => ['Kaizer Chiefs', 'Pirates', 'Sundowns'],
+            ['id' => 1, 'user_uuid' => test()->player->uuid, 'tenant_uuid' => $tenant['uuid'], 'round_number' => 12, 'team_names' => ['Kaizer Chiefs', 'Pirates', 'Sundowns'],
                 'bet_amount' => '20.00', 'combined_odds' => '4.50', 'potential_payout' => '90.00', 'outcome' => 'pending', 'placed_at' => '2026-09-21T10:00:00Z'],
         ]]),
         'crash.test/api/admin/stats/summary*' => $crashDown ? Http::response('down', 503) : $summary(40, '2000.00', '1500.00', 2),
@@ -94,15 +94,15 @@ test('live activity sums every game and merges recent bets newest-first', functi
         );
 });
 
-test('a tenant admin gets their tenant, keyed by slug for Fantasy and uuid for Vrrr Pha', function () {
+test('a tenant admin gets their tenant, keyed by uuid for every game (never the slug)', function () {
     fakeFeeds($this->tenant->toArray());
     app()->instance('current_tenant', $this->tenant);
 
     $this->actingAs($this->tenantAdmin)->get('/dashboard')->assertOk();
 
-    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'http://fantasy.test/api/admin/stats/summary') && $r->data()['tenant_uuid'] === 'lucky-star-betting');
+    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'http://fantasy.test/api/admin/stats/summary') && $r->data()['tenant_uuid'] === $this->tenant->uuid);
     Http::assertSent(fn ($r) => str_starts_with($r->url(), 'http://crash.test/api/admin/stats/summary') && $r->data()['tenant_uuid'] === $this->tenant->uuid);
-    Http::assertNotSent(fn ($r) => str_starts_with($r->url(), 'http://crash.test/') && $r->data()['tenant_uuid'] === 'lucky-star-betting');
+    Http::assertNotSent(fn ($r) => ($r->data()['tenant_uuid'] ?? null) === 'lucky-star-betting');
 });
 
 test('a game that is down is named and the rest still shows', function () {

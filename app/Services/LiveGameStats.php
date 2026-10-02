@@ -29,13 +29,6 @@ class LiveGameStats
                 $client = $this->factory->forGame($game);
                 $stats = $client->statsSummary($this->tenantKey($game, $tenant), $fromIso, $toIso);
 
-                // chinga-fantasy stores the SSO tenant SLUG in its tenant_uuid
-                // column; when the slug finds nothing, retry by UUID. Other
-                // games store real UUIDs (PRD §4.3) and are never asked by slug.
-                if ($this->isFantasy($game) && (int) ($stats['bets_placed'] ?? 0) === 0 && $tenant->uuid) {
-                    $stats = $client->statsSummary($tenant->uuid, $fromIso, $toIso);
-                }
-
                 return ['game' => $game, 'stats' => $stats, 'error' => null];
             } catch (\Throwable $e) {
                 Log::warning('Live stats summary fetch failed', ['game' => $game->slug, 'error' => $e->getMessage()]);
@@ -67,8 +60,8 @@ class LiveGameStats
     }
 
     /**
-     * Resolver from a backend row's tenant_uuid to a local Tenant. Fantasy
-     * rows carry the slug, everything else the UUID, so both are indexed.
+     * Resolver from a backend row's tenant_uuid to a local Tenant. Every
+     * backend files tenants under the SSO uuid (PRD §4.3).
      *
      * @param  list<string>  $keys
      * @return \Closure(?string): ?Tenant
@@ -76,20 +69,14 @@ class LiveGameStats
     public function tenantResolver(array $keys): \Closure
     {
         $keys = array_values(array_unique(array_filter($keys)));
-        $bySlug = Tenant::whereIn('slug', $keys)->get()->keyBy('slug');
         $byUuid = Tenant::whereIn('uuid', $keys)->get()->keyBy('uuid');
 
-        return fn (?string $key): ?Tenant => $key ? ($byUuid->get($key) ?? $bySlug->get($key)) : null;
+        return fn (?string $key): ?Tenant => $key ? $byUuid->get($key) : null;
     }
 
-    /** The key a game's backend files this tenant under: Fantasy the slug (its quirk), everyone else the uuid. */
+    /** The key a game's backend files this tenant under: the SSO uuid, for every game. */
     public function tenantKey(Game $game, Tenant $tenant): string
     {
-        return $this->isFantasy($game) ? $tenant->slug : $tenant->uuid;
-    }
-
-    private function isFantasy(Game $game): bool
-    {
-        return $game->slug === FantasyAdminClient::GAME_SLUG;
+        return $tenant->uuid;
     }
 }
