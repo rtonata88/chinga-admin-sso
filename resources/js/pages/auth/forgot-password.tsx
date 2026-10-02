@@ -32,6 +32,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
                             <div className="grid gap-2">
                                 <Label htmlFor="email">Email address</Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="email"
                                     type="email"
                                     name="email"
@@ -45,7 +46,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
 
                             <div className="my-6 flex items-center justify-start">
                                 <Button
-                                    className="w-full"
+                                    className="h-10 w-full md:h-9"
                                     disabled={processing}
                                     data-test="email-password-reset-link-button"
                                 >

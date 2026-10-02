@@ -110,6 +110,18 @@ interface InfoItem {
     mono?: boolean;
 }
 
+// Column span per item on the 12-column panel grid. Desktop spans are
+// unchanged; below sm the narrow (3/4) items widen to half a row so
+// mono values like timezones are not crushed onto a phone screen.
+function spanClass(span: number): string {
+    switch (span) {
+        case 12: return 'col-span-12';
+        case 4: return 'col-span-6 sm:col-span-4';
+        case 3: return 'col-span-6 sm:col-span-3';
+        default: return 'col-span-6';
+    }
+}
+
 function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
     return (
         <div style={{ border: '1px solid var(--cg-rule)', borderRadius: 8, overflow: 'hidden', background: 'var(--cg-ink-card)' }}>
@@ -117,15 +129,11 @@ function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
                 <div className="cgo-table-bar-title">{title}</div>
             </div>
             <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(12, 1fr)',
-                    gap: '14px 18px',
-                    padding: '18px',
-                }}
+                className="grid grid-cols-12"
+                style={{ gap: '14px 18px', padding: '18px' }}
             >
                 {items.map((it, i) => (
-                    <div key={i} style={{ gridColumn: `span ${it.span ?? 6}` }}>
+                    <div key={i} className={`${spanClass(it.span ?? 6)} min-w-0`}>
                         <div
                             style={{
                                 fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em',
@@ -329,7 +337,7 @@ export default function VenueShow() {
             <UserLayout title="Venue">
                 <Head title="Venue not found" />
                 <div className="cgo-page">
-                    <div className="cgo-page-head">
+                    <div className="cgo-page-head max-sm:flex-wrap">
                         <div>
                             <div className="cgo-eyebrow">Admin · Venue</div>
                             <h1 className="cgo-title">Venue not found</h1>
@@ -388,7 +396,7 @@ export default function VenueShow() {
 
             <div className="cgo-page">
                 {/* Page header */}
-                <div className="cgo-page-head">
+                <div className="cgo-page-head max-sm:flex-wrap">
                     <div>
                         <div className="cgo-eyebrow">Admin · Venue</div>
                         <h1 className="cgo-title">{venue.name}</h1>
@@ -464,10 +472,8 @@ export default function VenueShow() {
 
                 {/* Address + Business */}
                 <div
-                    style={{
-                        display: 'grid', gridTemplateColumns: '1fr 1fr',
-                        gap: 16, marginBottom: 24,
-                    }}
+                    className="grid grid-cols-1 lg:grid-cols-2"
+                    style={{ gap: 16, marginBottom: 24 }}
                 >
                     <InfoPanel title="Location" items={addressItems} />
                     <InfoPanel title="Business & contact" items={businessItems} />
@@ -631,7 +637,7 @@ export default function VenueShow() {
                 header={`Add staff · ${venue.name}`}
                 visible={addStaffOpen}
                 onHide={() => setAddStaffOpen(false)}
-                style={{ width: '500px' }}
+                style={{ width: '500px', maxWidth: 'calc(100vw - 2rem)' }}
                 modal
                 draggable={false}
                 footer={
@@ -647,7 +653,7 @@ export default function VenueShow() {
                 }
             >
                 <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <label style={{ fontSize: 12, fontWeight: 500 }}>Username *</label>
                             <InputText
@@ -677,7 +683,7 @@ export default function VenueShow() {
                             className="w-full"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <label style={{ fontSize: 12, fontWeight: 500 }}>Email</label>
                             <InputText
@@ -698,7 +704,7 @@ export default function VenueShow() {
                             />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <label style={{ fontSize: 12, fontWeight: 500 }}>Role *</label>
                             <Dropdown
@@ -727,7 +733,7 @@ export default function VenueShow() {
                 header={newTerminalApiKey ? 'Terminal created' : `Add terminal · ${venue.name}`}
                 visible={addTerminalOpen}
                 onHide={() => { setAddTerminalOpen(false); setNewTerminalApiKey(null); }}
-                style={{ width: '500px' }}
+                style={{ width: '500px', maxWidth: 'calc(100vw - 2rem)' }}
                 modal
                 draggable={false}
                 footer={

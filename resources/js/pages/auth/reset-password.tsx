@@ -36,7 +36,7 @@ export default function ResetPassword({ token, email }: ResetPasswordProps) {
                                 name="email"
                                 autoComplete="email"
                                 value={email}
-                                className="mt-1 block w-full"
+                                className="mt-1 block h-10 w-full md:h-9"
                                 readOnly
                             />
                             <InputError
@@ -52,7 +52,7 @@ export default function ResetPassword({ token, email }: ResetPasswordProps) {
                                 type="password"
                                 name="password"
                                 autoComplete="new-password"
-                                className="mt-1 block w-full"
+                                className="mt-1 block h-10 w-full md:h-9"
                                 autoFocus
                                 placeholder="Password"
                             />
@@ -68,7 +68,7 @@ export default function ResetPassword({ token, email }: ResetPasswordProps) {
                                 type="password"
                                 name="password_confirmation"
                                 autoComplete="new-password"
-                                className="mt-1 block w-full"
+                                className="mt-1 block h-10 w-full md:h-9"
                                 placeholder="Confirm password"
                             />
                             <InputError
@@ -79,7 +79,7 @@ export default function ResetPassword({ token, email }: ResetPasswordProps) {
 
                         <Button
                             type="submit"
-                            className="mt-4 w-full"
+                            className="mt-4 h-10 w-full md:h-9"
                             disabled={processing}
                             data-test="reset-password-button"
                         >

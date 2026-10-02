@@ -128,10 +128,10 @@ export default function AuditLogs() {
                             Security and activity audit trail — every privileged action.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10"
                             onClick={() => fetchLogs()}
                         >
                             Refresh
@@ -145,26 +145,29 @@ export default function AuditLogs() {
                         <button
                             key={f.value || 'all'}
                             type="button"
-                            className={`cgo-chip${quickFilter === f.value ? ' active' : ''}`}
+                            className={`cgo-chip max-sm:min-h-10${quickFilter === f.value ? ' active' : ''}`}
                             onClick={() => { setQuickFilter(f.value); setPage(1); }}
                         >
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right">
-                        <label className="cgo-input">
+                    {/* On phones the search takes its own row. The input's min
+                        width is capped by the viewport (.cgo-input input is
+                        `all: unset`, so it has to stay an inline style). */}
+                    <div className="cgo-right flex-wrap max-sm:w-full">
+                        <label className="cgo-input max-sm:min-h-10 max-sm:flex-1">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Filter by action substring (e.g., reset, lock)…"
-                                style={{ minWidth: 260 }}
+                                style={{ minWidth: 'min(260px, 50vw)' }}
                             />
                         </label>
                         <button
                             type="button"
-                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10"
                             onClick={submitSearch}
                         >
                             Filter
@@ -252,7 +255,7 @@ export default function AuditLogs() {
                                                 {hasDetails(log) ? (
                                                     <button
                                                         type="button"
-                                                        className="cgo-row-action"
+                                                        className="cgo-row-action max-sm:min-h-10 max-sm:min-w-10"
                                                         aria-label={expanded[log.id] ? 'Hide details' : 'Show details'}
                                                         title={expanded[log.id] ? 'Hide details' : 'Show details'}
                                                         onClick={() => toggleExpand(log.id)}
@@ -272,10 +275,8 @@ export default function AuditLogs() {
                                                     }}
                                                 >
                                                     <div
+                                                        className="grid grid-cols-1 gap-4 md:grid-cols-2"
                                                         style={{
-                                                            display: 'grid',
-                                                            gridTemplateColumns: '1fr 1fr',
-                                                            gap: 16,
                                                             fontSize: 11,
                                                             fontFamily: 'var(--cg-mono)',
                                                         }}
@@ -346,7 +347,7 @@ export default function AuditLogs() {
 
                     {/* Footer + pager */}
                     {meta && (
-                        <div className="cgo-table-foot">
+                        <div className="cgo-table-foot flex-wrap gap-2">
                             <span>
                                 {meta.total > 0 ? (
                                     <>

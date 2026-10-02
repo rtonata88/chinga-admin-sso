@@ -227,7 +227,7 @@ export default function Users() {
             toast.current?.show({ severity: 'success', summary: 'Success', detail: 'Roles updated successfully.' });
             setRoleDialogOpen(false);
             fetchUsers();
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update roles.' });
         } finally {
             setRoleSaving(false);
@@ -257,7 +257,7 @@ export default function Users() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message, life: 5000 });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to create user.', life: 5000 });
         } finally {
             setCreating(false);
@@ -284,7 +284,7 @@ export default function Users() {
                             Platform users, status, and role assignment.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
@@ -349,15 +349,18 @@ export default function Users() {
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right">
-                        <label className="cgo-input">
+                    {/* Phones: search fills the row. .cgo-input (min-width 220px) and
+                        its `all: unset` input are unlayered CSS, so the overrides
+                        need `!`; from sm the input keeps its old min width. */}
+                    <div className="cgo-right max-sm:w-full">
+                        <label className="cgo-input max-sm:min-w-0! max-sm:flex-1">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search name, email, username…"
-                                style={{ minWidth: 220 }}
+                                className="sm:min-w-[220px]!"
                             />
                         </label>
                         <button
@@ -381,10 +384,11 @@ export default function Users() {
                                 <th style={{ minWidth: 220 }}>User</th>
                                 <th style={{ width: 110 }}>Status</th>
                                 <th style={{ width: 180 }}>Roles</th>
-                                <th style={{ width: 90 }}>Type</th>
-                                <th style={{ width: 80, textAlign: 'center' }}>Verified</th>
-                                <th style={{ width: 110 }}>Registered</th>
-                                <th style={{ width: 110 }}>Last login</th>
+                                {/* Low-priority columns hide on phones; the detail page has them. */}
+                                <th className="hidden md:table-cell" style={{ width: 90 }}>Type</th>
+                                <th className="hidden md:table-cell" style={{ width: 80, textAlign: 'center' }}>Verified</th>
+                                <th className="hidden md:table-cell" style={{ width: 110 }}>Registered</th>
+                                <th className="hidden md:table-cell" style={{ width: 110 }}>Last login</th>
                                 <th style={{ width: 90 }} />
                             </tr>
                         </thead>
@@ -436,22 +440,22 @@ export default function Users() {
                                                 ))}
                                             </div>
                                         </td>
-                                        <td>
+                                        <td className="hidden md:table-cell">
                                             <span style={{ color: 'var(--cg-fg-2)', fontSize: 12, textTransform: 'capitalize' }}>
                                                 {u.user_type || 'direct'}
                                             </span>
                                         </td>
-                                        <td style={{ textAlign: 'center' }}>
+                                        <td className="hidden md:table-cell" style={{ textAlign: 'center' }}>
                                             {u.email_verified_at ? (
                                                 <span style={{ color: 'var(--cg-pos)' }}>✓</span>
                                             ) : (
                                                 <span style={{ color: 'var(--cg-fg-4)' }}>—</span>
                                             )}
                                         </td>
-                                        <td>
+                                        <td className="hidden md:table-cell">
                                             <span className="cgo-uid">{formatDate(u.created_at)}</span>
                                         </td>
-                                        <td>
+                                        <td className="hidden md:table-cell">
                                             <span className="cgo-uid">{formatDate(u.last_login_at)}</span>
                                         </td>
                                         <td>
@@ -526,7 +530,7 @@ export default function Users() {
             <Dialog
                 header={`Manage roles · ${roleDialogUser?.name || ''}`}
                 visible={roleDialogOpen}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setRoleDialogOpen(false)}
                 modal
                 draggable={false}
@@ -583,7 +587,7 @@ export default function Users() {
             <Dialog
                 header="Create user"
                 visible={createOpen}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setCreateOpen(false)}
                 modal
                 draggable={false}

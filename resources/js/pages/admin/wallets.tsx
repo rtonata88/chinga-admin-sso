@@ -280,15 +280,18 @@ export default function Wallets() {
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right">
-                        <label className="cgo-input">
+                    {/* Phones: search fills the row. .cgo-input (min-width 220px) and
+                        its `all: unset` input are unlayered CSS, so the overrides
+                        need `!`; from sm the input keeps its old min width. */}
+                    <div className="cgo-right max-sm:w-full">
+                        <label className="cgo-input max-sm:min-w-0! max-sm:flex-1">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search by user name or email…"
-                                style={{ minWidth: 240 }}
+                                className="sm:min-w-[240px]!"
                             />
                         </label>
                         <button
@@ -312,10 +315,11 @@ export default function Wallets() {
                                 <th style={{ minWidth: 220 }}>User</th>
                                 <th style={{ minWidth: 150 }}>Operator</th>
                                 <th className="cgo-r" style={{ width: 140 }}>Balance</th>
-                                <th style={{ width: 80 }}>Currency</th>
+                                {/* Low-priority columns hide on phones (balance already shows the currency). */}
+                                <th className="hidden md:table-cell" style={{ width: 80 }}>Currency</th>
                                 <th style={{ width: 110 }}>Status</th>
-                                <th className="cgo-r" style={{ width: 140 }}>Total deposited</th>
-                                <th className="cgo-r" style={{ width: 140 }}>Total withdrawn</th>
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 140 }}>Total deposited</th>
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 140 }}>Total withdrawn</th>
                                 <th className="cgo-r" style={{ width: 120 }} />
                             </tr>
                         </thead>
@@ -353,7 +357,7 @@ export default function Wallets() {
                                                 {formatNAD(parseFloat(w.balance))}
                                             </span>
                                         </td>
-                                        <td>
+                                        <td className="hidden md:table-cell">
                                             <span className="cgo-uid">{w.currency}</span>
                                         </td>
                                         <td>
@@ -361,12 +365,12 @@ export default function Wallets() {
                                                 {w.status}
                                             </span>
                                         </td>
-                                        <td className="cgo-r">
+                                        <td className="cgo-r hidden md:table-cell">
                                             <span className="cgo-payout">
                                                 {formatNAD(parseFloat(w.total_deposited))}
                                             </span>
                                         </td>
-                                        <td className="cgo-r">
+                                        <td className="cgo-r hidden md:table-cell">
                                             <span className="cgo-payout">
                                                 {formatNAD(parseFloat(w.total_withdrawn))}
                                             </span>
@@ -468,7 +472,7 @@ export default function Wallets() {
             <Dialog
                 header={`Deposit · ${depositWallet?.user?.name || ''}${depositWallet?.tenant ? ` · ${depositWallet.tenant.name}` : ''}`}
                 visible={depositOpen}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setDepositOpen(false)}
                 modal
                 draggable={false}
@@ -524,7 +528,7 @@ export default function Wallets() {
             <Dialog
                 header={`Withdraw · ${withdrawWallet?.user?.name || ''}${withdrawWallet?.tenant ? ` · ${withdrawWallet.tenant.name}` : ''}`}
                 visible={withdrawOpen}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setWithdrawOpen(false)}
                 modal
                 draggable={false}

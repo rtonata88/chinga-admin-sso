@@ -133,9 +133,9 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                         </div>
                     </div>
                     {can_manage && (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <a href="/platform/company" className="cg-btn cg-btn--ghost cg-btn--sm">Company details</a>
-                            <a href="/tenant-overview" className="cg-btn cg-btn--primary cg-btn--sm">Issue an invoice</a>
+                        <div className="flex flex-wrap gap-2">
+                            <a href="/platform/company" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10">Company details</a>
+                            <a href="/tenant-overview" className="cg-btn cg-btn--primary cg-btn--sm max-sm:min-h-10">Issue an invoice</a>
                         </div>
                     )}
                 </div>
@@ -152,16 +152,16 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                         <button
                             key={f.value || 'all'}
                             type="button"
-                            className={`cgo-chip${(filters.status ?? '') === f.value ? ' active' : ''}`}
+                            className={`cgo-chip max-sm:min-h-10${(filters.status ?? '') === f.value ? ' active' : ''}`}
                             onClick={() => applyFilters({ status: f.value })}
                         >
                             {f.label}
                         </button>
                     ))}
                     {can_manage && tenants.length > 0 && (
-                        <div className="cgo-right">
-                            <label className="cgo-input">
-                                <select value={filters.tenant_uuid ?? ''} onChange={(e) => applyFilters({ tenant_uuid: e.target.value })} style={{ minWidth: 220 }}>
+                        <div className="cgo-right max-sm:w-full">
+                            <label className="cgo-input max-sm:min-h-10 max-sm:flex-1">
+                                <select className="max-sm:flex-1" value={filters.tenant_uuid ?? ''} onChange={(e) => applyFilters({ tenant_uuid: e.target.value })} style={{ minWidth: 'min(220px, 55vw)' }}>
                                     <option value="">All tenants</option>
                                     {tenants.map((t) => (
                                         <option key={t.uuid} value={t.uuid}>{t.name}</option>
@@ -180,9 +180,10 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                                 {can_manage && <th style={{ minWidth: 160 }}>Tenant</th>}
                                 <th style={{ minWidth: 170 }}>Period</th>
                                 <th style={{ width: 120 }}>Due</th>
-                                <th className="cgo-r" style={{ width: 120 }}>GGR</th>
+                                {/* GGR and Paid hide on phones; Amount due and Outstanding carry the row. */}
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 120 }}>GGR</th>
                                 <th className="cgo-r" style={{ width: 120 }}>Amount due</th>
-                                <th className="cgo-r" style={{ width: 120 }}>Paid</th>
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 120 }}>Paid</th>
                                 <th className="cgo-r" style={{ width: 120 }}>Outstanding</th>
                                 <th style={{ width: 110 }}>Status</th>
                                 <th style={{ width: can_manage ? 230 : 90 }} />
@@ -205,21 +206,21 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                                         {can_manage && <td><div className="cgo-name">{r.tenant_name ?? '—'}</div></td>}
                                         <td className="cgo-mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(r.period_from)} – {fmtDate(r.period_to)}</td>
                                         <td className="cgo-mono" style={{ whiteSpace: 'nowrap', ...(r.overdue ? { color: 'var(--cg-neg)' } : {}) }}>{fmtDate(r.due_at)}</td>
-                                        <td className="cgo-r cgo-mono">{formatNAD(r.ggr)}</td>
+                                        <td className="cgo-r cgo-mono hidden md:table-cell">{formatNAD(r.ggr)}</td>
                                         <td className="cgo-r cgo-mono">{formatNAD(r.amount_due)}</td>
-                                        <td className="cgo-r cgo-mono">{formatNAD(r.amount_paid)}</td>
+                                        <td className="cgo-r cgo-mono hidden md:table-cell">{formatNAD(r.amount_paid)}</td>
                                         <td className="cgo-r cgo-mono" style={{ fontWeight: r.outstanding > 0 && r.status !== 'void' ? 600 : undefined }}>
                                             {r.status === 'void' ? '—' : formatNAD(r.outstanding)}
                                         </td>
                                         <td><span className={`cgo-pill ${pillClass(r)}`}>{pillLabel(r)}</span></td>
                                         <td>
                                             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                                                <a href={`/invoices/${r.number}`} target="_blank" rel="noopener" className="cg-btn cg-btn--ghost cg-btn--sm">View</a>
+                                                <a href={`/invoices/${r.number}`} target="_blank" rel="noopener" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10">View</a>
                                                 {can_manage && r.status !== 'paid' && r.status !== 'void' && (
-                                                    <button type="button" className="cg-btn cg-btn--primary cg-btn--sm" onClick={() => openPayment(r)}>Record payment</button>
+                                                    <button type="button" className="cg-btn cg-btn--primary cg-btn--sm max-sm:min-h-10" onClick={() => openPayment(r)}>Record payment</button>
                                                 )}
                                                 {can_manage && r.status === 'issued' && r.amount_paid === 0 && (
-                                                    <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => { voidForm.setData('reason', ''); setVoiding(r); }}>Void</button>
+                                                    <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10" onClick={() => { voidForm.setData('reason', ''); setVoiding(r); }}>Void</button>
                                                 )}
                                             </div>
                                         </td>
@@ -241,8 +242,8 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                 draggable={false}
                 footer={
                     <div className="flex justify-end gap-2">
-                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setPaying(null)}>Cancel</button>
-                        <button type="submit" form="payment-form" className="cg-btn cg-btn--primary cg-btn--sm" disabled={payment.processing}>
+                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10" onClick={() => setPaying(null)}>Cancel</button>
+                        <button type="submit" form="payment-form" className="cg-btn cg-btn--primary cg-btn--sm max-sm:min-h-10" disabled={payment.processing}>
                             {payment.processing ? 'Saving…' : 'Record payment'}
                         </button>
                     </div>
@@ -256,17 +257,17 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                         <div className="cgo-field-grid">
                             <div className="cgo-field">
                                 <label className="cgo-field-label" htmlFor="pay-amount">{label('Amount')}</label>
-                                <span className="cgo-input"><input id="pay-amount" type="number" step="0.01" min="0.01" max={paying.outstanding} value={payment.data.amount} onChange={(e) => payment.setData('amount', e.target.value)} required /></span>
+                                <span className="cgo-input max-sm:min-h-10"><input id="pay-amount" type="number" step="0.01" min="0.01" max={paying.outstanding} value={payment.data.amount} onChange={(e) => payment.setData('amount', e.target.value)} required /></span>
                                 {payment.errors.amount && <div style={{ fontSize: 11, color: 'var(--cg-neg)', marginTop: 4 }}>{payment.errors.amount}</div>}
                             </div>
                             <div className="cgo-field">
                                 <label className="cgo-field-label" htmlFor="pay-date">{label('Paid on')}</label>
-                                <span className="cgo-input"><input id="pay-date" type="date" max={today} value={payment.data.paid_at} onChange={(e) => payment.setData('paid_at', e.target.value)} required /></span>
+                                <span className="cgo-input max-sm:min-h-10"><input id="pay-date" type="date" max={today} value={payment.data.paid_at} onChange={(e) => payment.setData('paid_at', e.target.value)} required /></span>
                                 {payment.errors.paid_at && <div style={{ fontSize: 11, color: 'var(--cg-neg)', marginTop: 4 }}>{payment.errors.paid_at}</div>}
                             </div>
                             <div className="cgo-field">
                                 <label className="cgo-field-label" htmlFor="pay-method">{label('Method')}</label>
-                                <span className="cgo-input">
+                                <span className="cgo-input max-sm:min-h-10">
                                     <select id="pay-method" value={payment.data.method} onChange={(e) => payment.setData('method', e.target.value)}>
                                         {methods.map((m) => (
                                             <option key={m} value={m}>{METHOD_LABELS[m] ?? m}</option>
@@ -276,11 +277,11 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                             </div>
                             <div className="cgo-field">
                                 <label className="cgo-field-label" htmlFor="pay-ref">{label('Reference')}</label>
-                                <span className="cgo-input"><input id="pay-ref" type="text" value={payment.data.reference} onChange={(e) => payment.setData('reference', e.target.value)} placeholder="Bank reference" /></span>
+                                <span className="cgo-input max-sm:min-h-10"><input id="pay-ref" type="text" value={payment.data.reference} onChange={(e) => payment.setData('reference', e.target.value)} placeholder="Bank reference" /></span>
                             </div>
                             <div className="cgo-field" style={{ gridColumn: '1 / -1' }}>
                                 <label className="cgo-field-label" htmlFor="pay-note">{label('Note')}</label>
-                                <span className="cgo-input"><input id="pay-note" type="text" value={payment.data.note} onChange={(e) => payment.setData('note', e.target.value)} /></span>
+                                <span className="cgo-input max-sm:min-h-10"><input id="pay-note" type="text" value={payment.data.note} onChange={(e) => payment.setData('note', e.target.value)} /></span>
                             </div>
                         </div>
                     </form>
@@ -297,8 +298,8 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                 draggable={false}
                 footer={
                     <div className="flex justify-end gap-2">
-                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setVoiding(null)}>Cancel</button>
-                        <button type="submit" form="void-form" className="cg-btn cg-btn--primary cg-btn--sm" disabled={voidForm.processing}>Void invoice</button>
+                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10" onClick={() => setVoiding(null)}>Cancel</button>
+                        <button type="submit" form="void-form" className="cg-btn cg-btn--primary cg-btn--sm max-sm:min-h-10" disabled={voidForm.processing}>Void invoice</button>
                     </div>
                 }
             >
@@ -309,7 +310,7 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                         </div>
                         <div className="cgo-field">
                             <label className="cgo-field-label" htmlFor="void-reason">{label('Reason')}</label>
-                            <span className="cgo-input"><input id="void-reason" type="text" value={voidForm.data.reason} onChange={(e) => voidForm.setData('reason', e.target.value)} placeholder="Optional" /></span>
+                            <span className="cgo-input max-sm:min-h-10"><input id="void-reason" type="text" value={voidForm.data.reason} onChange={(e) => voidForm.setData('reason', e.target.value)} placeholder="Optional" /></span>
                             {voidForm.errors.reason && <div style={{ fontSize: 11, color: 'var(--cg-neg)', marginTop: 4 }}>{voidForm.errors.reason}</div>}
                         </div>
                     </form>

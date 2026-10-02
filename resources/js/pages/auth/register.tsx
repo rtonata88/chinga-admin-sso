@@ -59,6 +59,7 @@ export default function Register() {
                             <div className="grid gap-2">
                                 <Label htmlFor="name">Full Name</Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="name"
                                     type="text"
                                     required
@@ -79,6 +80,7 @@ export default function Register() {
                                     </span>
                                 </Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="username"
                                     type="text"
                                     tabIndex={2}
@@ -92,6 +94,7 @@ export default function Register() {
                             <div className="grid gap-2">
                                 <Label htmlFor="email">Email Address</Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="email"
                                     type="email"
                                     required
@@ -111,6 +114,7 @@ export default function Register() {
                                     </span>
                                 </Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="phone"
                                     type="tel"
                                     tabIndex={4}
@@ -126,6 +130,7 @@ export default function Register() {
                                     Date of Birth
                                 </Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="date_of_birth"
                                     type="date"
                                     required
@@ -158,7 +163,7 @@ export default function Register() {
                                         setData('country_code', value);
                                     }}
                                 >
-                                    <SelectTrigger tabIndex={6}>
+                                    <SelectTrigger tabIndex={6} className="h-10 md:h-9">
                                         <SelectValue placeholder="Select your country" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -183,6 +188,7 @@ export default function Register() {
                             <div className="grid gap-2">
                                 <Label htmlFor="password">Password</Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="password"
                                     type="password"
                                     required
@@ -199,6 +205,7 @@ export default function Register() {
                                     Confirm Password
                                 </Label>
                                 <Input
+                                    className="h-10 md:h-9"
                                     id="password_confirmation"
                                     type="password"
                                     required
@@ -259,7 +266,7 @@ export default function Register() {
 
                             <Button
                                 type="submit"
-                                className="mt-2 w-full"
+                                className="mt-2 h-10 w-full md:h-9"
                                 tabIndex={10}
                                 disabled={!termsAccepted}
                                 data-test="register-user-button"

@@ -319,7 +319,7 @@ export default function VoucherCodes() {
                             Issue, monitor and void voucher codes per venue.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
@@ -352,8 +352,12 @@ export default function VoucherCodes() {
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right" style={{ flexWrap: 'wrap' }}>
-                        <label className="cgo-input" style={{ minWidth: 180 }}>
+                    {/* Phones: the controls take the full width and grow to fill each
+                        wrapped row; a long venue name clips inside its select.
+                        .cgo-input (min-width 220px) and its `all: unset` input are
+                        unlayered CSS, so those overrides need `!`. */}
+                    <div className="cgo-right max-sm:w-full" style={{ flexWrap: 'wrap' }}>
+                        <label className="cgo-input max-sm:flex-[1_1_180px] max-sm:overflow-hidden" style={{ minWidth: 180 }}>
                             <select
                                 value={venueFilter}
                                 onChange={(e) => { setVenueFilter(e.target.value); setPage(1); }}
@@ -368,14 +372,14 @@ export default function VoucherCodes() {
                                 ))}
                             </select>
                         </label>
-                        <label className="cgo-input">
+                        <label className="cgo-input max-sm:min-w-0! max-sm:flex-[1_1_160px]">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search by code…"
-                                style={{ minWidth: 220 }}
+                                className="sm:min-w-[220px]!"
                             />
                         </label>
                         <button
@@ -396,12 +400,13 @@ export default function VoucherCodes() {
                     <table className="cgo-wagers">
                         <thead>
                             <tr>
+                                {/* Low-priority columns hide on phones. */}
                                 <th style={{ minWidth: 180 }}>Code</th>
-                                <th style={{ minWidth: 160 }}>Venue</th>
+                                <th className="md:min-w-[160px]">Venue</th>
                                 <th className="cgo-r" style={{ width: 130 }}>Balance</th>
                                 <th style={{ width: 100 }}>Status</th>
-                                <th className="cgo-r" style={{ width: 200 }}>Loaded / Cashed</th>
-                                <th style={{ width: 110 }}>Created</th>
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 200 }}>Loaded / Cashed</th>
+                                <th className="hidden md:table-cell" style={{ width: 110 }}>Created</th>
                                 <th style={{ width: 100 }} />
                             </tr>
                         </thead>
@@ -463,12 +468,12 @@ export default function VoucherCodes() {
                                                 {c.status.replace('_', ' ')}
                                             </span>
                                         </td>
-                                        <td className="cgo-r">
+                                        <td className="cgo-r hidden md:table-cell">
                                             <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
                                                 {formatNAD(c.total_loaded)} / {formatNAD(c.total_cashed_out)}
                                             </span>
                                         </td>
-                                        <td>
+                                        <td className="hidden md:table-cell">
                                             <span className="cgo-uid">{formatDate(c.created_at)}</span>
                                         </td>
                                         <td>
@@ -591,7 +596,7 @@ export default function VoucherCodes() {
                             }}
                         >
                             <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>{counterFloat ? 'Counter login' : 'Voucher code'}</div>
-                            <div className="flex justify-between items-center" style={{ gap: 12 }}>
+                            <div className="flex flex-wrap justify-between items-center" style={{ gap: 12 }}>
                                 <code
                                     data-testid="created-code"
                                     style={{
@@ -600,6 +605,7 @@ export default function VoucherCodes() {
                                         letterSpacing: '0.18em',
                                         fontSize: '1.9rem',
                                         fontWeight: 700,
+                                        wordBreak: 'break-all',
                                     }}
                                 >
                                     {generatedCode.code}
@@ -650,7 +656,7 @@ export default function VoucherCodes() {
                         {/* 1. What kind */}
                         <div>
                             <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>1 · What is it for</div>
-                            <div role="radiogroup" aria-label="Voucher kind" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div role="radiogroup" aria-label="Voucher kind" className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 10 }}>
                                 {[
                                     { value: false, title: 'Player voucher', text: 'Sold to one player. The balance moves into their wallet when they log the game in; single use.' },
                                     { value: true, title: 'Counter float', text: "The venue's own account for over-the-counter ticket sales. The counter logs in with it every shift, sells any number of tickets a round against it, and pays winning slips out in cash." },
@@ -708,7 +714,7 @@ export default function VoucherCodes() {
                         {/* 3. Money and PIN */}
                         <div>
                             <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>3 · {counterFloat ? 'Opening float' : 'Amount'} and PIN</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 10 }}>
                                 <div className="flex flex-col gap-1">
                                     <label style={{ fontSize: 12, fontWeight: 500 }}>{counterFloat ? 'Opening float (NAD)' : 'Amount (NAD)'}</label>
                                     <InputText
@@ -720,7 +726,7 @@ export default function VoucherCodes() {
                                         className="w-full"
                                         style={{ fontFamily: 'var(--cg-mono)', fontSize: 16 }}
                                     />
-                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                                         {(counterFloat ? [500, 1000, 2000, 5000] : [20, 50, 100, 200]).map((a) => (
                                             <button key={a} type="button" className={`cgo-chip${Number(initialBalance) === a ? ' active' : ''}`} onClick={() => setInitialBalance(String(a))}>
                                                 {a.toLocaleString()}

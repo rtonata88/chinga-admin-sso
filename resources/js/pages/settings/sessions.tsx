@@ -122,27 +122,34 @@ export default function Sessions({ sessions, stats }: SessionsProps) {
                         description="Manage your active sessions across different devices"
                     />
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-4">
+                    {/* Stats — tighter gutters and padding below sm so three
+                        cards still fit side by side on a 360px phone. */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
                         <Card>
-                            <CardHeader className="pb-2">
-                                <CardDescription>Total Sessions</CardDescription>
+                            <CardHeader className="px-3 pb-2 sm:px-6">
+                                <CardDescription className="text-xs sm:text-sm">
+                                    Total Sessions
+                                </CardDescription>
                                 <CardTitle className="text-2xl">
                                     {stats.total_sessions}
                                 </CardTitle>
                             </CardHeader>
                         </Card>
                         <Card>
-                            <CardHeader className="pb-2">
-                                <CardDescription>Active Today</CardDescription>
+                            <CardHeader className="px-3 pb-2 sm:px-6">
+                                <CardDescription className="text-xs sm:text-sm">
+                                    Active Today
+                                </CardDescription>
                                 <CardTitle className="text-2xl">
                                     {stats.active_today}
                                 </CardTitle>
                             </CardHeader>
                         </Card>
                         <Card>
-                            <CardHeader className="pb-2">
-                                <CardDescription>Unique Devices</CardDescription>
+                            <CardHeader className="px-3 pb-2 sm:px-6">
+                                <CardDescription className="text-xs sm:text-sm">
+                                    Unique Devices
+                                </CardDescription>
                                 <CardTitle className="text-2xl">
                                     {stats.unique_devices}
                                 </CardTitle>
@@ -155,6 +162,7 @@ export default function Sessions({ sessions, stats }: SessionsProps) {
                         <div>
                             <Button
                                 variant="destructive"
+                                className="h-10 md:h-9"
                                 onClick={() => setConfirmLogoutAll(true)}
                             >
                                 <LogOut className="mr-2 h-4 w-4" />
@@ -167,13 +175,13 @@ export default function Sessions({ sessions, stats }: SessionsProps) {
                     <div className="space-y-4">
                         {sessions.map((session) => (
                             <Card key={session.id}>
-                                <CardContent className="flex items-center justify-between p-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                                <CardContent className="flex items-center justify-between gap-3 p-4">
+                                    <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
                                             {getDeviceIcon(session.device_type)}
                                         </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                                 <span className="font-medium">
                                                     {session.browser} on{' '}
                                                     {session.platform}
@@ -184,7 +192,8 @@ export default function Sessions({ sessions, stats }: SessionsProps) {
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <div className="text-sm text-muted-foreground">
+                                            {/* break-words so a long IPv6 address can't push the row wider than the phone */}
+                                            <div className="text-sm break-words text-muted-foreground">
                                                 {session.ip_address}
                                                 {session.location &&
                                                     ` - ${session.location}`}
@@ -201,6 +210,7 @@ export default function Sessions({ sessions, stats }: SessionsProps) {
                                         <Button
                                             variant="ghost"
                                             size="sm"
+                                            className="h-10 w-10 shrink-0 md:h-8 md:w-auto"
                                             onClick={() =>
                                                 revokeSession(session.id)
                                             }
@@ -238,6 +248,7 @@ export default function Sessions({ sessions, stats }: SessionsProps) {
                                 <Input
                                     id="password"
                                     type="password"
+                                    className="h-10 md:h-9"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="Enter your password"

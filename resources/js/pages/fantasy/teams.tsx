@@ -37,6 +37,14 @@ const emptyTeam = {
     position: '' as string | number,
 };
 
+/*
+ * Phone-width tap targets. The brass shell's controls are 28–32px; below
+ * sm they grow to 40px. Important (!) because the shell's unlayered CSS
+ * (`all: unset`, fixed heights) otherwise wins over Tailwind utilities.
+ */
+const TAP = 'max-sm:min-h-10!';
+const TAP_SQUARE = 'max-sm:min-h-10! max-sm:min-w-10!';
+
 const STATUS_FILTERS = [
     { label: 'All', value: '' },
     { label: 'Active', value: 'true' },
@@ -133,7 +141,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
                     </div>
                 )}
                 {/* Page header */}
-                <div className="cgo-page-head">
+                <div className="cgo-page-head max-sm:flex-wrap">
                     <div>
                         <div className="cgo-eyebrow">Fantasy</div>
                         <h1 className="cgo-title">Teams</h1>
@@ -144,14 +152,14 @@ export default function Teams({ teams, filters, error = null }: Props) {
                     <div style={{ display: 'flex', gap: 8 }}>
                         <button
                             type="button"
-                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            className={`cg-btn cg-btn--ghost cg-btn--sm ${TAP}`}
                             onClick={() => router.reload({ only: ['teams'] })}
                         >
                             Refresh
                         </button>
                         <button
                             type="button"
-                            className="cg-btn cg-btn--primary cg-btn--sm"
+                            className={`cg-btn cg-btn--primary cg-btn--sm ${TAP}`}
                             onClick={openCreateDialog}
                         >
                             + New team
@@ -165,26 +173,27 @@ export default function Teams({ teams, filters, error = null }: Props) {
                         <button
                             key={f.value || 'all'}
                             type="button"
-                            className={`cgo-chip${activeFilter === f.value ? ' active' : ''}`}
+                            className={`cgo-chip${activeFilter === f.value ? ' active' : ''} ${TAP}`}
                             onClick={() => { setActiveFilter(f.value); applyFilters({ active: f.value, page: 1 }); }}
                         >
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right">
-                        <label className="cgo-input">
+                    {/* Below sm the search drops to its own full-width row. */}
+                    <div className="cgo-right max-sm:w-full">
+                        <label className={`cgo-input max-sm:min-w-0 max-sm:flex-1 ${TAP}`}>
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search name or short name…"
-                                style={{ minWidth: 260 }}
+                                className="max-sm:min-w-0! sm:min-w-[260px]!"
                             />
                         </label>
                         <button
                             type="button"
-                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            className={`cg-btn cg-btn--ghost cg-btn--sm ${TAP}`}
                             onClick={submitSearch}
                         >
                             Search
@@ -198,8 +207,9 @@ export default function Teams({ teams, filters, error = null }: Props) {
                         <thead>
                             <tr>
                                 <th style={{ width: 70 }}>Tile</th>
-                                <th style={{ minWidth: 240 }}>Team</th>
-                                <th style={{ minWidth: 120 }}>Colour</th>
+                                <th className="sm:min-w-[240px]">Team</th>
+                                {/* Colour is low priority on a phone: the badge's left border already shows it. */}
+                                <th className="max-sm:hidden" style={{ minWidth: 120 }}>Colour</th>
                                 <th style={{ width: 100 }}>Status</th>
                                 <th style={{ width: 110 }} />
                             </tr>
@@ -228,7 +238,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
+                                        <td className="max-sm:hidden">
                                             <span style={{ fontSize: 12, color: 'var(--cg-fg-2)', fontFamily: 'var(--cg-mono)' }}>
                                                 <span aria-hidden style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: t.colour, marginRight: 6, verticalAlign: 'middle' }} />
                                                 {t.colour}
@@ -243,7 +253,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
                                             <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                                                 <button
                                                     type="button"
-                                                    className="cgo-row-action"
+                                                    className={`cgo-row-action ${TAP_SQUARE}`}
                                                     aria-label="Edit team"
                                                     title="Edit team"
                                                     onClick={() => openEditDialog(t)}
@@ -252,7 +262,7 @@ export default function Teams({ teams, filters, error = null }: Props) {
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    className="cgo-row-action"
+                                                    className={`cgo-row-action ${TAP_SQUARE}`}
                                                     aria-label="Deactivate team"
                                                     title="Deactivate team"
                                                     style={{ color: 'var(--cg-neg)', borderColor: 'var(--cg-neg)' }}
@@ -284,17 +294,19 @@ export default function Teams({ teams, filters, error = null }: Props) {
                             <div className="cgo-pager">
                                 <button
                                     type="button"
+                                    className={TAP_SQUARE}
                                     disabled={teams.current_page === 1}
                                     onClick={() => applyFilters({ page: teams.current_page - 1 })}
                                     aria-label="Previous"
                                 >
                                     ‹
                                 </button>
-                                <button type="button" className="curr" disabled>
+                                <button type="button" className={`curr ${TAP_SQUARE}`} disabled>
                                     {teams.current_page}
                                 </button>
                                 <button
                                     type="button"
+                                    className={TAP_SQUARE}
                                     disabled={teams.current_page === teams.last_page}
                                     onClick={() => applyFilters({ page: teams.current_page + 1 })}
                                     aria-label="Next"

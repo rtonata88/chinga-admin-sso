@@ -48,6 +48,7 @@ function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'baseline',
+                            gap: 12,
                             padding: '12px 16px',
                             borderBottom:
                                 i === items.length - 1 ? 'none' : '1px solid var(--cg-rule)',
@@ -131,10 +132,10 @@ export default function Reports() {
                             Platform statistics for the last 30 days.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10"
                             onClick={fetchReports}
                             disabled={loading}
                         >
@@ -187,15 +188,8 @@ export default function Reports() {
                     />
                 </div>
 
-                {/* Detail panels */}
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 16,
-                        marginBottom: 24,
-                    }}
-                >
+                {/* Detail panels — side by side from md, stacked on phones. */}
+                <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <InfoPanel
                         title="Registrations · last 30 days"
                         items={[

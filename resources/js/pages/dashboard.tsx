@@ -310,9 +310,11 @@ export default function Dashboard(props: DashboardProps) {
                     </div>
                 )}
 
-                <div className="cgo-table-bar" style={{ borderRadius: '8px 8px 0 0', borderTop: '1px solid var(--cg-rule)', borderLeft: '1px solid var(--cg-rule)', borderRight: '1px solid var(--cg-rule)' }}>
+                {/* Below md the tenant, round and odds columns are hidden so
+                 * the key columns fit a phone; the table still scrolls sideways. */}
+                <div className="cgo-table-bar flex-wrap gap-2" style={{ borderRadius: '8px 8px 0 0', borderTop: '1px solid var(--cg-rule)', borderLeft: '1px solid var(--cg-rule)', borderRight: '1px solid var(--cg-rule)' }}>
                     <div className="cgo-table-bar-title">Recent bets</div>
-                    <Link href="/operator/wagers" className="cgo-table-bar-link">
+                    <Link href="/operator/wagers" className="cgo-table-bar-link inline-flex items-center max-sm:min-h-10">
                         View all →
                     </Link>
                 </div>
@@ -321,11 +323,11 @@ export default function Dashboard(props: DashboardProps) {
                         <thead>
                             <tr>
                                 <th style={{ minWidth: 180 }}>Player</th>
-                                <th style={{ minWidth: 140 }}>Tenant</th>
-                                <th className="cgo-r" style={{ width: 80 }}>Round</th>
+                                <th className="hidden md:table-cell" style={{ minWidth: 140 }}>Tenant</th>
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 80 }}>Round</th>
                                 <th style={{ minWidth: 220 }}>Game · selection</th>
                                 <th className="cgo-r" style={{ width: 110 }}>Wager</th>
-                                <th className="cgo-r" style={{ width: 80 }}>Odds</th>
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 80 }}>Odds</th>
                                 <th className="cgo-r" style={{ width: 110 }}>Potential</th>
                                 <th style={{ width: 100 }}>Outcome</th>
                             </tr>
@@ -353,7 +355,7 @@ export default function Dashboard(props: DashboardProps) {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td style={{ maxWidth: 180 }}>
+                                            <td className="hidden md:table-cell" style={{ maxWidth: 180 }}>
                                                 {b.tenant_name || b.tenant_uuid ? (
                                                     <span
                                                         className="cgo-cell-clip"
@@ -366,7 +368,7 @@ export default function Dashboard(props: DashboardProps) {
                                                     <span style={{ color: 'var(--cg-fg-4)' }}>—</span>
                                                 )}
                                             </td>
-                                            <td className="cgo-r">
+                                            <td className="cgo-r hidden md:table-cell">
                                                 <span className="cgo-odds">#{b.round_number ?? '—'}</span>
                                             </td>
                                             <td style={{ maxWidth: 300 }}>
@@ -385,7 +387,7 @@ export default function Dashboard(props: DashboardProps) {
                                                     {formatNAD(b.bet_amount)}
                                                 </span>
                                             </td>
-                                            <td className="cgo-r">
+                                            <td className="cgo-r hidden md:table-cell">
                                                 <span className="cgo-odds">
                                                     {b.combined_odds.toFixed(2)}x
                                                 </span>

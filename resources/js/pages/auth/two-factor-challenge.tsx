@@ -64,6 +64,7 @@ export default function TwoFactorChallenge() {
                             {showRecoveryInput ? (
                                 <>
                                     <Input
+                                        className="h-10 md:h-9"
                                         name="recovery_code"
                                         type="text"
                                         placeholder="Enter recovery code"
@@ -89,9 +90,11 @@ export default function TwoFactorChallenge() {
                                                 {Array.from(
                                                     { length: OTP_MAX_LENGTH },
                                                     (_, index) => (
+                                                        // Bigger slots on phones (6 x 44px still fits 360px)
                                                         <InputOTPSlot
                                                             key={index}
                                                             index={index}
+                                                            className="h-11 w-11 text-base md:h-9 md:w-9 md:text-sm"
                                                         />
                                                     ),
                                                 )}
@@ -104,7 +107,7 @@ export default function TwoFactorChallenge() {
 
                             <Button
                                 type="submit"
-                                className="w-full"
+                                className="h-10 w-full md:h-9"
                                 disabled={processing}
                             >
                                 Continue
@@ -114,7 +117,7 @@ export default function TwoFactorChallenge() {
                                 <span>or you can </span>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
+                                    className="-my-2 cursor-pointer py-2 text-foreground underline md:my-0 md:py-0 decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
                                     onClick={() =>
                                         toggleRecoveryMode(clearErrors)
                                     }

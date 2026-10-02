@@ -21,6 +21,7 @@ export default function ConfirmPassword() {
                         <div className="grid gap-2">
                             <Label htmlFor="password">Password</Label>
                             <Input
+                                className="h-10 md:h-9"
                                 id="password"
                                 type="password"
                                 name="password"
@@ -34,7 +35,7 @@ export default function ConfirmPassword() {
 
                         <div className="flex items-center">
                             <Button
-                                className="w-full"
+                                className="h-10 w-full md:h-9"
                                 disabled={processing}
                                 data-test="confirm-password-button"
                             >

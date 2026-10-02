@@ -46,7 +46,7 @@ export function PanelShell({
                 <div className="cgo-table-bar-title">{title}</div>
                 {action}
             </div>
-            <div style={{ padding: 20 }}>
+            <div className="cgo-panel-body">
                 {description && (
                     <div style={{ fontSize: 12, color: 'var(--cg-fg-3)', marginBottom: 18, lineHeight: 1.55 }}>
                         {description}

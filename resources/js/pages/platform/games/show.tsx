@@ -63,6 +63,10 @@ function statusPill(status: string): string {
     }
 }
 
+// KpiCard takes a string value; same result as text-transform: capitalize
+// for the single-word types and statuses.
+const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
 const DATE_FMT = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
 interface InfoItem {
@@ -86,8 +90,10 @@ function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
                     padding: '18px',
                 }}
             >
+                {/* Every item takes a full row on a phone; the !important
+                    utility beats the inline span. */}
                 {items.map((it, i) => (
-                    <div key={i} style={{ gridColumn: `span ${it.span ?? 6}` }}>
+                    <div key={i} className="max-sm:col-span-12!" style={{ gridColumn: `span ${it.span ?? 6}` }}>
                         <div
                             style={{
                                 fontSize: 10,
@@ -201,7 +207,7 @@ export default function GameShow() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to update game.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update game.' });
         } finally {
             setSaving(false);
@@ -302,7 +308,7 @@ export default function GameShow() {
                 <div className="cgo-kpis">
                     <KpiCard
                         label="Type"
-                        value={<span style={{ textTransform: 'capitalize' }}>{game.type}</span>}
+                        value={capitalize(game.type)}
                         meta="game category"
                     />
                     <KpiCard
@@ -318,7 +324,7 @@ export default function GameShow() {
                     />
                     <KpiCard
                         label="Status"
-                        value={<span style={{ textTransform: 'capitalize' }}>{game.status}</span>}
+                        value={capitalize(game.status)}
                         meta={
                             game.status === 'active' ? 'live in production'
                             : game.status === 'development' ? 'not yet live'
@@ -327,8 +333,9 @@ export default function GameShow() {
                     />
                 </div>
 
-                {/* Info + thumbnail */}
+                {/* Info + thumbnail (stacked below md) */}
                 <div
+                    className="max-md:grid-cols-1!"
                     style={{
                         display: 'grid',
                         gridTemplateColumns: game.thumbnail_url ? '2fr 1fr' : '1fr',
@@ -448,6 +455,7 @@ export default function GameShow() {
                 header={`Edit · ${game.name}`}
                 visible={editOpen}
                 style={{ width: '32rem' }}
+                breakpoints={{ '640px': 'calc(100vw - 2rem)' }}
                 onHide={() => setEditOpen(false)}
                 modal
                 draggable={false}
@@ -473,7 +481,7 @@ export default function GameShow() {
                             className="w-full"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1">
                             <label htmlFor="edit-type" style={{ fontSize: 12, fontWeight: 500 }}>Type</label>
                             <Dropdown
@@ -525,7 +533,7 @@ export default function GameShow() {
                             className="w-full"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1">
                             <label htmlFor="edit-backend-url" style={{ fontSize: 12, fontWeight: 500 }}>Backend URL</label>
                             <InputText

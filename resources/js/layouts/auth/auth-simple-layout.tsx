@@ -31,11 +31,11 @@ export default function AuthSimpleLayout({
 
     return (
         <div
-            className="flex min-h-svh flex-col items-center justify-center bg-[var(--acu-surface)] p-6 md:p-10"
+            className="flex min-h-svh flex-col items-center justify-center bg-[var(--acu-surface)] p-4 sm:p-6 md:p-10"
             style={tenant?.branding?.primary_color ? { '--acu-primary': tenant.branding.primary_color } as CSSProperties : undefined}
         >
             <div className="w-full max-w-md">
-                <div className="acu-fieldset border-t-[3px] border-t-[var(--acu-primary)] px-8 py-10">
+                <div className="acu-fieldset border-t-[3px] border-t-[var(--acu-primary)] px-5 py-8 sm:px-8 sm:py-10">
                     <div className="flex flex-col items-center gap-6">
                         <Link
                             href={home()}

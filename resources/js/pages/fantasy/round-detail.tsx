@@ -173,6 +173,8 @@ export default function RoundDetail({ round, bets = [], error, backHref = '/fant
                             showGridlines={false}
                             emptyMessage="No tickets in this round"
                             dataKey="id"
+                            // Phones scroll the table sideways (the wrapper overflows) rather than crushing its columns.
+                            tableClassName="max-md:min-w-[48rem]"
                         >
                             <Column
                                 header="Player"

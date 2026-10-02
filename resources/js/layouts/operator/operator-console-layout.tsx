@@ -9,14 +9,21 @@
 // tokens in resources/css/colors_and_type.css. The component is pure
 // structure: brand mark, configurable nav groups, footer, topbar
 // (breadcrumb + search + icon buttons), and a slot for page content.
+//
+// Below 1024px the rail turns into an off-canvas drawer opened from a
+// hamburger in the topbar (see the "Responsive shell" block in
+// operator-console.css). The drawer closes on backdrop tap, Escape,
+// navigation, and when the viewport grows back to desktop width; body
+// scroll is locked while it is open.
 
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import {
     Bell,
     Clock,
     Gauge,
     LineChart,
     LogOut,
+    Menu,
     Receipt,
     ShieldCheck,
     UserSquare2,
@@ -25,15 +32,19 @@ import {
     BarChart3,
     Coins,
     CheckCircle2,
+    X,
 } from 'lucide-react';
 import { logout } from '@/routes';
-import { useEffect, useRef, type ComponentType, type ReactNode, type SVGProps } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from 'react';
 
 // Inertia re-mounts the layout on every navigation, which resets the
 // rail's internal scrollTop. Stash the last position in sessionStorage
 // and restore it on mount so clicking a menu item halfway down the
 // rail doesn't jump the user back to the top.
 const RAIL_SCROLL_STORAGE_KEY = 'cgo-rail-scroll';
+
+// Must match the drawer breakpoint in operator-console.css.
+const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)';
 
 export type LucideIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -146,15 +157,74 @@ export default function OperatorConsoleLayout({
         return () => el.removeEventListener('scroll', handleScroll);
     }, []);
 
+    // Mobile / tablet nav drawer. On desktop the rail is always visible
+    // and this state is ignored by the CSS.
+    const [navOpen, setNavOpen] = useState(false);
+    const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+    const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+    const closeNav = (restoreFocus: boolean) => {
+        setNavOpen(false);
+        if (restoreFocus) menuButtonRef.current?.focus();
+    };
+
+    // Close on any Inertia navigation (covers links outside the rail too).
+    useEffect(() => router.on('navigate', () => setNavOpen(false)), []);
+
+    // Close if the viewport grows to desktop width while the drawer is open,
+    // so the scroll lock below never outlives the drawer.
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
+        const mq = window.matchMedia(DESKTOP_MEDIA_QUERY);
+        const handleChange = (e: MediaQueryListEvent) => {
+            if (e.matches) setNavOpen(false);
+        };
+        mq.addEventListener('change', handleChange);
+        return () => mq.removeEventListener('change', handleChange);
+    }, []);
+
+    // While open: lock body scroll, close on Escape, move focus into the drawer.
+    useEffect(() => {
+        if (!navOpen || typeof document === 'undefined') return;
+
+        const { body } = document;
+        const previousOverflow = body.style.overflow;
+        body.style.overflow = 'hidden';
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            setNavOpen(false);
+            menuButtonRef.current?.focus();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        closeButtonRef.current?.focus();
+
+        return () => {
+            body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [navOpen]);
+
     return (
-        <div className="cgo-app">
-            <aside className="cgo-rail">
+        <div className={`cgo-app${navOpen ? ' cgo-app--nav-open' : ''}`}>
+            <div className="cgo-rail-backdrop" aria-hidden="true" onClick={() => closeNav(false)} />
+
+            <aside className="cgo-rail" id="cgo-rail" aria-label="Main navigation">
                 <div className="cgo-brand">
                     <div className="cgo-brand-mark">C</div>
                     <div>
                         <div className="cgo-brand-name">Chinga Games</div>
                         <div className="cgo-brand-sub">{brandSubtitle}</div>
                     </div>
+                    <button
+                        type="button"
+                        ref={closeButtonRef}
+                        className="cgo-icon-btn cgo-rail-close"
+                        aria-label="Close navigation"
+                        onClick={() => closeNav(true)}
+                    >
+                        <X size={16} strokeWidth={1.5} />
+                    </button>
                 </div>
 
                 <div className="cgo-rail-scroll" ref={railScrollRef}>
@@ -169,6 +239,7 @@ export default function OperatorConsoleLayout({
                                         key={item.href}
                                         href={item.href}
                                         className={`cgo-nav-item${active ? ' active' : ''}`}
+                                        onClick={() => setNavOpen(false)}
                                     >
                                         <Icon className="cgo-ico" strokeWidth={1.5} />
                                         {item.label}
@@ -203,6 +274,18 @@ export default function OperatorConsoleLayout({
 
             <div className="cgo-main">
                 <header className="cgo-topbar">
+                    <button
+                        type="button"
+                        ref={menuButtonRef}
+                        className="cgo-icon-btn cgo-menu-btn"
+                        aria-label="Open navigation"
+                        aria-controls="cgo-rail"
+                        aria-expanded={navOpen}
+                        onClick={() => setNavOpen(true)}
+                    >
+                        <Menu size={18} strokeWidth={1.5} />
+                    </button>
+
                     <div className="cgo-crumb">
                         {breadcrumbs.length === 0 ? (
                             <b>Operator Console</b>

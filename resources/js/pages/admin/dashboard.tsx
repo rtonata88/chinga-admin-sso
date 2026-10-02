@@ -338,7 +338,7 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                                                     href={`/tenant-overview/${t.tenant_uuid}/invoice?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`}
                                                     target="_blank"
                                                     rel="noopener"
-                                                    className="cg-btn cg-btn--ghost cg-btn--sm"
+                                                    className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10"
                                                 >
                                                     Invoice
                                                 </a>

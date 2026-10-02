@@ -1082,3 +1082,367 @@ table.cgo-wagers {
   border-left-width: 4px; color: var(--cg-fg-2); font-family: var(--cg-mono); font-size: 10px; font-weight: 700;
   letter-spacing: 0.06em; white-space: nowrap; flex: none;
 }
+
+.cgo-panel-body {
+  padding: 20px;
+}
+
+/* ================================================================ */
+/* Responsive shell + page primitives                                */
+/* ================================================================ */
+/*
+ * Breakpoints (desktop >= 1024px is untouched by everything below):
+ *   < 1024px  rail becomes an off-canvas drawer, topbar compacts,
+ *             KPI strips go 2-up.
+ *   <  768px  phone: page padding, headers stack, toolbars wrap,
+ *             search hidden, tables keep cells on one line and
+ *             scroll inside their own wrapper.
+ * The 1024px value is mirrored by DESKTOP_MEDIA_QUERY in
+ * layouts/operator/operator-console-layout.tsx.
+ */
+
+/* Drawer-only chrome — hidden on desktop. */
+.cgo-menu-btn,
+.cgo-rail-close,
+.cgo-rail-backdrop {
+  display: none;
+}
+
+/* Generic horizontal-scroll wrapper for any wide block (tables that
+ * don't use .cgo-table-wrap, code, charts). Keeps the overflow inside
+ * the block so the page itself never scrolls sideways. */
+.cgo-scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1023px) {
+  .cgo-app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Rail -> off-canvas drawer. visibility (not display) keeps the
+   * rail laid out so the saved scroll position restores correctly. */
+  .cgo-rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    width: min(280px, 86vw);
+    height: 100vh;
+    height: 100dvh;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-left: env(safe-area-inset-left, 0px);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform var(--cg-dur) var(--cg-ease), visibility 0s linear var(--cg-dur);
+    box-shadow: none;
+  }
+  .cgo-app--nav-open .cgo-rail {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform var(--cg-dur) var(--cg-ease), visibility 0s;
+    box-shadow: 0 0 48px rgba(0, 0, 0, 0.5);
+  }
+  .cgo-rail-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--cg-dur) var(--cg-ease);
+  }
+  .cgo-app--nav-open .cgo-rail-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .cgo-brand {
+    padding: 4px 16px 20px 24px;
+  }
+  .cgo-rail-close {
+    display: grid;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .cgo-nav-item {
+    min-height: 44px;
+  }
+  .cgo-rail-foot {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .cgo-rail-logout {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Safety net: whatever a page renders, the shell never scrolls
+   * sideways. `clip` (not hidden) so the sticky topbar keeps working. */
+  .cgo-main {
+    overflow-x: clip;
+  }
+
+  /* Topbar: hamburger + truncating breadcrumb + compact search + icons. */
+  .cgo-topbar {
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+    gap: 12px;
+  }
+  .cgo-menu-btn {
+    display: grid;
+    flex-shrink: 0;
+  }
+  .cgo-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .cgo-crumb {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cgo-search {
+    width: auto;
+    flex: 0 1 240px;
+    min-width: 0;
+  }
+  .cgo-search input {
+    min-width: 0;
+  }
+  .cgo-kbd {
+    display: none;
+  }
+  .cgo-top-icons {
+    flex-shrink: 0;
+  }
+
+  /* Page */
+  .cgo-page {
+    padding: 24px 24px 48px;
+  }
+
+  /* KPI strips: 2-up. An odd last card spans the row so the hairline
+   * grid background never shows as an empty grey cell. */
+  .cgo-kpis,
+  .cgo-kpis.cgo-kpis--5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 24px;
+  }
+  .cgo-kpis > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .cgo-kpi,
+  .cgo-kpis.cgo-kpis--5 .cgo-kpi {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Topbar: the search box is a desktop affordance; on phones show
+   * only the current page in the breadcrumb. */
+  .cgo-search {
+    display: none;
+  }
+  .cgo-crumb > span:not(:last-child) {
+    display: none;
+  }
+  .cgo-crumb > span:last-child .cgo-crumb-sep {
+    display: none;
+  }
+  .cgo-top-icons {
+    gap: 6px;
+  }
+
+  /* Page container + header */
+  .cgo-page {
+    padding: 20px 16px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+  .cgo-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .cgo-page-head > * {
+    min-width: 0;
+  }
+  /* The action cluster is usually the last child (either
+   * .cgo-head-actions or an inline-styled flex div). */
+  .cgo-head-actions,
+  .cgo-page-head > :last-child:not(:first-child) {
+    flex-wrap: wrap;
+  }
+  .cgo-title {
+    font-size: 26px;
+    overflow-wrap: anywhere;
+  }
+  .cgo-live-pill {
+    margin-left: 0;
+    margin-top: 6px;
+  }
+  .cgo-stat-strip {
+    gap: 12px 24px;
+  }
+  .cgo-stat {
+    max-width: 100%;
+  }
+
+  /* KPI cards: tighter gutters so two fit side by side at 360px. */
+  .cgo-kpis {
+    margin-bottom: 20px;
+  }
+  .cgo-kpi,
+  .cgo-kpis.cgo-kpis--5 .cgo-kpi {
+    padding: 16px 14px 14px;
+  }
+  .cgo-kpi-num,
+  .cgo-kpis.cgo-kpis--5 .cgo-kpi-num {
+    font-size: 26px;
+    margin-top: 10px;
+  }
+  .cgo-kpi-label {
+    letter-spacing: 0.14em;
+  }
+  .cgo-kpi-foot {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-top: 10px;
+  }
+
+  /* Filter bar: chips wrap, the right-hand cluster drops to its own
+   * full-width row with a flexible search input. */
+  .cgo-filterbar {
+    padding: 12px;
+  }
+  .cgo-filter-divider {
+    display: none;
+  }
+  .cgo-filterbar .cgo-right {
+    margin-left: 0;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .cgo-input {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .cgo-filterbar .cgo-right .cgo-input {
+    flex: 1 1 180px;
+  }
+  .cgo-input input,
+  .cgo-input select {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Tables: keep each cell on one line so columns stay readable and
+   * the table scrolls inside .cgo-table-wrap instead of squashing.
+   * Add .cgo-wrap to a cell that should wrap long prose instead. */
+  .cgo-table-wrap {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cgo-wagers thead th {
+    padding: 10px 12px;
+  }
+  .cgo-wagers tbody td {
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+  .cgo-wagers tbody td.cgo-wrap {
+    white-space: normal;
+    min-width: 200px;
+  }
+  /* Empty / loading rows span the table; let their message wrap. */
+  .cgo-wagers tbody td[colspan] {
+    white-space: normal;
+  }
+  .cgo-table-wrap--scroll {
+    max-height: 70vh;
+  }
+  .cgo-table-foot,
+  .cgo-table-bar {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 12px 14px;
+  }
+  /* Bar titles (PanelShell, table bars) take the free width and wrap;
+   * the action beside them drops below when it no longer fits. */
+  .cgo-table-bar-title {
+    flex: 1 1 160px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* Dialogs (PrimeReact): never wider than the screen. Pages that pass
+   * an inline maxWidth keep theirs. */
+  body .p-dialog {
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 32px);
+  }
+  .cgo-dialog .p-dialog-content {
+    padding: 16px !important;
+  }
+  .cgo-dialog .p-dialog-footer .p-button {
+    min-height: 40px;
+  }
+  .cgo-colour-row {
+    flex-wrap: wrap;
+  }
+  .cgo-panel-body {
+    padding: 16px 14px;
+  }
+}
+
+@media (max-width: 1023px) and (prefers-reduced-motion: reduce) {
+  .cgo-rail,
+  .cgo-app--nav-open .cgo-rail,
+  .cgo-rail-backdrop {
+    transition: none;
+  }
+}
+
+/* Tap targets on touch screens and phone widths: small buttons, chips,
+ * row actions and pager buttons grow to >= 40px. Mouse-driven desktop
+ * (>= 1024px, fine pointer) is unchanged. */
+@media (max-width: 1023px) and (pointer: coarse), (max-width: 767px) {
+  .cg-btn--sm {
+    min-height: 40px;
+    height: auto;
+  }
+  .cgo-chip {
+    min-height: 40px;
+    height: auto;
+    padding: 0 14px;
+  }
+  .cgo-row-action,
+  .cgo-pager button {
+    width: 40px;
+    height: 40px;
+  }
+  .cgo-input {
+    min-height: 40px;
+    height: auto;
+  }
+}
+
+/* Auth card (layouts/auth/auth-premium-layout.tsx). Padding lives here
+ * rather than inline so it can tighten on small phones. */
+.cgo-auth-card {
+  padding: 36px 32px 32px;
+}
+@media (max-width: 400px) {
+  .cgo-auth-card {
+    padding: 28px 20px 24px;
+  }
+}

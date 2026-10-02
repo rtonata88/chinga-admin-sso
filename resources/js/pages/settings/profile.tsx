@@ -45,7 +45,7 @@ export default function Profile({
 
                                     <Input
                                         id="name"
-                                        className="mt-1 block w-full"
+                                        className="mt-1 block h-10 w-full md:h-9"
                                         defaultValue={auth.user.name}
                                         name="name"
                                         required
@@ -65,7 +65,7 @@ export default function Profile({
                                     <Input
                                         id="email"
                                         type="email"
-                                        className="mt-1 block w-full"
+                                        className="mt-1 block h-10 w-full md:h-9"
                                         defaultValue={auth.user.email}
                                         name="email"
                                         required
@@ -81,6 +81,7 @@ export default function Profile({
 
                                 <div className="flex items-center gap-4">
                                     <Button
+                                        className="h-10 md:h-9"
                                         disabled={processing}
                                         data-test="update-profile-button"
                                     >

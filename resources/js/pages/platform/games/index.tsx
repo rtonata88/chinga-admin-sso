@@ -175,7 +175,7 @@ export default function GamesIndex() {
                             Game catalog — what's available to assign to tenants.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
@@ -230,15 +230,17 @@ export default function GamesIndex() {
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right">
-                        <label className="cgo-input">
+                    {/* On a phone the search row takes the full width under the
+                        chips; the shared cgo-input minimum would overflow it. */}
+                    <div className="cgo-right max-sm:w-full">
+                        <label className="cgo-input max-sm:min-w-0! max-sm:flex-1">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search games…"
-                                style={{ minWidth: 240 }}
+                                className="min-w-0! sm:min-w-[240px]!"
                             />
                         </label>
                         <button
@@ -334,6 +336,7 @@ export default function GamesIndex() {
                 header="New game"
                 visible={addOpen}
                 style={{ width: '32rem' }}
+                breakpoints={{ '640px': 'calc(100vw - 2rem)' }}
                 onHide={() => setAddOpen(false)}
                 modal
                 draggable={false}
@@ -378,7 +381,7 @@ export default function GamesIndex() {
                             className="w-full"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1">
                             <label htmlFor="game-type" style={{ fontSize: 12, fontWeight: 500 }}>Type *</label>
                             <Dropdown
@@ -431,7 +434,7 @@ export default function GamesIndex() {
                             className="w-full"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1">
                             <label htmlFor="game-backend-url" style={{ fontSize: 12, fontWeight: 500 }}>Backend URL</label>
                             <InputText

@@ -56,7 +56,9 @@ export default function AuthPremiumLayout({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '32px 16px',
+                // Safe-area aware so the card clears notches in landscape.
+                padding:
+                    'max(32px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(32px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px))',
                 background: 'var(--cg-ink)',
                 color: 'var(--cg-fg-1)',
                 overflow: 'hidden',
@@ -96,12 +98,14 @@ export default function AuthPremiumLayout({
             />
 
             <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 420 }}>
+                {/* Padding comes from .cgo-auth-card (operator-console.css)
+                    so it can tighten on small phones. */}
                 <div
+                    className="cgo-auth-card"
                     style={{
                         background: 'var(--cg-ink-card)',
                         border: '1px solid var(--cg-rule)',
                         borderRadius: 12,
-                        padding: '36px 32px 32px',
                         boxShadow:
                             '0 1px 0 rgba(255,255,255,0.02) inset, 0 12px 40px rgba(0,0,0,0.4)',
                     }}
@@ -126,6 +130,8 @@ export default function AuthPremiumLayout({
                                 textTransform: 'uppercase',
                                 color: 'var(--cg-brass-hi)',
                                 textDecoration: 'none',
+                                textAlign: 'center',
+                                overflowWrap: 'anywhere',
                             }}
                         >
                             {tenant?.name ?? 'Chinga Games'}

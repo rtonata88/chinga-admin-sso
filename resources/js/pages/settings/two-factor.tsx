@@ -60,6 +60,7 @@ export default function TwoFactor({
                                 <Form {...disable.form()}>
                                     {({ processing }) => (
                                         <Button
+                                            className="h-10 md:h-9"
                                             variant="destructive"
                                             type="submit"
                                             disabled={processing}
@@ -83,6 +84,7 @@ export default function TwoFactor({
                             <div>
                                 {hasSetupData ? (
                                     <Button
+                                        className="h-10 md:h-9"
                                         onClick={() => setShowSetupModal(true)}
                                     >
                                         <ShieldCheck />
@@ -97,6 +99,7 @@ export default function TwoFactor({
                                     >
                                         {({ processing }) => (
                                             <Button
+                                                className="h-10 md:h-9"
                                                 type="submit"
                                                 disabled={processing}
                                             >

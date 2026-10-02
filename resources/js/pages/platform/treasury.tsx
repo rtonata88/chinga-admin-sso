@@ -91,13 +91,13 @@ function Line({ label, value, sub, minus, total }: { label: string; value: strin
             borderTop: total ? '1px solid var(--cg-rule-strong)' : undefined,
             borderBottom: total ? undefined : '1px solid var(--cg-rule)',
         }}>
-            <div>
+            <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13, color: total ? 'var(--cg-fg-1)' : 'var(--cg-fg-2)', fontWeight: total ? 600 : undefined }}>
                     {minus ? '− ' : ''}{label}
                 </div>
                 {sub && <div style={{ fontSize: 11, color: 'var(--cg-fg-3)', marginTop: 2 }}>{sub}</div>}
             </div>
-            <div style={{ fontFamily: 'var(--cg-mono)', fontSize: total ? 16 : 13, color: total ? 'var(--cg-brass-hi)' : 'var(--cg-fg-1)', fontWeight: total ? 600 : undefined, alignSelf: 'center' }}>
+            <div style={{ fontFamily: 'var(--cg-mono)', whiteSpace: 'nowrap', fontSize: total ? 16 : 13, color: total ? 'var(--cg-brass-hi)' : 'var(--cg-fg-1)', fontWeight: total ? 600 : undefined, alignSelf: 'center' }}>
                 {num(value) < 0 && total ? <span style={{ color: 'var(--cg-neg)' }}>{nad(value)}</span> : nad(value)}
             </div>
         </div>
@@ -151,7 +151,7 @@ export default function Treasury({ settings, summary, tenants = [], totals, as_o
                     <KpiCard label="Distributable" value={formatCurrencyCompact(num(summary.distributable))} brass={!distributableNeg} meta={distributableNeg ? 'nothing to transfer' : 'safe to transfer out'} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16, marginBottom: 18 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 16, marginBottom: 18 }}>
                     <section style={PANEL} data-testid="calculation">
                         <div className="cgo-eyebrow" style={{ marginBottom: 6 }}>Calculation</div>
                         <Line label="Bank balance" value={summary.bank_balance} sub="entered below, from the business account" />
@@ -184,7 +184,7 @@ export default function Treasury({ settings, summary, tenants = [], totals, as_o
                                 <span className="cgo-input"><input type="number" step="0.01" min="0" max="100" value={form.data.tax_pct} onChange={(e) => form.setData('tax_pct', e.target.value)} /></span>
                                 {form.errors.tax_pct && <span style={{ color: 'var(--cg-neg)' }}>{form.errors.tax_pct}</span>}
                             </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                                 <button type="submit" className="cg-btn cg-btn--primary cg-btn--sm" disabled={form.processing}>Save</button>
                                 {settings.updated_at && <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>last saved {DATETIME_FMT.format(new Date(settings.updated_at))}</span>}
                                 {form.recentlySuccessful && <span style={{ fontSize: 11, color: 'var(--cg-pos)' }}>Saved</span>}

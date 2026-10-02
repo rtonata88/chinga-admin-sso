@@ -97,10 +97,12 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
+                                flexWrap: 'wrap',
                                 gap: 12,
                             }}
                         >
                             <label
+                                className="cgo-auth-tap"
                                 style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -127,6 +129,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             {canResetPassword && (
                                 <Link
                                     href={request()}
+                                    className="cgo-auth-tap"
                                     style={{
                                         fontSize: 13,
                                         color: 'var(--cg-fg-3)',
@@ -208,6 +211,16 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     margin-top: 6px;
                     font-size: 12px;
                     color: var(--cg-neg);
+                }
+                /* Phones: 16px text stops iOS Safari zooming on focus, and
+                   the remember / forgot row gets 40px tap targets. */
+                @media (max-width: 767px) {
+                    .cgo-auth-field { font-size: 16px; }
+                    .cgo-auth-tap {
+                        display: inline-flex;
+                        align-items: center;
+                        min-height: 40px;
+                    }
                 }
             `}</style>
         </AuthLayout>

@@ -114,7 +114,7 @@ export default function Company({ profile }: Props) {
                             {profile.updated_at ? ` Last saved ${new Date(profile.updated_at).toLocaleString()}.` : ' Not filled in yet: invoices print the platform defaults.'}
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <a href="/invoices" className="cg-btn cg-btn--ghost cg-btn--sm">Invoices</a>
                         <button type="submit" form="company-form" className="cg-btn cg-btn--primary cg-btn--sm" disabled={form.processing}>
                             {form.processing ? 'Saving…' : 'Save'}

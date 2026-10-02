@@ -102,6 +102,16 @@ interface InfoItem {
     span?: number;
 }
 
+// Desktop keeps the 12-column layout; phones fall back to two columns
+// with the wide (span ≥ 6) items taking the full row. Static class
+// strings so Tailwind can see them.
+const SPAN_CLASS: Record<number, string> = {
+    3: 'col-span-1 sm:col-span-3',
+    4: 'col-span-1 sm:col-span-4',
+    6: 'col-span-2 sm:col-span-6',
+    12: 'col-span-2 sm:col-span-12',
+};
+
 function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
     return (
         <div style={{ border: '1px solid var(--cg-rule)', borderRadius: 8, overflow: 'hidden', background: 'var(--cg-ink-card)' }}>
@@ -109,15 +119,14 @@ function InfoPanel({ title, items }: { title: string; items: InfoItem[] }) {
                 <div className="cgo-table-bar-title">{title}</div>
             </div>
             <div
+                className="grid grid-cols-2 sm:grid-cols-12"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(12, 1fr)',
                     gap: '14px 18px',
                     padding: '18px',
                 }}
             >
                 {items.map((it, i) => (
-                    <div key={i} style={{ gridColumn: `span ${it.span ?? 4}` }}>
+                    <div key={i} className={`min-w-0 ${SPAN_CLASS[it.span ?? 4] ?? 'col-span-2 sm:col-span-4'}`}>
                         <div
                             style={{
                                 fontSize: 10,
@@ -391,8 +400,8 @@ export default function UserShow({ uuid }: { uuid: string }) {
                     <div>
                         <div className="cgo-eyebrow">User</div>
                         <h1 className="cgo-title">{user.name}</h1>
-                        <div className="cgo-subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span>{user.email}</span>
+                        <div className="cgo-subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <span className="min-w-0 [overflow-wrap:anywhere]">{user.email}</span>
                             <span className={`cgo-pill ${statusPill(user.status)}`}>
                                 {user.status.replace('_', ' ')}
                             </span>
@@ -460,10 +469,10 @@ export default function UserShow({ uuid }: { uuid: string }) {
                 </div>
 
                 {/* Profile + Account */}
+                {/* Side by side from lg; stacked below. */}
                 <div
+                    className="grid grid-cols-1 lg:grid-cols-2"
                     style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
                         gap: 16,
                         marginBottom: 24,
                     }}
@@ -570,7 +579,7 @@ export default function UserShow({ uuid }: { uuid: string }) {
             <Dialog
                 header="Reset password"
                 visible={passwordDialog}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={closePasswordDialog}
                 modal
                 draggable={false}
@@ -595,7 +604,7 @@ export default function UserShow({ uuid }: { uuid: string }) {
                             <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--cg-fg-3)', marginBottom: 4 }}>
                                 New password
                             </div>
-                            <code style={{ display: 'block', fontSize: '1.1rem', fontFamily: 'var(--cg-mono)', color: 'var(--cg-brass-hi)', letterSpacing: '0.05em' }}>
+                            <code style={{ display: 'block', fontSize: '1.1rem', fontFamily: 'var(--cg-mono)', color: 'var(--cg-brass-hi)', letterSpacing: '0.05em', wordBreak: 'break-all' }}>
                                 {tempPassword}
                             </code>
                         </div>

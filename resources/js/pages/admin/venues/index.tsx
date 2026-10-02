@@ -143,7 +143,7 @@ export default function VenuesIndex() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to create venue.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to create venue.' });
         } finally {
             setSaving(false);
@@ -157,7 +157,7 @@ export default function VenuesIndex() {
 
             <div className="cgo-page">
                 {/* Page header */}
-                <div className="cgo-page-head">
+                <div className="cgo-page-head max-sm:flex-wrap">
                     <div>
                         <div className="cgo-eyebrow">Admin</div>
                         <h1 className="cgo-title">Venues</h1>
@@ -165,7 +165,7 @@ export default function VenuesIndex() {
                             Branded points-of-sale for your tenant — staff, terminals, voucher issuance.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
@@ -220,15 +220,15 @@ export default function VenuesIndex() {
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right">
-                        <label className="cgo-input">
+                    <div className="cgo-right max-sm:w-full">
+                        <label className="cgo-input max-sm:min-w-0! max-sm:flex-1">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search name, slug, city…"
-                                style={{ minWidth: 240 }}
+                                style={{ minWidth: 'min(240px, 50vw)' }}
                             />
                         </label>
                         <button
@@ -358,7 +358,7 @@ export default function VenuesIndex() {
             <Dialog
                 header="New venue"
                 visible={addOpen}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setAddOpen(false)}
                 modal
                 draggable={false}
@@ -408,7 +408,7 @@ export default function VenuesIndex() {
                             className="w-full"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="flex flex-col gap-1">
                             <label style={{ fontSize: 12, fontWeight: 500 }}>City *</label>
                             <InputText
@@ -429,7 +429,7 @@ export default function VenuesIndex() {
                             />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="flex flex-col gap-1">
                             <label style={{ fontSize: 12, fontWeight: 500 }}>Phone</label>
                             <InputText

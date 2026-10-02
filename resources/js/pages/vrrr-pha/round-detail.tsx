@@ -11,7 +11,7 @@ import UserLayout from '@/layouts/user-layout';
 import { Head, Link } from '@inertiajs/react';
 
 import {
-    ERROR_BOX, PANEL, formatDateTime, formatMultiplier, formatNAD, formatRatioPct, num, outcomePill,
+    ERROR_BOX, PANEL, TAP, formatDateTime, formatMultiplier, formatNAD, formatRatioPct, num, outcomePill,
     shortUuid, statePill, tenantLabel,
 } from './format';
 
@@ -92,8 +92,10 @@ interface Props {
 }
 
 function Field({ label, value, mono, wrap }: { label: string; value: string; mono?: boolean; wrap?: boolean }) {
+    // The value column may shrink below its content (seeds break-all) and the label column gives way
+    // towards 96px only when a panel is narrower than a phone; on desktop it stays 150px.
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 12, padding: '7px 0', borderBottom: '1px solid var(--cg-rule)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(96px, 150px) minmax(0, 1fr)', gap: 12, padding: '7px 0', borderBottom: '1px solid var(--cg-rule)' }}>
             <span style={{ color: 'var(--cg-fg-3)', fontSize: 12, letterSpacing: '.04em', textTransform: 'uppercase' }}>{label}</span>
             <span style={{
                 fontFamily: mono ? 'var(--cg-mono)' : undefined,
@@ -109,7 +111,7 @@ function Field({ label, value, mono, wrap }: { label: string; value: string; mon
 
 export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, round, bets = [], verify, tenantNames = {}, error, backHref = `${game.base}/rounds` }: Props) {
     const back = (
-        <Link href={backHref} className="cg-btn cg-btn--text cg-btn--sm" style={{ marginBottom: 12, display: 'inline-block' }}>
+        <Link href={backHref} className={`cg-btn cg-btn--text cg-btn--sm max-sm:leading-10! ${TAP}`} style={{ marginBottom: 12, display: 'inline-block' }}>
             ‹ Back to rounds
         </Link>
     );
@@ -143,7 +145,7 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                 <div className="cgo-page-head">
                     <div>
                         <div className="cgo-eyebrow">{game.name} · {tenantLabel(round.tenant_uuid, tenantNames)}</div>
-                        <h1 className="cgo-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <h1 className="cgo-title" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
                             {title}
                             <span className={`cgo-pill ${state.pill}`}>{state.label}</span>
                         </h1>
@@ -169,9 +171,10 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                     <KpiCard label="GGR" value={formatCurrencyCompact(ggr)} meta={`max exposure ${formatNAD(round.max_exposure)}`} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, marginBottom: 18 }}>
+                {/* Two panels side by side when there is room; min(…, 100%) lets one panel fill a phone without overflowing. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 16, marginBottom: 18 }}>
                     {/* Seed audit */}
-                    <section style={PANEL} data-testid="seed-audit">
+                    <section style={{ ...PANEL, minWidth: 0 }} data-testid="seed-audit">
                         <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>Seed audit</div>
                         <Field label="Commitment" value={round.commitment} mono wrap />
                         {revealed ? (
@@ -225,7 +228,7 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                     </section>
 
                     {/* Timeline */}
-                    <section style={PANEL}>
+                    <section style={{ ...PANEL, minWidth: 0 }}>
                         <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>Timeline</div>
                         <Field label="Round id" value={String(round.id)} mono />
                         <Field label="Tenant" value={`${tenantLabel(round.tenant_uuid, tenantNames)} · ${round.tenant_uuid}`} mono wrap />
@@ -239,7 +242,8 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
 
                 {/* Bets */}
                 <div className="cgo-table-wrap cgo-table-wrap--scroll">
-                    <table className="cgo-wagers">
+                    {/* Phones scroll the table sideways inside the wrap rather than crushing its columns. */}
+                    <table className="cgo-wagers max-md:min-w-[1100px]">
                         <thead>
                             <tr>
                                 <th style={{ width: 80 }}>{(game.terms ?? BET_TERMS).one.charAt(0).toUpperCase() + (game.terms ?? BET_TERMS).one.slice(1)}</th>

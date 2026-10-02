@@ -4,7 +4,6 @@ import UserLayout from '@/layouts/user-layout';
 import type { StatusVariant } from '@/types/acumatica';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
-import { Checkbox } from 'primereact/checkbox';
 import { Chip } from 'primereact/chip';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
@@ -269,7 +268,7 @@ export default function PlatformUsersIndex() {
             toast.current?.show({ severity: 'success', summary: 'Success', detail: 'Roles updated successfully.' });
             setRoleDialogOpen(false);
             fetchUsers();
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update roles.' });
         } finally {
             setRoleSaving(false);
@@ -302,7 +301,7 @@ export default function PlatformUsersIndex() {
                 const data = await res.json();
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to remove role.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to remove role.' });
         } finally {
             setRoleSaving(false);
@@ -341,7 +340,7 @@ export default function PlatformUsersIndex() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to create user.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to create user.' });
         } finally {
             setCreateSaving(false);
@@ -426,8 +425,8 @@ export default function PlatformUsersIndex() {
                     </div>
                     <div className="acu-fieldset-body">
                         <div className="flex flex-wrap gap-3 items-end">
-                            <div className="flex flex-1 gap-2">
-                                <span className="p-input-icon-left flex-1" style={{ maxWidth: '24rem' }}>
+                            <div className="flex w-full sm:w-auto sm:flex-1 gap-2 min-w-0">
+                                <span className="p-input-icon-left flex-1 min-w-0" style={{ maxWidth: '24rem' }}>
                                     <i className="pi pi-search" />
                                     <InputText
                                         value={search}
@@ -449,14 +448,14 @@ export default function PlatformUsersIndex() {
                                 onChange={(e) => { setTenantFilter(e.value); setPage(1); }}
                                 options={tenantFilterOptions}
                                 placeholder="Tenant"
-                                className="w-48"
+                                className="w-full sm:w-48"
                             />
                             <Dropdown
                                 value={statusFilter}
                                 onChange={(e) => { setStatusFilter(e.value); setPage(1); }}
                                 options={statusOptions}
                                 placeholder="Status"
-                                className="w-40"
+                                className="w-full sm:w-40"
                             />
                         </div>
                     </div>
@@ -474,8 +473,10 @@ export default function PlatformUsersIndex() {
                         </div>
                     </div>
                     <div className="acu-fieldset-body p-0">
+                        {/* Below md the table keeps a readable width and scrolls inside its wrapper. */}
                         <DataTable
                             value={users}
+                            tableClassName="max-md:min-w-[40rem]"
                             loading={loading}
                             size="small"
                             showGridlines={false}
@@ -489,7 +490,7 @@ export default function PlatformUsersIndex() {
                         </DataTable>
 
                         {meta && meta.last_page > 1 && (
-                            <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--acu-border)]">
+                            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-[var(--acu-border)]">
                                 <span className="text-xs text-[var(--acu-text-light)]">
                                     Page {meta.current_page} of {meta.last_page}
                                 </span>
@@ -523,6 +524,7 @@ export default function PlatformUsersIndex() {
                 header="Add User"
                 visible={createDialogOpen}
                 style={{ width: '28rem' }}
+                breakpoints={{ '640px': 'calc(100vw - 2rem)' }}
                 onHide={() => setCreateDialogOpen(false)}
                 modal
                 draggable={false}
@@ -599,6 +601,7 @@ export default function PlatformUsersIndex() {
                 header={`Manage Roles \u2014 ${roleDialogUser?.name || ''}`}
                 visible={roleDialogOpen}
                 style={{ width: '36rem' }}
+                breakpoints={{ '640px': 'calc(100vw - 2rem)' }}
                 onHide={() => setRoleDialogOpen(false)}
                 modal
                 draggable={false}

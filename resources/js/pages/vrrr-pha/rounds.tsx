@@ -11,7 +11,7 @@ import { Head, router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 
 import {
-    ERROR_BOX, SELECT_RESET, formatDateTime, formatMultiplier, formatNAD, num, statePill, tenantLabel,
+    ERROR_BOX, SELECT_RESET, TAP, TAP_SQUARE, formatDateTime, formatMultiplier, formatNAD, num, statePill, tenantLabel,
 } from './format';
 
 interface Round {
@@ -131,7 +131,8 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
 
                 <div className="cgo-filterbar">
                     <span className="cgo-sort-label">Tenant</span>
-                    <label className="cgo-input" style={{ minWidth: 220 }}>
+                    {/* Below sm the select takes the rest of the row; from sm it keeps its 220px floor. */}
+                    <label className={`cgo-input max-sm:flex-1 sm:min-w-[220px] ${TAP}`}>
                         <select
                             value={tenantUuid ?? ''}
                             onChange={(e) => {
@@ -150,7 +151,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                     {tenantUuid && (
                         <button
                             type="button"
-                            className="cg-btn cg-btn--text cg-btn--sm"
+                            className={`cg-btn cg-btn--text cg-btn--sm ${TAP}`}
                             onClick={() => { setTenantUuid(null); applyFilters({ tenant_uuid: null, page: 1 }); }}
                         >
                             Clear
@@ -159,7 +160,8 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                 </div>
 
                 <div className="cgo-table-wrap cgo-table-wrap--scroll" style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}>
-                    <table className="cgo-wagers">
+                    {/* Phones scroll the table sideways inside the wrap rather than crushing its columns. */}
+                    <table className="cgo-wagers max-md:min-w-[960px]">
                         <thead>
                             <tr>
                                 <th style={{ width: 90 }}>Round</th>
@@ -235,9 +237,9 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                             )}
                         </span>
                         <div className="cgo-pager">
-                            <button type="button" disabled={page <= 1} onClick={() => applyFilters({ page: page - 1 })} aria-label="Previous">‹</button>
-                            <button type="button" className="curr" disabled>{page}</button>
-                            <button type="button" disabled={!hasNext} onClick={() => applyFilters({ page: page + 1 })} aria-label="Next">›</button>
+                            <button type="button" className={TAP_SQUARE} disabled={page <= 1} onClick={() => applyFilters({ page: page - 1 })} aria-label="Previous">‹</button>
+                            <button type="button" className={`curr ${TAP_SQUARE}`} disabled>{page}</button>
+                            <button type="button" className={TAP_SQUARE} disabled={!hasNext} onClick={() => applyFilters({ page: page + 1 })} aria-label="Next">›</button>
                         </div>
                     </div>
                 </div>

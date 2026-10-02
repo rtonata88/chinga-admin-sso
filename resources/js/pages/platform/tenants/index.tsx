@@ -147,7 +147,7 @@ export default function TenantsIndex() {
 
             <div className="cgo-page">
                 {/* Page header */}
-                <div className="cgo-page-head">
+                <div className="cgo-page-head max-sm:flex-wrap">
                     <div>
                         <div className="cgo-eyebrow">Platform</div>
                         <h1 className="cgo-title">Tenants</h1>
@@ -155,7 +155,7 @@ export default function TenantsIndex() {
                             Operator tenants on the platform — brands, venues, and player counts.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
@@ -215,15 +215,15 @@ export default function TenantsIndex() {
                             {f.label}
                         </button>
                     ))}
-                    <div className="cgo-right">
-                        <label className="cgo-input">
+                    <div className="cgo-right max-sm:w-full">
+                        <label className="cgo-input max-sm:min-w-0! max-sm:flex-1">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search name, slug, email…"
-                                style={{ minWidth: 240 }}
+                                style={{ minWidth: 'min(240px, 50vw)' }}
                             />
                         </label>
                         <button
@@ -321,7 +321,7 @@ export default function TenantsIndex() {
             <Dialog
                 header="Create new tenant"
                 visible={addOpen}
-                style={{ width: '32rem' }}
+                style={{ width: '32rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setAddOpen(false)}
                 modal
                 draggable={false}
@@ -375,7 +375,7 @@ export default function TenantsIndex() {
                         {fieldError('contact_email')}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label htmlFor="country_code" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
                                 Country

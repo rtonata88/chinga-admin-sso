@@ -156,10 +156,10 @@ export default function TenantRevenue() {
                             {' '}job and represent immutable closed-period statements.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                            className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10"
                             onClick={applyFilter}
                         >
                             Refresh
@@ -200,7 +200,7 @@ export default function TenantRevenue() {
                 {/* Filter bar — date range. */}
                 <div className="cgo-filterbar">
                     <span className="cgo-sort-label">Period</span>
-                    <label className="cgo-input" style={{ minWidth: 150 }}>
+                    <label className="cgo-input max-sm:min-h-10" style={{ minWidth: 150 }}>
                         <input
                             type="date"
                             value={from}
@@ -210,7 +210,7 @@ export default function TenantRevenue() {
                         />
                     </label>
                     <span style={{ color: 'var(--cg-fg-3)', fontSize: 12 }}>→</span>
-                    <label className="cgo-input" style={{ minWidth: 150 }}>
+                    <label className="cgo-input max-sm:min-h-10" style={{ minWidth: 150 }}>
                         <input
                             type="date"
                             value={to}
@@ -221,22 +221,22 @@ export default function TenantRevenue() {
                     </label>
                     <button
                         type="button"
-                        className="cg-btn cg-btn--ghost cg-btn--sm"
+                        className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10"
                         onClick={applyFilter}
                     >
                         Apply
                     </button>
-                    <div className="cgo-right">
+                    <div className="cgo-right flex-wrap">
                         <button
                             type="button"
-                            className="cg-btn cg-btn--text cg-btn--sm"
+                            className="cg-btn cg-btn--text cg-btn--sm max-sm:min-h-10"
                             onClick={() => { setFrom(yearStartIso()); setTo(todayIso()); setTimeout(applyFilter, 0); }}
                         >
                             Year-to-date
                         </button>
                         <button
                             type="button"
-                            className="cg-btn cg-btn--text cg-btn--sm"
+                            className="cg-btn cg-btn--text cg-btn--sm max-sm:min-h-10"
                             onClick={() => {
                                 const d = new Date();
                                 const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);

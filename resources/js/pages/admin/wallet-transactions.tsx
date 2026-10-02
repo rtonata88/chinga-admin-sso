@@ -247,9 +247,12 @@ export default function WalletTransactions() {
                             {t.label}
                         </button>
                     ))}
-                    <div className="cgo-right" style={{ flexWrap: 'wrap' }}>
+                    {/* Phones: the controls take the full width and grow to fill each
+                        wrapped row. .cgo-input (min-width 220px) and its `all: unset`
+                        input are unlayered CSS, so those overrides need `!`. */}
+                    <div className="cgo-right max-sm:w-full" style={{ flexWrap: 'wrap' }}>
                         {/* Game select */}
-                        <label className="cgo-input" style={{ minWidth: 140 }}>
+                        <label className="cgo-input max-sm:flex-[1_1_140px] max-sm:overflow-hidden" style={{ minWidth: 140 }}>
                             <select
                                 value={gameFilter}
                                 onChange={(e) => { setGameFilter(e.target.value); setPage(1); }}
@@ -265,7 +268,7 @@ export default function WalletTransactions() {
                             </select>
                         </label>
                         {/* Date range */}
-                        <label className="cgo-input" style={{ minWidth: 140 }}>
+                        <label className="cgo-input max-sm:flex-[1_1_140px]" style={{ minWidth: 140 }}>
                             <input
                                 type="date"
                                 value={dateFrom}
@@ -274,7 +277,7 @@ export default function WalletTransactions() {
                                 style={{ minWidth: 120 }}
                             />
                         </label>
-                        <label className="cgo-input" style={{ minWidth: 140 }}>
+                        <label className="cgo-input max-sm:flex-[1_1_140px]" style={{ minWidth: 140 }}>
                             <input
                                 type="date"
                                 value={dateTo}
@@ -284,14 +287,14 @@ export default function WalletTransactions() {
                             />
                         </label>
                         {/* Search */}
-                        <label className="cgo-input">
+                        <label className="cgo-input max-sm:min-w-0! max-sm:flex-[1_1_200px]">
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
                                 placeholder="Search player, email, voucher code…"
-                                style={{ minWidth: 240 }}
+                                className="sm:min-w-[240px]!"
                             />
                         </label>
                         <button
@@ -324,12 +327,13 @@ export default function WalletTransactions() {
                                 <th style={{ width: 150 }}>Date</th>
                                 <th style={{ minWidth: 200 }}>Player / source</th>
                                 <th style={{ width: 110 }}>Type</th>
-                                <th style={{ width: 110 }}>Game</th>
+                                {/* Low-priority columns hide on phones. */}
+                                <th className="hidden md:table-cell" style={{ width: 110 }}>Game</th>
                                 <th className="cgo-r" style={{ width: 130 }}>Amount</th>
-                                <th className="cgo-r" style={{ width: 200 }}>Balance</th>
-                                <th style={{ width: 110 }}>Reference</th>
-                                <th style={{ width: 130 }}>Performed by</th>
-                                <th style={{ width: 80 }}>Source</th>
+                                <th className="cgo-r hidden md:table-cell" style={{ width: 200 }}>Balance</th>
+                                <th className="hidden md:table-cell" style={{ width: 110 }}>Reference</th>
+                                <th className="hidden md:table-cell" style={{ width: 130 }}>Performed by</th>
+                                <th className="hidden md:table-cell" style={{ width: 80 }}>Source</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -379,7 +383,7 @@ export default function WalletTransactions() {
                                                     {formatTypeLabel(t.type)}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td className="hidden md:table-cell">
                                                 <span className="cgo-uid">{t.game_name || '—'}</span>
                                             </td>
                                             <td className="cgo-r">
@@ -391,20 +395,20 @@ export default function WalletTransactions() {
                                                     {formatNAD(absAmount)}
                                                 </span>
                                             </td>
-                                            <td className="cgo-r">
+                                            <td className="cgo-r hidden md:table-cell">
                                                 <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
                                                     {formatNAD(parseFloat(t.balance_before))} → {formatNAD(parseFloat(t.balance_after))}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td className="hidden md:table-cell">
                                                 <span className="cgo-uid cgo-cell-clip" title={t.reference || ''}>
                                                     {t.reference || '—'}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td className="hidden md:table-cell">
                                                 <span className="cgo-uid">{t.performed_by_name || '—'}</span>
                                             </td>
-                                            <td>
+                                            <td className="hidden md:table-cell">
                                                 <span
                                                     className={`cgo-pill ${t.source_type === 'wallet' ? 'live' : 'settled'}`}
                                                 >

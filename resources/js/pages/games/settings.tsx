@@ -177,7 +177,7 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                                 the tenant detail page. Math:{' '}
                                 <code style={{ fontFamily: 'var(--cg-mono)', color: 'var(--cg-fg-2)' }}>NGR = GGR − tax</code>; for
                                 resellers{' '}
-                                <code style={{ fontFamily: 'var(--cg-mono)', color: 'var(--cg-fg-2)' }}>
+                                <code style={{ fontFamily: 'var(--cg-mono)', color: 'var(--cg-fg-2)', overflowWrap: 'anywhere' }}>
                                     tenant_share = NGR × revenue_share_pct
                                 </code>
                                 ; for direct tenants{' '}
@@ -250,7 +250,7 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                                             <span style={{ width: 18, color: 'var(--cg-fg-3)', fontFamily: 'var(--cg-mono)', textAlign: 'center' }}>
                                                 {isOpen ? '−' : '+'}
                                             </span>
-                                            <div style={{ flex: 1 }}>
+                                            <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                                                 <div className="cgo-name">{tenant.name}</div>
                                                 <div className="cgo-uid">{tenant.slug}</div>
                                             </div>
@@ -272,6 +272,7 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'space-between',
+                                                        flexWrap: 'wrap',
                                                         gap: 12,
                                                         padding: '14px 0',
                                                         marginBottom: 8,

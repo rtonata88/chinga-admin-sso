@@ -114,9 +114,9 @@ export default function AuditLog({ logs, event_types }: AuditLogProps) {
                     />
 
                     {/* Filter */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                         <Select value={filter} onValueChange={setFilter}>
-                            <SelectTrigger className="w-[200px]">
+                            <SelectTrigger className="h-10 w-[200px] max-w-full md:h-9">
                                 <SelectValue placeholder="Filter by event" />
                             </SelectTrigger>
                             <SelectContent>
@@ -140,19 +140,23 @@ export default function AuditLog({ logs, event_types }: AuditLogProps) {
                     <div className="space-y-3">
                         {filteredLogs.map((log) => (
                             <Card key={log.id}>
-                                <CardContent className="flex items-start gap-4 p-4">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                                <CardContent className="flex items-start gap-3 p-4 sm:gap-4">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
                                         {getEventIcon(log.event_type)}
                                     </div>
-                                    <div className="flex-1 space-y-1">
-                                        <div className="flex items-center gap-2">
+                                    <div className="min-w-0 flex-1 space-y-1">
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                             <span className="font-medium">
                                                 {event_types[log.event_type] ||
                                                     log.event_type}
                                             </span>
                                             {getSeverityBadge(log.severity)}
                                         </div>
-                                        <div className="text-sm text-muted-foreground">
+                                        {/* Below sm the timestamp sits here instead of in the right-hand column */}
+                                        <div className="text-xs text-muted-foreground sm:hidden">
+                                            {formatDateTime(log.created_at)}
+                                        </div>
+                                        <div className="text-sm break-words text-muted-foreground">
                                             {log.ip_address}
                                             {log.location &&
                                                 ` - ${log.location}`}
@@ -160,7 +164,7 @@ export default function AuditLog({ logs, event_types }: AuditLogProps) {
                                         {log.metadata &&
                                             Object.keys(log.metadata).length >
                                                 0 && (
-                                                <div className="text-xs text-muted-foreground">
+                                                <div className="text-xs break-words text-muted-foreground">
                                                     {log.metadata.user_agent && (
                                                         <span>
                                                             {String(
@@ -173,7 +177,7 @@ export default function AuditLog({ logs, event_types }: AuditLogProps) {
                                                 </div>
                                             )}
                                     </div>
-                                    <div className="text-right text-sm text-muted-foreground">
+                                    <div className="hidden text-right text-sm text-muted-foreground sm:block">
                                         {formatDateTime(log.created_at)}
                                     </div>
                                 </CardContent>

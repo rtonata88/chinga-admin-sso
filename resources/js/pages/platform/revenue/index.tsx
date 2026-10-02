@@ -96,7 +96,8 @@ export default function RevenueIndex() {
                                 <span className="acu-fieldset-title">Per Tenant</span>
                             </div>
                             <div className="acu-fieldset-body">
-                                <DataTable value={summary.per_tenant} stripedRows dataKey="tenant_id">
+                                {/* Below md the table keeps a readable width and scrolls inside its wrapper. */}
+                                <DataTable value={summary.per_tenant} stripedRows dataKey="tenant_id" tableClassName="max-md:min-w-[50rem]">
                                     <Column
                                         header="Tenant"
                                         body={(row: PerTenantRow) => row.tenant?.name || '—'}

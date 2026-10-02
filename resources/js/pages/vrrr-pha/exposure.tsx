@@ -10,7 +10,7 @@ import UserLayout from '@/layouts/user-layout';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { ERROR_BOX, SELECT_RESET, formatDateTime, formatNAD, formatRatioPct, num, statePill, tenantLabel } from './format';
+import { ERROR_BOX, SELECT_RESET, TAP, formatDateTime, formatNAD, formatRatioPct, num, statePill, tenantLabel } from './format';
 
 interface Row {
     round_id: number;
@@ -95,7 +95,7 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha',
         <UserLayout title={`${game.name} exposure`}>
             <Head title={`${game.name} exposure · Admin`} />
             <div className="cgo-page">
-                <div className="cgo-page-head">
+                <div className="cgo-page-head max-sm:flex-wrap">
                     <div>
                         <div className="cgo-eyebrow">{game.name}</div>
                         <h1 className="cgo-title">Exposure</h1>
@@ -103,13 +103,13 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha',
                             Open rounds right now — stake committed against each tenant's per-round cap, and the worst case against max win.
                         </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--cg-fg-3)' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--cg-fg-3)' }}>
                         <span className="cgo-uid">as of {formatDateTime(fetchedAt)}</span>
                         <button
                             type="button"
                             role="switch"
                             aria-checked={live}
-                            className="cg-btn cg-btn--text cg-btn--sm"
+                            className={`cg-btn cg-btn--text cg-btn--sm ${TAP}`}
                             onClick={() => setLive((v) => !v)}
                         >
                             {live ? '● Live' : '○ Paused'}
@@ -137,7 +137,8 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha',
 
                 <div className="cgo-filterbar">
                     <span className="cgo-sort-label">Tenant</span>
-                    <label className="cgo-input" style={{ minWidth: 220 }}>
+                    {/* Below sm the select takes the rest of the row; from sm it keeps its 220px floor. */}
+                    <label className={`cgo-input max-sm:flex-1 sm:min-w-[220px] ${TAP}`}>
                         <select value={tenantUuid ?? ''} onChange={(e) => applyTenant(e.target.value || null)} style={SELECT_RESET}>
                             <option value="">All tenants</option>
                             {tenants.map((t) => (
@@ -146,14 +147,15 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha',
                         </select>
                     </label>
                     {tenantUuid && (
-                        <button type="button" className="cg-btn cg-btn--text cg-btn--sm" onClick={() => applyTenant(null)}>
+                        <button type="button" className={`cg-btn cg-btn--text cg-btn--sm ${TAP}`} onClick={() => applyTenant(null)}>
                             Clear
                         </button>
                     )}
                 </div>
 
                 <div className="cgo-table-wrap cgo-table-wrap--scroll" style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}>
-                    <table className="cgo-wagers">
+                    {/* Phones scroll the table sideways inside the wrap rather than crushing its columns. */}
+                    <table className="cgo-wagers max-md:min-w-[960px]">
                         <thead>
                             <tr>
                                 <th style={{ width: 90 }}>Round</th>

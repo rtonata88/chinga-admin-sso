@@ -10,7 +10,7 @@ import UserLayout from '@/layouts/user-layout';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
-import { ERROR_BOX, PANEL, SELECT_RESET, formatNAD, formatRatioPct, num } from './format';
+import { ERROR_BOX, PANEL, SELECT_RESET, TAP, formatNAD, formatRatioPct, num } from './format';
 
 interface Rtp {
     period: { from: string; to: string; tenant_uuid: string | null };
@@ -137,8 +137,9 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                 </div>
 
                 <div className="cgo-filterbar" style={{ flexWrap: 'wrap', gap: 10 }}>
-                    <span className="cgo-sort-label">Tenant</span>
-                    <label className="cgo-input" style={{ minWidth: 200 }}>
+                    <span className="cgo-sort-label max-sm:w-16">Tenant</span>
+                    {/* Below sm each label + control pair takes a row of its own; from sm they keep their floors. */}
+                    <label className={`cgo-input max-sm:grow max-sm:basis-[calc(100%-74px)] sm:min-w-[200px] ${TAP}`}>
                         <select
                             value={tenantUuid ?? ''}
                             onChange={(e) => {
@@ -154,19 +155,20 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                             ))}
                         </select>
                     </label>
-                    <span className="cgo-sort-label">From</span>
-                    <label className="cgo-input" style={{ minWidth: 150 }}>
+                    <span className="cgo-sort-label max-sm:w-16">From</span>
+                    <label className={`cgo-input max-sm:grow max-sm:basis-[calc(100%-74px)] sm:min-w-[150px] ${TAP}`}>
                         <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} onBlur={() => apply({})} />
                     </label>
-                    <span className="cgo-sort-label">To</span>
-                    <label className="cgo-input" style={{ minWidth: 150 }}>
+                    <span className="cgo-sort-label max-sm:w-16">To</span>
+                    <label className={`cgo-input max-sm:grow max-sm:basis-[calc(100%-74px)] sm:min-w-[150px] ${TAP}`}>
                         <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} onBlur={() => apply({})} />
                     </label>
-                    <button type="button" className="cg-btn cg-btn--sm" onClick={() => apply({})}>Apply</button>
+                    <button type="button" className={`cg-btn cg-btn--sm max-sm:w-full ${TAP}`} onClick={() => apply({})}>Apply</button>
                 </div>
 
                 <div className="cgo-table-wrap cgo-table-wrap--scroll" style={{ borderRadius: '0 0 8px 8px', borderTop: 0 }}>
-                    <table className="cgo-wagers">
+                    {/* Phones scroll the table sideways inside the wrap rather than crushing its columns. */}
+                    <table className="cgo-wagers max-md:min-w-[900px]">
                         <thead>
                             <tr>
                                 <th style={{ width: 150 }}>Day</th>

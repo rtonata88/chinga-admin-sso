@@ -9,7 +9,7 @@ interface Props {
 export default function PageHeader({ title, subtitle, children }: Props) {
     return (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-            <div>
+            <div className="min-w-0">
                 <h1
                     className="text-2xl font-bold"
                     style={{
@@ -29,7 +29,7 @@ export default function PageHeader({ title, subtitle, children }: Props) {
                     </p>
                 )}
             </div>
-            {children && <div className="flex items-center gap-2">{children}</div>}
+            {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
         </div>
     );
 }

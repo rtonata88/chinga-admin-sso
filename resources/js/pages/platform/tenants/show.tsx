@@ -54,7 +54,7 @@ interface AssignedGame {
     slug: string;
     type: string;
     status: string;
-    pivot: { enabled: boolean; custom_settings: any };
+    pivot: { enabled: boolean; custom_settings: unknown };
 }
 
 interface AvailableGame {
@@ -94,6 +94,18 @@ interface InfoItem {
     mono?: boolean;
 }
 
+// Column span per item on the 12-column panel grid. Desktop spans are
+// unchanged; below sm the narrow (3/4) items widen to half a row so
+// mono values like timezones are not crushed onto a phone screen.
+function spanClass(span: number): string {
+    switch (span) {
+        case 12: return 'col-span-12';
+        case 4: return 'col-span-6 sm:col-span-4';
+        case 3: return 'col-span-6 sm:col-span-3';
+        default: return 'col-span-6';
+    }
+}
+
 function InfoPanel({ title, items, action }: { title: string; items: InfoItem[]; action?: React.ReactNode }) {
     return (
         <div style={{ border: '1px solid var(--cg-rule)', borderRadius: 8, overflow: 'hidden', background: 'var(--cg-ink-card)' }}>
@@ -102,15 +114,11 @@ function InfoPanel({ title, items, action }: { title: string; items: InfoItem[];
                 {action}
             </div>
             <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(12, 1fr)',
-                    gap: '14px 18px',
-                    padding: '18px',
-                }}
+                className="grid grid-cols-12"
+                style={{ gap: '14px 18px', padding: '18px' }}
             >
                 {items.map((it, i) => (
-                    <div key={i} style={{ gridColumn: `span ${it.span ?? 6}` }}>
+                    <div key={i} className={`${spanClass(it.span ?? 6)} min-w-0`}>
                         <div
                             style={{
                                 fontSize: 10,
@@ -290,7 +298,7 @@ export default function TenantShow() {
             setAddAdminOpen(false);
             setAdminForm({ name: '', email: '', password: '' });
             fetchAdmins(tenant.id);
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to add admin.' });
         } finally {
             setSavingAdmin(false);
@@ -314,7 +322,7 @@ export default function TenantShow() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to revoke role.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to revoke role.' });
         }
     };
@@ -395,7 +403,7 @@ export default function TenantShow() {
                 const data = await response.json();
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: data.message || 'Failed to update games.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to update games.' });
         } finally {
             setSyncing(false);
@@ -478,7 +486,7 @@ export default function TenantShow() {
             } else {
                 toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to toggle game.' });
             }
-        } catch (error) {
+        } catch {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Failed to toggle game.' });
         }
     };
@@ -655,12 +663,12 @@ export default function TenantShow() {
 
             <div className="cgo-page">
                 {/* Page header */}
-                <div className="cgo-page-head">
+                <div className="cgo-page-head max-sm:flex-wrap">
                     <div>
                         <div className="cgo-eyebrow">Platform · Tenant</div>
                         <h1 className="cgo-title">{tenant.name}</h1>
                         <div className="cgo-subtitle" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                            <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
+                            <span className="cgo-uid min-w-0 break-all" style={{ fontFamily: 'var(--cg-mono)' }}>
                                 {tenant.slug}.sso.chingagames.com
                             </span>
                             <span className={`cgo-pill ${statusPill(tenant.status)}`}>
@@ -708,12 +716,8 @@ export default function TenantShow() {
 
                 {/* Company + Configuration */}
                 <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 16,
-                        marginBottom: 24,
-                    }}
+                    className="grid grid-cols-1 lg:grid-cols-2"
+                    style={{ gap: 16, marginBottom: 24 }}
                 >
                     <InfoPanel title="Company" items={companyItems} />
                     <InfoPanel title="Configuration" items={configItems} />
@@ -998,7 +1002,7 @@ export default function TenantShow() {
             <Dialog
                 header={`Add venue · ${tenant.name}`}
                 visible={addVenueOpen}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setAddVenueOpen(false)}
                 modal
                 draggable={false}
@@ -1055,7 +1059,7 @@ export default function TenantShow() {
                             className="w-full"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="flex flex-col gap-1">
                             <label htmlFor="city" style={{ fontSize: 12, fontWeight: 500 }}>City *</label>
                             <InputText
@@ -1078,7 +1082,7 @@ export default function TenantShow() {
                             />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="flex flex-col gap-1">
                             <label htmlFor="phone" style={{ fontSize: 12, fontWeight: 500 }}>Phone</label>
                             <InputText
@@ -1108,7 +1112,7 @@ export default function TenantShow() {
             <Dialog
                 header={`Add tenant admin · ${tenant.name}`}
                 visible={addAdminOpen}
-                style={{ width: '28rem' }}
+                style={{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setAddAdminOpen(false)}
                 modal
                 draggable={false}
@@ -1178,7 +1182,7 @@ export default function TenantShow() {
             <Dialog
                 header="Manage game assignments"
                 visible={manageGamesOpen}
-                style={{ width: '32rem' }}
+                style={{ width: '32rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={() => setManageGamesOpen(false)}
                 modal
                 draggable={false}

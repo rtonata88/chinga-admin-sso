@@ -103,3 +103,11 @@ export const ERROR_BOX: React.CSSProperties = {
 export const SELECT_RESET: React.CSSProperties = {
     all: 'unset', flex: 1, color: 'inherit', font: 'inherit', cursor: 'pointer',
 };
+
+/*
+ * Phone-width tap targets. The brass shell's controls are 28–32px; below
+ * sm they grow to 40px. Important (!) because the shell's unlayered CSS
+ * (`all: unset`, fixed heights) otherwise wins over Tailwind utilities.
+ */
+export const TAP = 'max-sm:min-h-10!';
+export const TAP_SQUARE = 'max-sm:min-h-10! max-sm:min-w-10!';

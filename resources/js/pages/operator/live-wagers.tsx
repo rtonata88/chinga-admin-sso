@@ -123,16 +123,16 @@ export default function LiveWagersMonitor({ lastUpdated, kpis, filters, wagers, 
                             All open positions across sportsbook, virtuals and casino. Updated {lastUpdated}.
                         </div>
                     </div>
-                    <div className="cgo-head-actions">
-                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm">
+                    <div className="cgo-head-actions flex-wrap">
+                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10">
                             <Plus size={14} strokeWidth={1.5} />
                             New rule
                         </button>
-                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm">
+                        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10">
                             <Download size={14} strokeWidth={1.5} />
                             Export CSV
                         </button>
-                        <button type="button" className="cg-btn cg-btn--primary cg-btn--sm">
+                        <button type="button" className="cg-btn cg-btn--primary cg-btn--sm max-sm:min-h-10">
                             Settle batch
                         </button>
                     </div>
@@ -172,7 +172,7 @@ export default function LiveWagersMonitor({ lastUpdated, kpis, filters, wagers, 
                         <button
                             key={c.value}
                             type="button"
-                            className={`cgo-chip${filters.active === c.value ? ' active' : ''}`}
+                            className={`cgo-chip max-sm:min-h-10${filters.active === c.value ? ' active' : ''}`}
                             onClick={() => setFilter(c.value)}
                         >
                             {c.label}{' '}
@@ -182,12 +182,12 @@ export default function LiveWagersMonitor({ lastUpdated, kpis, filters, wagers, 
                         </button>
                     ))}
                     <div className="cgo-filter-divider" />
-                    <button type="button" className="cgo-chip">Sport: {filters.sport} ▾</button>
-                    <button type="button" className="cgo-chip">{filters.stakeRange} ▾</button>
-                    <button type="button" className="cgo-chip">{filters.timeRange} ▾</button>
-                    <div className="cgo-right">
+                    <button type="button" className="cgo-chip max-sm:min-h-10">Sport: {filters.sport} ▾</button>
+                    <button type="button" className="cgo-chip max-sm:min-h-10">{filters.stakeRange} ▾</button>
+                    <button type="button" className="cgo-chip max-sm:min-h-10">{filters.timeRange} ▾</button>
+                    <div className="cgo-right flex-wrap">
                         <span className="cgo-sort-label">Sort</span>
-                        <button type="button" className="cgo-chip">{filters.sort} ▾</button>
+                        <button type="button" className="cgo-chip max-sm:min-h-10">{filters.sort} ▾</button>
                     </div>
                 </div>
 
@@ -201,7 +201,8 @@ export default function LiveWagersMonitor({ lastUpdated, kpis, filters, wagers, 
                                 <th>Event &amp; market</th>
                                 <th>Selection</th>
                                 <th className="cgo-r">Stake</th>
-                                <th className="cgo-r">Odds</th>
+                                {/* Odds hides on phones; stake and potential carry the row. */}
+                                <th className="cgo-r hidden md:table-cell">Odds</th>
                                 <th className="cgo-r">Potential</th>
                                 <th>Status</th>
                                 <th />
@@ -247,7 +248,7 @@ export default function LiveWagersMonitor({ lastUpdated, kpis, filters, wagers, 
                                                 {w.stake.amount}
                                             </span>
                                         </td>
-                                        <td className="cgo-r">
+                                        <td className="cgo-r hidden md:table-cell">
                                             <span className="cgo-odds">{w.odds}</span>
                                         </td>
                                         <td className="cgo-r">
@@ -257,7 +258,7 @@ export default function LiveWagersMonitor({ lastUpdated, kpis, filters, wagers, 
                                             <span className={pill.className}>{pill.label}</span>
                                         </td>
                                         <td className="cgo-r">
-                                            <button type="button" className="cgo-row-action" aria-label="Row actions">
+                                            <button type="button" className="cgo-row-action max-sm:min-h-10 max-sm:min-w-10" aria-label="Row actions">
                                                 <MoreHorizontal size={14} strokeWidth={1.5} />
                                             </button>
                                         </td>
@@ -267,7 +268,7 @@ export default function LiveWagersMonitor({ lastUpdated, kpis, filters, wagers, 
                         </tbody>
                     </table>
 
-                    <div className="cgo-table-foot">
+                    <div className="cgo-table-foot flex-wrap gap-2">
                         <div>
                             Showing{' '}
                             <b>

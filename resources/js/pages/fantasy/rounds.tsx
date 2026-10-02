@@ -44,6 +44,14 @@ interface Props {
     detailHrefBase?: string;
 }
 
+/*
+ * Phone-width tap targets. The brass shell's controls are 28–32px; below
+ * sm they grow to 40px. Important (!) because the shell's unlayered CSS
+ * (`all: unset`, fixed heights) otherwise wins over Tailwind utilities.
+ */
+const TAP = 'max-sm:min-h-10!';
+const TAP_SQUARE = 'max-sm:min-h-10! max-sm:min-w-10!';
+
 const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
@@ -174,7 +182,8 @@ export default function Rounds({
                 {!tenantLocked && (
                     <div className="cgo-filterbar">
                         <span className="cgo-sort-label">Tenant</span>
-                        <label className="cgo-input" style={{ minWidth: 220 }}>
+                        {/* Below sm the select takes the rest of the row; from sm it keeps its 220px floor. */}
+                        <label className={`cgo-input max-sm:flex-1 sm:min-w-[220px] ${TAP}`}>
                             <select
                                 value={tenantUuid ?? ''}
                                 onChange={(e) => {
@@ -196,7 +205,7 @@ export default function Rounds({
                         {tenantUuid && (
                             <button
                                 type="button"
-                                className="cg-btn cg-btn--text cg-btn--sm"
+                                className={`cg-btn cg-btn--text cg-btn--sm ${TAP}`}
                                 onClick={() => { setTenantUuid(null); applyFilters({ tenant_uuid: null, page: 1 }); }}
                             >
                                 Clear
@@ -210,7 +219,8 @@ export default function Rounds({
                     className="cgo-table-wrap cgo-table-wrap--scroll"
                     style={{ borderRadius: tenantLocked ? 8 : '0 0 8px 8px', borderTop: tenantLocked ? undefined : 0 }}
                 >
-                    <table className="cgo-wagers">
+                    {/* Phones scroll the table sideways inside the wrap rather than crushing its columns. */}
+                    <table className="cgo-wagers max-md:min-w-[760px]">
                         <thead>
                             <tr>
                                 <th style={{ width: 110 }}>Round</th>
@@ -302,17 +312,19 @@ export default function Rounds({
                         <div className="cgo-pager">
                             <button
                                 type="button"
+                                className={TAP_SQUARE}
                                 disabled={page <= 1}
                                 onClick={() => applyFilters({ page: page - 1 })}
                                 aria-label="Previous"
                             >
                                 ‹
                             </button>
-                            <button type="button" className="curr" disabled>
+                            <button type="button" className={`curr ${TAP_SQUARE}`} disabled>
                                 {page}
                             </button>
                             <button
                                 type="button"
+                                className={TAP_SQUARE}
                                 disabled={!hasNext}
                                 onClick={() => applyFilters({ page: page + 1 })}
                                 aria-label="Next"

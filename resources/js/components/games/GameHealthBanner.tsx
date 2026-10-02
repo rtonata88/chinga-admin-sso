@@ -71,14 +71,14 @@ export function GameHealthBanner() {
                         }}
                     >
                         <i className="pi pi-exclamation-triangle" style={{ color: accent, fontSize: '0.95rem' }} />
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                             <span className="font-semibold mr-2" style={{ color: accent }}>
                                 {label}
                             </span>
                             <span style={{ color: 'var(--acu-text-light)' }}>{detail}</span>
                         </div>
                         <code
-                            className="text-xs px-2 py-0.5 rounded"
+                            className="hidden sm:inline text-xs px-2 py-0.5 rounded"
                             style={{
                                 background: 'var(--acu-surface-card)',
                                 border: '1px solid var(--acu-border)',

@@ -82,7 +82,7 @@ export default function PlatformDashboard() {
                                     <span className="acu-fieldset-title">Revenue This Month</span>
                                 </div>
                                 <div className="acu-fieldset-body">
-                                    <div className="text-3xl font-bold">
+                                    <div className="text-3xl font-bold break-words">
                                         NAD {Number(data.revenue_this_month).toLocaleString()}
                                     </div>
                                     <div className="text-sm text-muted-foreground">
@@ -101,15 +101,15 @@ export default function PlatformDashboard() {
                                     ) : (
                                         <ul className="space-y-2">
                                             {data.recent_tenants.map((tenant) => (
-                                                <li key={tenant.uuid} className="flex justify-between items-center">
+                                                <li key={tenant.uuid} className="flex justify-between items-center gap-3">
                                                     <a
                                                         href={`/platform/tenants/${tenant.uuid}`}
-                                                        className="font-medium hover:underline"
+                                                        className="font-medium hover:underline min-w-0 truncate"
                                                     >
                                                         {tenant.name}
                                                     </a>
                                                     <span
-                                                        className={`text-xs px-2 py-1 rounded ${
+                                                        className={`shrink-0 text-xs px-2 py-1 rounded ${
                                                             tenant.status === 'active'
                                                                 ? 'bg-green-100 text-green-800'
                                                                 : tenant.status === 'suspended'

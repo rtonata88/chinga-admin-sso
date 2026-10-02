@@ -240,13 +240,15 @@ export default function Withdrawals() {
                     <table className="cgo-wagers">
                         <thead>
                             <tr>
-                                <th style={{ minWidth: 220 }}>Player</th>
-                                <th style={{ width: 160 }}>Tenant</th>
+                                {/* Phones drop the low-priority columns and let the
+                                    action buttons size to their content. */}
+                                <th className="min-w-[160px] md:min-w-[220px]">Player</th>
+                                <th className="hidden md:table-cell" style={{ width: 160 }}>Tenant</th>
                                 <th className="cgo-r" style={{ width: 160 }}>Amount</th>
-                                <th style={{ width: 130 }}>Method</th>
+                                <th className="hidden md:table-cell" style={{ width: 130 }}>Method</th>
                                 <th style={{ width: 100 }}>Status</th>
-                                <th style={{ width: 150 }}>Requested</th>
-                                <th style={{ width: 240 }} />
+                                <th className="hidden md:table-cell" style={{ width: 150 }}>Requested</th>
+                                <th className="md:w-[240px]" />
                             </tr>
                         </thead>
                         <tbody>
@@ -273,7 +275,7 @@ export default function Withdrawals() {
                                                 </div>
                                                 <div className="cgo-uid">{w.user?.email || '—'}</div>
                                             </td>
-                                            <td>
+                                            <td className="hidden md:table-cell">
                                                 <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
                                                     {w.tenant?.name || '—'}
                                                 </span>
@@ -289,7 +291,7 @@ export default function Withdrawals() {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td>
+                                            <td className="hidden md:table-cell">
                                                 <span style={{ fontSize: 12, color: 'var(--cg-fg-2)' }}>
                                                     {methodLabel(w.payment_method)}
                                                 </span>
@@ -299,7 +301,7 @@ export default function Withdrawals() {
                                                     {w.status}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td className="hidden md:table-cell">
                                                 <span className="cgo-uid">{formatDateTime(w.created_at)}</span>
                                             </td>
                                             <td>
@@ -369,7 +371,7 @@ export default function Withdrawals() {
                     'Withdrawal detail'
                 }
                 visible={!!selected && !!dialogMode}
-                style={{ width: '32rem' }}
+                style={{ width: '32rem', maxWidth: 'calc(100vw - 2rem)' }}
                 onHide={closeDialog}
                 modal
                 draggable={false}
@@ -383,7 +385,11 @@ export default function Withdrawals() {
                                 borderRadius: 6,
                                 padding: 12,
                                 display: 'grid',
+                                // minmax(0, …) so the payment-details <pre> scrolls
+                                // inside the dialog instead of widening it on phones.
+                                gridTemplateColumns: 'minmax(0, 1fr)',
                                 gap: 6,
+                                overflowWrap: 'anywhere',
                             }}
                         >
                             <div>
@@ -463,7 +469,7 @@ export default function Withdrawals() {
                                     className="w-full"
                                     placeholder="Internal notes for the audit trail"
                                 />
-                                <div className="flex justify-end gap-2 pt-2">
+                                <div className="flex flex-wrap justify-end gap-2 pt-2">
                                     <Button label="Cancel" severity="secondary" outlined onClick={closeDialog} disabled={acting} />
                                     <Button
                                         label={acting ? 'Approving…' : 'Approve'}
@@ -489,7 +495,7 @@ export default function Withdrawals() {
                                 <p style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>
                                     The player's wallet will be refunded automatically.
                                 </p>
-                                <div className="flex justify-end gap-2 pt-2">
+                                <div className="flex flex-wrap justify-end gap-2 pt-2">
                                     <Button label="Cancel" severity="secondary" outlined onClick={closeDialog} disabled={acting} />
                                     <Button
                                         label={acting ? 'Rejecting…' : 'Reject + Refund'}
@@ -514,7 +520,7 @@ export default function Withdrawals() {
                                 <p style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>
                                     The player's wallet was already debited at request time. This step records the actual payout.
                                 </p>
-                                <div className="flex justify-end gap-2 pt-2">
+                                <div className="flex flex-wrap justify-end gap-2 pt-2">
                                     <Button label="Cancel" severity="secondary" outlined onClick={closeDialog} disabled={acting} />
                                     <Button
                                         label={acting ? 'Saving…' : 'Mark as Paid'}

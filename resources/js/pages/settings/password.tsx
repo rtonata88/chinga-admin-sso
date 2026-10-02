@@ -59,7 +59,7 @@ export default function Password() {
                                         ref={currentPasswordInput}
                                         name="current_password"
                                         type="password"
-                                        className="mt-1 block w-full"
+                                        className="mt-1 block h-10 w-full md:h-9"
                                         autoComplete="current-password"
                                         placeholder="Current password"
                                     />
@@ -79,7 +79,7 @@ export default function Password() {
                                         ref={passwordInput}
                                         name="password"
                                         type="password"
-                                        className="mt-1 block w-full"
+                                        className="mt-1 block h-10 w-full md:h-9"
                                         autoComplete="new-password"
                                         placeholder="New password"
                                     />
@@ -96,7 +96,7 @@ export default function Password() {
                                         id="password_confirmation"
                                         name="password_confirmation"
                                         type="password"
-                                        className="mt-1 block w-full"
+                                        className="mt-1 block h-10 w-full md:h-9"
                                         autoComplete="new-password"
                                         placeholder="Confirm password"
                                     />
@@ -108,6 +108,7 @@ export default function Password() {
 
                                 <div className="flex items-center gap-4">
                                     <Button
+                                        className="h-10 md:h-9"
                                         disabled={processing}
                                         data-test="update-password-button"
                                     >

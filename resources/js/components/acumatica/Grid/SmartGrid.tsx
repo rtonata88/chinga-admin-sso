@@ -129,21 +129,21 @@ export default function SmartGrid({
     );
 
     const toolbarLeft = (
-        <div className="flex items-center gap-3">
-            <span className="p-input-icon-left">
+        <div className="flex items-center gap-3 min-w-0">
+            <span className="p-input-icon-left w-full sm:w-auto">
                 <i className="pi pi-search" />
                 <InputText
                     value={globalFilter}
                     onChange={(e) => setGlobalFilter(e.target.value)}
                     placeholder="Quick search..."
-                    className="w-64"
+                    className="w-full sm:w-64"
                 />
             </span>
         </div>
     );
 
     const toolbarRight = (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
             <Button
                 icon="pi pi-cog"
                 outlined
