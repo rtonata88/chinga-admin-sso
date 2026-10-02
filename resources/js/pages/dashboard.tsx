@@ -202,18 +202,14 @@ export default function Dashboard(props: DashboardProps) {
     const winsYesterday = num(yesterday?.total_paid_out);
     const winsDelta = deltaPct(winsToday, winsYesterday);
 
-    // Card 5 — GGR (deposit-aware). Falls back to gross GGR if the
-    // upstream is too old to expose real_ggr — that path is just
-    // wagered - paid_out, which is what the user is correcting away
-    // from but is the safest fallback.
-    const ggrToday =
-        today?.real_ggr !== undefined
-            ? num(today.real_ggr)
-            : num(today?.ggr) || wageredToday - winsToday;
+    // Card 5 — gross GGR (wagered − paid out), the figure invoices, revenue
+    // share and tax are computed on. The deposit-aware `real_ggr` is not
+    // shown: on production the deposit/winnings split is unreliable (staff
+    // top-ups land in winnings), so it reads as a loss on a day the house
+    // kept money.
+    const ggrToday = today?.ggr !== undefined ? num(today.ggr) : wageredToday - winsToday;
     const ggrYesterday =
-        yesterday?.real_ggr !== undefined
-            ? num(yesterday.real_ggr)
-            : num(yesterday?.ggr) || wageredYesterday - winsYesterday;
+        yesterday?.ggr !== undefined ? num(yesterday.ggr) : wageredYesterday - winsYesterday;
     const ggrDelta = deltaPct(ggrToday, ggrYesterday);
 
     const sparkHeights = sparkBars(props.wager_spark);
@@ -271,7 +267,7 @@ export default function Dashboard(props: DashboardProps) {
                         value={formatCurrencyCompact(ggrToday)}
                         brass
                         delta={ggrDelta.sign === 'flat' ? undefined : ggrDelta}
-                        meta="deposit-funded"
+                        meta="wagered − paid out"
                     />
                 </div>
 
