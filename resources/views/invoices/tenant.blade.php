@@ -194,6 +194,8 @@
         table.games th.r { text-align: right; }
         table.games th.r, table.games td.r { padding-left: 12px; white-space: nowrap; }
         table.games tr.unavailable td { color: var(--muted); font-style: italic; }
+        table.games tfoot td { border-top: 1px solid var(--rule-strong); border-bottom: 0; font-weight: 600; }
+        table.games tfoot td.label-cell { color: var(--ink); }
         .incomplete {
             border: 1px solid #b42318;
             color: #b42318;
@@ -367,30 +369,18 @@
                         </tr>
                     @endforeach
                 </tbody>
-            </table>
-        </div>
-
-        <div class="section">
-            <h2>Activity</h2>
-            <table>
-                <tbody>
-                    <tr>
-                        <td class="label-cell">Bets placed</td>
+                @if (count($activity['games']) > 0)
+                <tfoot>
+                    <tr class="total">
+                        <td class="label-cell">Total</td>
                         <td class="r">{{ number_format($activity['bets_placed']) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label-cell">Active players</td>
                         <td class="r">{{ number_format($activity['active_players']) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label-cell">Total wagered</td>
                         <td class="r">{{ $fmtMoney($activity['total_wagered']) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label-cell">Total paid out (wins)</td>
                         <td class="r">{{ $fmtMoney($activity['total_paid_out']) }}</td>
+                        <td class="r">{{ $fmtMoney($breakdown['ggr']) }}</td>
                     </tr>
-                </tbody>
+                </tfoot>
+                @endif
             </table>
         </div>
 
