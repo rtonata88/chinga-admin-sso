@@ -124,10 +124,13 @@ class GameSettingsWriter
     /**
      * Set a tenant's enabled flag and sparse overrides. The tenant must
      * already be attached to the game; otherwise 404 and nothing is written.
+     * Null overrides mean "keep what is stored": a caller that did not send
+     * custom_settings (the tenants page's toggle and Manage games) must never
+     * wipe an operator's overrides.
      *
      * @throws ValidationException when the Kulipi Kuna rules refuse the merged settings
      */
-    public function writeTenant(Game $game, Tenant $tenant, bool $enabled, array $overrides, ?User $user, string $errorPrefix = 'custom_settings.'): void
+    public function writeTenant(Game $game, Tenant $tenant, bool $enabled, ?array $overrides, ?User $user, string $errorPrefix = 'custom_settings.'): void
     {
         DB::transaction(function () use ($game, $tenant, $enabled, $overrides, $user, $errorPrefix) {
             $locked = Game::query()->lockForUpdate()->findOrFail($game->id);
@@ -138,10 +141,12 @@ class GameSettingsWriter
                 ->first();
             abort_if($row === null, 404, 'This tenant does not have this game.');
 
+            $stored = self::decode($row->custom_settings);
+            $overrides ??= $stored;
             $global = $locked->settings ?? [];
             $this->assertKulipiTenant($locked, $global, $overrides, $errorPrefix);
 
-            $before = ['enabled' => (bool) $row->enabled, 'custom_settings' => self::decode($row->custom_settings)];
+            $before = ['enabled' => (bool) $row->enabled, 'custom_settings' => $stored];
             $after = ['enabled' => $enabled, 'custom_settings' => $overrides];
 
             DB::table('tenant_games')->where('id', $row->id)->update([
@@ -164,11 +169,12 @@ class GameSettingsWriter
 
     /**
      * Attach a game to a tenant with its overrides, audited as a tenant
-     * change from nothing. An already-attached pair is a writeTenant.
+     * change from nothing. An already-attached pair is a writeTenant, so
+     * null overrides keep what is stored; a new attachment starts with none.
      *
      * @throws ValidationException
      */
-    public function attachTenant(Game $game, Tenant $tenant, bool $enabled, array $overrides, ?User $user, string $errorPrefix = 'custom_settings.'): void
+    public function attachTenant(Game $game, Tenant $tenant, bool $enabled, ?array $overrides, ?User $user, string $errorPrefix = 'custom_settings.'): void
     {
         DB::transaction(function () use ($game, $tenant, $enabled, $overrides, $user, $errorPrefix) {
             $locked = Game::query()->lockForUpdate()->findOrFail($game->id);
@@ -179,6 +185,7 @@ class GameSettingsWriter
                 return;
             }
 
+            $overrides ??= [];
             $global = $locked->settings ?? [];
             $this->assertKulipiTenant($locked, $global, $overrides, $errorPrefix);
 

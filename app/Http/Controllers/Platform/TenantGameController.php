@@ -31,6 +31,11 @@ class TenantGameController extends Controller
      * validated against its schema and the Kulipi Kuna rules, and every
      * attach, change (including nulling the overrides) and detach goes
      * through GameSettingsWriter, so it is audited (K4 final review, finding 2).
+     *
+     * A game sent without a custom_settings key keeps the overrides already
+     * stored (the tenants page never sends them); null, {} or an object
+     * replaces them. Every touched game row is locked in ascending id order
+     * before anything is written, so two syncs can never deadlock.
      */
     public function sync(Request $request, Tenant $tenant, GameSettingsWriter $writer): JsonResponse
     {
@@ -48,12 +53,18 @@ class TenantGameController extends Controller
             $wanted[$game->id] = [
                 'game' => $game,
                 'enabled' => (bool) ($gameData['enabled'] ?? true),
-                'overrides' => GameSettingsWriter::validateOverrides(SettingsSchema::fromGame($game), $gameData['custom_settings'] ?? [], $prefix),
+                'overrides' => array_key_exists('custom_settings', $gameData)
+                    ? GameSettingsWriter::validateOverrides(SettingsSchema::fromGame($game), $gameData['custom_settings'] ?? [], $prefix)
+                    : null,
                 'prefix' => $prefix,
             ];
         }
 
         DB::transaction(function () use ($tenant, $wanted, $writer, $request) {
+            $touched = array_values(array_unique([...array_keys($wanted), ...$tenant->games()->pluck('games.id')->all()]));
+            sort($touched);
+            Game::query()->whereKey($touched)->orderBy('id')->lockForUpdate()->get();
+
             foreach ($tenant->games()->get() as $current) {
                 if (! isset($wanted[$current->id])) {
                     $writer->detachTenant($current, $tenant, $request->user());
@@ -77,7 +88,10 @@ class TenantGameController extends Controller
             'custom_settings' => ['nullable', 'array'],
         ]);
 
-        $overrides = GameSettingsWriter::validateOverrides(SettingsSchema::fromGame($game), $validated['custom_settings'] ?? []);
+        // No custom_settings key (the tenants page's enable toggle) keeps the stored overrides.
+        $overrides = array_key_exists('custom_settings', $validated)
+            ? GameSettingsWriter::validateOverrides(SettingsSchema::fromGame($game), $validated['custom_settings'] ?? [])
+            : null;
 
         // 404 when the tenant does not have this game; nothing is written.
         $writer->writeTenant($game, $tenant, (bool) ($validated['enabled'] ?? true), $overrides, $request->user());
