@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\Game;
+use App\Services\GameSettingsWriter;
 use App\Support\SettingsSchema;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class GameController extends Controller
@@ -37,7 +39,7 @@ class GameController extends Controller
         return response()->json($games);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, GameSettingsWriter $writer): JsonResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -53,7 +55,20 @@ class GameController extends Controller
             'settings_schema' => ['nullable', 'array', $this->settingsSchemaRule()],
         ]);
 
-        $game = Game::create($validated);
+        // A game registered with settings gets them through the writer, so they
+        // meet their schema and the Kulipi Kuna rules and the audit starts here.
+        $settings = $validated['settings'] ?? null;
+        unset($validated['settings']);
+        $next = $settings === null ? null : GameSettingsWriter::validateGlobal(new SettingsSchema($validated['settings_schema'] ?? null), $settings, 'settings.');
+
+        $game = DB::transaction(function () use ($validated, $next, $writer, $request) {
+            $game = Game::create($validated);
+            if ($next !== null) {
+                $writer->writeGlobal($game, $next, $request->user(), 'settings.');
+            }
+
+            return $game;
+        });
 
         return response()->json(['data' => $game], 201);
     }
@@ -66,7 +81,7 @@ class GameController extends Controller
         return response()->json(['data' => $game]);
     }
 
-    public function update(Request $request, Game $game): JsonResponse
+    public function update(Request $request, Game $game, GameSettingsWriter $writer): JsonResponse
     {
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -81,7 +96,21 @@ class GameController extends Controller
             'settings_schema' => ['nullable', 'array', $this->settingsSchemaRule()],
         ]);
 
-        $game->update($validated);
+        // Settings go through the same path as the admin console: schema
+        // validation, the Kulipi Kuna rules and the audit, all in one
+        // transaction with the other fields (K4 final review, finding 2).
+        $hasSettings = array_key_exists('settings', $validated);
+        $settings = $validated['settings'] ?? [];
+        unset($validated['settings']);
+        $schema = new SettingsSchema(array_key_exists('settings_schema', $validated) ? $validated['settings_schema'] : $game->settings_schema);
+        $next = $hasSettings ? GameSettingsWriter::validateGlobal($schema, $settings, 'settings.') : null;
+
+        DB::transaction(function () use ($game, $validated, $next, $writer, $request) {
+            $game->update($validated);
+            if ($next !== null) {
+                $writer->writeGlobal($game, $next, $request->user(), 'settings.');
+            }
+        });
 
         return response()->json(['data' => $game->fresh()]);
     }
@@ -90,7 +119,7 @@ class GameController extends Controller
     private function settingsSchemaRule(): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail): void {
-            if (!is_array($value)) {
+            if (! is_array($value)) {
                 return;
             }
             try {

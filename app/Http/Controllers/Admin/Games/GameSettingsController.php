@@ -6,13 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Game;
 use App\Models\Tenant;
 use App\Services\GameSettingsAuditor;
+use App\Services\GameSettingsWriter;
 use App\Support\FantasySettingsSchema;
-use App\Support\KulipiKunaConfigRules;
 use App\Support\SettingsSchema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -63,55 +61,21 @@ class GameSettingsController extends Controller
         ]);
     }
 
-    public function updateGlobal(Request $request, Game $game, GameSettingsAuditor $auditor): RedirectResponse
+    public function updateGlobal(Request $request, Game $game, GameSettingsWriter $writer): RedirectResponse
     {
         $schema = SettingsSchema::fromGame($game);
         $validated = $request->validate($schema->rules());
-        $next = self::withoutNulls($validated);
 
-        if ($game->slug === KulipiKunaConfigRules::GAME_SLUG) {
-            $errors = KulipiKunaConfigRules::violations($next);
-            if ($errors === []) {
-                foreach ($game->tenants()->get() as $t) {
-                    $overrides = $t->pivot->custom_settings ?? [];
-                    foreach (KulipiKunaConfigRules::violations(array_merge($next, is_array($overrides) ? $overrides : [])) as $key => $message) {
-                        $errors[$key] ??= "{$t->name}'s overrides would break this: {$message}";
-                    }
-                }
-            }
-            if ($errors !== []) {
-                throw ValidationException::withMessages($errors);
-            }
-        }
-
-        $beforeSettings = $game->settings ?? [];
-
-        // PRD §11 admin guardrails: the theoretical RTP is computed on every save and every
-        // change of it is logged with before and after. The allowed band is the schema's
-        // house_edge bounds, so an out-of-band edge never passes validation above.
-        $before = FantasySettingsSchema::rtp($game->settings ?? []);
-        $after = FantasySettingsSchema::rtp($next);
-        if ($after !== null && $before !== $after) {
-            Log::info('game.rtp_changed', [
-                'game' => $game->slug,
-                'by' => $request->user()?->id,
-                'house_edge_before' => $game->settings['house_edge'] ?? null,
-                'house_edge_after' => $next['house_edge'],
-                'rtp_before' => $before,
-                'rtp_after' => $after,
-            ]);
-        }
-
-        // Full replace, restricted to schema keys; a null means "unset".
-        $game->update(['settings' => $next]);
-        $auditor->record($game, null, $request->user(), $beforeSettings, $next, $before, $after);
+        // Full replace, restricted to schema keys; a null means "unset". The writer
+        // locks, applies the Kulipi Kuna rules, logs any RTP change and audits.
+        $after = $writer->writeGlobal($game, self::withoutNulls($validated), $request->user());
 
         $note = $after === null ? '' : sprintf(' Theoretical RTP is now %.2f%%.', $after * 100);
 
         return redirect()->back()->with('success', 'Global settings updated.'.$note);
     }
 
-    public function updateTenant(Request $request, Game $game, string $tenantUuid, GameSettingsAuditor $auditor): RedirectResponse
+    public function updateTenant(Request $request, Game $game, string $tenantUuid, GameSettingsWriter $writer): RedirectResponse
     {
         $schema = SettingsSchema::fromGame($game);
         $tenant = Tenant::where('uuid', $tenantUuid)->firstOrFail();
@@ -126,34 +90,8 @@ class GameSettingsController extends Controller
         // empty field means "inherit the global default".
         $overrides = self::withoutNulls($validated['custom_settings'] ?? []);
 
-        if ($game->slug === KulipiKunaConfigRules::GAME_SLUG) {
-            $errors = KulipiKunaConfigRules::violations(array_merge($game->settings ?? [], $overrides));
-            if ($errors !== []) {
-                throw ValidationException::withMessages(
-                    collect($errors)->mapWithKeys(fn ($m, $k) => ["custom_settings.{$k}" => $m])->all()
-                );
-            }
-        }
-
-        $pivot = $game->tenants()->where('tenants.id', $tenant->id)->first()?->pivot;
-        $beforeTenant = ['enabled' => (bool) ($pivot?->enabled ?? true), 'custom_settings' => $pivot?->custom_settings ?? []];
-
-        $game->tenants()->updateExistingPivot($tenant->id, [
-            'enabled' => $validated['enabled'] ?? true,
-            'custom_settings' => $overrides === [] ? null : $overrides,
-        ]);
-
-        $afterTenant = ['enabled' => (bool) ($validated['enabled'] ?? true), 'custom_settings' => $overrides];
-        $global = $game->settings ?? [];
-        $auditor->record(
-            $game,
-            $tenant,
-            $request->user(),
-            $beforeTenant,
-            $afterTenant,
-            FantasySettingsSchema::rtp(array_merge($global, $beforeTenant['custom_settings'])),
-            FantasySettingsSchema::rtp(array_merge($global, $overrides)),
-        );
+        // 404 when the tenant does not have this game; nothing is written.
+        $writer->writeTenant($game, $tenant, (bool) ($validated['enabled'] ?? true), $overrides, $request->user());
 
         return redirect()->back()->with('success', "Settings updated for {$tenant->name}.");
     }

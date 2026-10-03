@@ -94,3 +94,34 @@ it('lists the latest changes on the Settings page, newest first, with what chang
             ->where('audits.0.rtp_after', 0.95)
             ->where('audits.1.changes.0.key', 'max_bet_amount'));
 });
+
+it('lists a tenant change override by override in History', function () {
+    $this->kulipi->tenants()->updateExistingPivot($this->tenant->id, ['custom_settings' => ['max_bet_amount' => 50, 'min_bet_amount' => 5]]);
+    $this->actingAs($this->admin)
+        ->put("/platform/games/{$this->kulipi->uuid}/settings/tenant/{$this->tenant->uuid}", ['enabled' => true, 'custom_settings' => ['max_bet_amount' => 40, 'min_bet_amount' => 5]])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->admin)
+        ->get("/platform/games/{$this->kulipi->uuid}/settings")
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('audits', 1)
+            ->where('audits.0.scope', 'tenant')
+            ->where('audits.0.tenant', 'Lucky Star Betting')
+            ->has('audits.0.changes', 1)
+            ->where('audits.0.changes.0.key', 'custom_settings.max_bet_amount')
+            ->where('audits.0.changes.0.before', 50)
+            ->where('audits.0.changes.0.after', 40));
+});
+
+it('ignores key order at every depth when deciding whether anything changed', function () {
+    $auditor = app(\App\Services\GameSettingsAuditor::class);
+    $row = $auditor->record($this->kulipi, $this->tenant, $this->admin,
+        ['enabled' => true, 'custom_settings' => ['max_bet_amount' => 40, 'min_bet_amount' => 5]],
+        ['custom_settings' => ['min_bet_amount' => 5, 'max_bet_amount' => 40], 'enabled' => true],
+        0.96, 0.96);
+    expect($row)->toBeNull();
+    expect(\App\Services\GameSettingsAuditor::changes(
+        ['custom_settings' => ['a' => ['y' => 1, 'x' => 2]]],
+        ['custom_settings' => ['a' => ['x' => 2, 'y' => 1], 'b' => 3]],
+    ))->toBe([['key' => 'custom_settings.b', 'before' => null, 'after' => 3]]);
+});

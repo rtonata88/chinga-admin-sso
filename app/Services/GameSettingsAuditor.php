@@ -10,7 +10,7 @@ use App\Models\User;
 /**
  * Writes and reads the settings audit (K4 design A2). A save that changes
  * neither the settings nor the RTP writes nothing. Values are compared
- * after sorting keys, so key order never counts as a change.
+ * after sorting keys at every depth, so key order never counts as a change.
  */
 class GameSettingsAuditor
 {
@@ -59,8 +59,14 @@ class GameSettingsAuditor
             ->all();
     }
 
-    /** @return list<array{key:string, before:mixed, after:mixed}> keys in alphabetical order */
-    public static function changes(array $before, array $after): array
+    /**
+     * What changed, one entry per key in alphabetical order. A tenant's
+     * custom_settings is diffed per override, so History reads
+     * "custom_settings.max_bet_amount 50 → 60" rather than two whole objects.
+     *
+     * @return list<array{key:string, before:mixed, after:mixed}>
+     */
+    public static function changes(array $before, array $after, string $prefix = ''): array
     {
         $keys = array_unique([...array_keys($before), ...array_keys($after)]);
         sort($keys);
@@ -68,8 +74,13 @@ class GameSettingsAuditor
         foreach ($keys as $key) {
             $b = $before[$key] ?? null;
             $a = $after[$key] ?? null;
-            if (json_encode($b) !== json_encode($a)) {
-                $out[] = ['key' => (string) $key, 'before' => $b, 'after' => $a];
+            if ($prefix === '' && $key === 'custom_settings' && (is_array($b) || $b === null) && (is_array($a) || $a === null)) {
+                array_push($out, ...self::changes($b ?? [], $a ?? [], 'custom_settings.'));
+
+                continue;
+            }
+            if (self::encode($b) !== self::encode($a)) {
+                $out[] = ['key' => $prefix.$key, 'before' => $b, 'after' => $a];
             }
         }
 
@@ -78,8 +89,24 @@ class GameSettingsAuditor
 
     private static function normalise(array $values): string
     {
-        ksort($values);
+        return self::encode($values);
+    }
 
-        return (string) json_encode($values);
+    /** JSON with object keys sorted at every depth, so key order never counts as a change. */
+    private static function encode(mixed $value): string
+    {
+        return (string) json_encode(self::sortKeys($value));
+    }
+
+    private static function sortKeys(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return array_map(self::sortKeys(...), $value);
     }
 }
