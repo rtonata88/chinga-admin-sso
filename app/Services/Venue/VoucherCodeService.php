@@ -8,11 +8,14 @@ use App\Models\VenueStaff;
 use App\Models\VenueTerminal;
 use App\Models\VoucherCode;
 use App\Models\VoucherTransaction;
+use App\Services\Concerns\ReturnsExistingOnDuplicate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class VoucherCodeService
 {
+    use ReturnsExistingOnDuplicate;
+
     /**
      * Characters excluded from code generation to avoid confusion.
      * 0/O, 1/I/L are excluded.
@@ -20,7 +23,9 @@ class VoucherCodeService
     private const AMBIGUOUS_CHARS = ['0', 'O', '1', 'I', 'L'];
 
     private const ALPHANUMERIC_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
     private const NUMERIC_CHARS = '23456789';
+
     private const ALPHA_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
 
     /**
@@ -163,13 +168,13 @@ class VoucherCodeService
         for ($i = 0; $i < $maxAttempts; $i++) {
             $code = $this->generateCodeString($length, $type);
 
-            if (!VoucherCode::where('code', $code)->exists()) {
+            if (! VoucherCode::where('code', $code)->exists()) {
                 return $code;
             }
         }
 
         // Fallback: add random suffix
-        return $this->generateCodeString($length, $type) . Str::random(2);
+        return $this->generateCodeString($length, $type).Str::random(2);
     }
 
     /**
@@ -289,7 +294,7 @@ class VoucherCodeService
             return $this->recordTransaction(
                 $voucherCode,
                 'cashout',
-                '-' . $amount,
+                '-'.$amount,
                 $balanceBefore,
                 $balanceAfter,
                 $description ?? 'Cash out',
@@ -311,26 +316,18 @@ class VoucherCodeService
             throw new \InvalidArgumentException('Amount must be positive.');
         }
 
-        if (!$voucherCode->hasSufficientBalance($amount)) {
-            throw new \RuntimeException('Insufficient balance.');
-        }
-
-        return DB::transaction(function () use ($voucherCode, $amount, $session, $reference) {
-            // Idempotency check
-            if ($reference) {
-                $existing = VoucherTransaction::where('game_session_id', $session->id)
-                    ->where('reference', $reference)
-                    ->where('type', 'bet')
-                    ->first();
-
-                if ($existing) {
-                    return $existing;
-                }
-            }
-
+        // The balance is checked under the lock below, after the duplicate lookup: a retried bet
+        // that already took the whole balance must get its first transaction back, not a refusal.
+        return $this->insertOrExisting(fn () => DB::transaction(function () use ($voucherCode, $amount, $session, $reference) {
+            // Lock first, then look: two identical requests serialise on the voucher row, and the
+            // second sees the first's transaction (H1). The unique index is the backstop.
             $voucherCode = VoucherCode::lockForUpdate()->find($voucherCode->id);
 
-            if (!$voucherCode->hasSufficientBalance($amount)) {
+            if ($existing = $this->findGameTransaction($voucherCode->id, $session->id, $reference, 'bet')) {
+                return $existing;
+            }
+
+            if (! $voucherCode->hasSufficientBalance($amount)) {
                 throw new \RuntimeException('Insufficient balance.');
             }
 
@@ -346,7 +343,7 @@ class VoucherCodeService
             return $this->recordTransaction(
                 $voucherCode,
                 'bet',
-                '-' . $amount,
+                '-'.$amount,
                 $balanceBefore,
                 $balanceAfter,
                 'Game bet/wager',
@@ -355,7 +352,7 @@ class VoucherCodeService
                 $session->id,
                 $reference
             );
-        });
+        }), fn () => $this->findGameTransaction($voucherCode->id, $session->id, $reference, 'bet'));
     }
 
     /**
@@ -371,20 +368,13 @@ class VoucherCodeService
             throw new \InvalidArgumentException('Amount must be positive.');
         }
 
-        return DB::transaction(function () use ($voucherCode, $amount, $session, $reference) {
-            // Idempotency check
-            if ($reference) {
-                $existing = VoucherTransaction::where('game_session_id', $session->id)
-                    ->where('reference', $reference)
-                    ->where('type', 'win')
-                    ->first();
-
-                if ($existing) {
-                    return $existing;
-                }
-            }
-
+        return $this->insertOrExisting(fn () => DB::transaction(function () use ($voucherCode, $amount, $session, $reference) {
+            // Lock first, then look (H1): see debit().
             $voucherCode = VoucherCode::lockForUpdate()->find($voucherCode->id);
+
+            if ($existing = $this->findGameTransaction($voucherCode->id, $session->id, $reference, 'win')) {
+                return $existing;
+            }
 
             $balanceBefore = $voucherCode->balance;
             $balanceAfter = bcadd($balanceBefore, $amount, 2);
@@ -407,7 +397,27 @@ class VoucherCodeService
                 $session->id,
                 $reference
             );
-        });
+        }), fn () => $this->findGameTransaction($voucherCode->id, $session->id, $reference, 'win'));
+    }
+
+    /**
+     * The game transaction already recorded for this (voucher code, session, reference, type),
+     * if any. The columns match the unique index voucher_tx_game_reference_unique exactly.
+     *
+     * Called after the voucher row lock: the lock is the transaction's first statement, so this
+     * plain read takes its snapshot after any earlier holder of the lock has committed.
+     */
+    private function findGameTransaction(int $voucherCodeId, int $sessionId, ?string $reference, string $type): ?VoucherTransaction
+    {
+        if ($reference === null || $reference === '') {
+            return null;
+        }
+
+        return VoucherTransaction::where('voucher_code_id', $voucherCodeId)
+            ->where('game_session_id', $sessionId)
+            ->where('reference', $reference)
+            ->where('type', $type)
+            ->first();
     }
 
     /**
@@ -451,7 +461,7 @@ class VoucherCodeService
             throw new \InvalidArgumentException('Amount must be positive.');
         }
 
-        if (!$fromCode->hasSufficientBalance($amount)) {
+        if (! $fromCode->hasSufficientBalance($amount)) {
             throw new \RuntimeException('Insufficient balance for transfer.');
         }
 
@@ -475,7 +485,7 @@ class VoucherCodeService
             $outTransaction = $this->recordTransaction(
                 $fromCode,
                 'transfer_out',
-                '-' . $amount,
+                '-'.$amount,
                 $fromBalanceBefore,
                 $fromBalanceAfter,
                 "Transfer to {$toCode->masked_code}",

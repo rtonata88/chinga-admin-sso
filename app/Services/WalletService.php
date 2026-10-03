@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Services\Concerns\ReturnsExistingOnDuplicate;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  */
 class WalletService
 {
+    use ReturnsExistingOnDuplicate;
+
     /**
      * Create a wallet for a user.
      */
@@ -92,7 +95,7 @@ class WalletService
         return DB::transaction(function () use ($wallet, $amount, $performedBy, $reference) {
             $wallet = Wallet::lockForUpdate()->find($wallet->id);
 
-            if (!$wallet->hasSufficientWithdrawableBalance($amount)) {
+            if (! $wallet->hasSufficientWithdrawableBalance($amount)) {
                 throw new \RuntimeException('Insufficient withdrawable balance — only winnings can be withdrawn.');
             }
 
@@ -132,21 +135,14 @@ class WalletService
         $this->validateAmount($amount);
         $this->ensureWalletActive($wallet);
 
-        return DB::transaction(function () use ($wallet, $amount, $session, $reference) {
-            // Idempotency: don't double-debit if the same reference comes through twice.
-            if ($reference) {
-                $existing = WalletTransaction::where('wallet_id', $wallet->id)
-                    ->where('game_session_id', $session->id)
-                    ->where('reference', $reference)
-                    ->where('type', 'bet')
-                    ->first();
-
-                if ($existing) {
-                    return $existing;
-                }
-            }
-
+        return $this->insertOrExisting(fn () => DB::transaction(function () use ($wallet, $amount, $session, $reference) {
+            // Lock first, then look: two identical requests serialise on the wallet row, and the
+            // second sees the first's transaction (H1). The unique index is the backstop.
             $wallet = Wallet::lockForUpdate()->find($wallet->id);
+
+            if ($existing = $this->findGameTransaction($wallet->id, $session->id, $reference, 'bet')) {
+                return $existing;
+            }
 
             // Use the pool sum as the source of truth (rather than the stored
             // `balance` column) so a column-drift bug can never let a bet
@@ -189,7 +185,7 @@ class WalletService
                 $fromDeposit,
                 $fromWinnings
             );
-        });
+        }), fn () => $this->findGameTransaction($wallet->id, $session->id, $reference, 'bet'));
     }
 
     /**
@@ -201,20 +197,13 @@ class WalletService
         $this->validateAmount($amount);
         $this->ensureWalletActive($wallet);
 
-        return DB::transaction(function () use ($wallet, $amount, $session, $reference) {
-            if ($reference) {
-                $existing = WalletTransaction::where('wallet_id', $wallet->id)
-                    ->where('game_session_id', $session->id)
-                    ->where('reference', $reference)
-                    ->where('type', 'win')
-                    ->first();
-
-                if ($existing) {
-                    return $existing;
-                }
-            }
-
+        return $this->insertOrExisting(fn () => DB::transaction(function () use ($wallet, $amount, $session, $reference) {
+            // Lock first, then look (H1): see debit().
             $wallet = Wallet::lockForUpdate()->find($wallet->id);
+
+            if ($existing = $this->findGameTransaction($wallet->id, $session->id, $reference, 'win')) {
+                return $existing;
+            }
 
             $balanceBefore = $wallet->balance;
             $balanceAfter = bcadd($balanceBefore, $amount, 2);
@@ -238,7 +227,27 @@ class WalletService
                 '0',     // amount_from_deposit
                 $amount  // amount_from_winnings
             );
-        });
+        }), fn () => $this->findGameTransaction($wallet->id, $session->id, $reference, 'win'));
+    }
+
+    /**
+     * The game transaction already recorded for this (wallet, session, reference, type), if any.
+     * The columns match the unique index wallet_tx_game_reference_unique exactly.
+     *
+     * Called after the wallet row lock: the lock is the transaction's first statement, so this
+     * plain read takes its snapshot after any earlier holder of the lock has committed.
+     */
+    private function findGameTransaction(int $walletId, int $sessionId, ?string $reference, string $type): ?WalletTransaction
+    {
+        if ($reference === null || $reference === '') {
+            return null;
+        }
+
+        return WalletTransaction::where('wallet_id', $walletId)
+            ->where('game_session_id', $sessionId)
+            ->where('reference', $reference)
+            ->where('type', $type)
+            ->first();
     }
 
     /**
@@ -272,7 +281,7 @@ class WalletService
         $wallet = $heldTransaction->wallet()->firstOrFail();
         $amount = (string) $heldTransaction->amount;
 
-        return DB::transaction(function () use ($wallet, $heldTransaction, $amount, $performedBy, $reference, $description) {
+        return DB::transaction(function () use ($wallet, $amount, $performedBy, $reference, $description) {
             // Idempotency: if this refund has already been applied, return it.
             if ($reference) {
                 $existing = WalletTransaction::where('wallet_id', $wallet->id)
@@ -359,7 +368,7 @@ class WalletService
      */
     private function ensureWalletActive(Wallet $wallet): void
     {
-        if (!$wallet->isActive()) {
+        if (! $wallet->isActive()) {
             throw new \RuntimeException('Wallet is not active.');
         }
     }
