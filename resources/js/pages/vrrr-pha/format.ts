@@ -44,7 +44,7 @@ export function tenantLabel(uuid: string | null | undefined, names: Record<strin
     return names[uuid] ?? shortUuid(uuid);
 }
 
-export type RoundState = 'BETTING' | 'LOCKED' | 'PULLING' | 'CRASHED' | 'SETTLING' | 'SETTLED';
+export type RoundState = 'BETTING' | 'LOCKED' | 'PULLING' | 'CRASHED' | 'SETTLING' | 'SETTLED' | 'OPEN' | 'CLOSED' | 'REVEAL';
 
 /** Round state → pill class + label. In-play states are "live"; the crash point is hidden until CRASHED. */
 export function statePill(state: string): { label: string; pill: 'live' | 'pending' | 'settled' | 'void' } {
@@ -61,6 +61,12 @@ export function statePill(state: string): { label: string; pill: 'live' | 'pendi
             return { label: 'settling', pill: 'pending' };
         case 'SETTLED':
             return { label: 'settled', pill: 'settled' };
+        case 'OPEN':
+            return { label: 'open', pill: 'live' };
+        case 'CLOSED':
+            return { label: 'closed', pill: 'live' };
+        case 'REVEAL':
+            return { label: 'revealing', pill: 'pending' };
         default:
             return { label: state.toLowerCase(), pill: 'void' };
     }

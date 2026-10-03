@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\GameAdminClientFactory;
 use App\Services\KulipiKunaAdminClient;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia as Assert;
 
 /**
  * Kulipi Kuna consoles (K4 design A1): riding by level, realised RTP with
@@ -101,4 +102,102 @@ it('includes Kulipi Kuna in the nightly RTP drift check', function () {
         ->expectsOutputToContain('Kulipi Kuna: realised 95.90% vs theoretical 96.00%')
         ->assertExitCode(0)
         ->run();
+});
+
+it('renders riding by level for a tenant, with the 80% alert', function () {
+    kulipiEngine($this->tenant->uuid);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/riding?tenant_uuid='.$this->tenant->uuid)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('kulipi-kuna/riding')
+            ->where('game.name', 'Kulipi Kuna')
+            ->where('game.base', '/kulipi-kuna')
+            ->where('game.terms.many', 'ladders')
+            ->where('riding.alert', true)
+            ->where('riding.used', '0.8064')
+            ->has('riding.levels', 3)
+            ->where('filters.tenant_uuid', $this->tenant->uuid)
+            ->where('error', null));
+});
+
+it('asks the engine for all tenants when none is picked, and never forwards a slug', function () {
+    kulipiEngine($this->tenant->uuid, [
+        'kulipi.test/api/admin/riding*' => Http::response([
+            'tenant_uuid' => null, 'total_riding' => '20160.00', 'cap' => null, 'used' => null, 'alert' => false, 'levels' => [],
+        ]),
+    ]);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/riding?tenant_uuid=lucky-star-betting')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.tenant_uuid', null)
+            ->where('riding.cap', null)
+            ->where('riding.alert', false));
+    Http::assertNotSent(fn ($r) => str_contains($r->url(), 'lucky-star-betting'));
+});
+
+it('keeps the riding page up when the engine is down', function () {
+    Http::fake([
+        'sso.test/oauth/token' => Http::response(['access_token' => 'tok', 'expires_in' => 600]),
+        'kulipi.test/*' => Http::response('down', 502),
+    ]);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/riding')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('riding', null)
+            ->where('error', 'Could not load riding. Is the Kulipi Kuna engine reachable?'));
+});
+
+it('verifies a ladder by id, and says plainly when it does not exist', function () {
+    kulipiEngine($this->tenant->uuid);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/ladder')
+        ->assertInertia(fn (Assert $page) => $page->component('kulipi-kuna/ladder')->where('ladderId', null)->where('result', null));
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/ladder?id=41')
+        ->assertInertia(fn (Assert $page) => $page->where('ladderId', 41)->where('result.valid', true)->where('error', null));
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/ladder?id=42')
+        ->assertInertia(fn (Assert $page) => $page->where('result.valid', false)->has('result.mismatches', 1));
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/ladder?id=404')
+        ->assertInertia(fn (Assert $page) => $page->where('result', null)->where('error', 'Ladder #404 was not found.'));
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/ladder?id=abc')
+        ->assertInertia(fn (Assert $page) => $page->where('ladderId', null));
+});
+
+it('serves RTP through the shared page with the ladder nouns and the depth histogram', function () {
+    kulipiEngine($this->tenant->uuid);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/rtp?tenant_uuid='.$this->tenant->uuid)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('vrrr-pha/rtp')
+            ->where('game.terms.one', 'ladder')
+            ->where('rtp.bets_placed', 5000)
+            ->has('rtp.depth_histogram', 3));
+});
+
+it('never runs round verify on a Kulipi round page', function () {
+    kulipiEngine($this->tenant->uuid, [
+        'kulipi.test/api/admin/rounds/7/bets*' => Http::response(['data' => [], 'meta' => ['limit' => 500, 'offset' => 0, 'total' => 0]]),
+        'kulipi.test/api/admin/rounds/7/verify' => Http::response(['message' => 'must not be called'], 500),
+        'kulipi.test/api/admin/rounds/7' => Http::response(['id' => 7, 'sequence' => 7, 'tenant_uuid' => $this->tenant->uuid, 'state' => 'SETTLED']),
+    ]);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/rounds/7')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('vrrr-pha/round-detail')->where('verify', null));
+    Http::assertNotSent(fn ($r) => str_contains($r->url(), '/verify'));
+});
+
+it('keeps the consoles for platform admins only', function () {
+    $tenantAdmin = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $tenantAdmin->assignRole('tenant_admin', $this->tenant->id);
+    foreach (['/kulipi-kuna/riding', '/kulipi-kuna/rtp', '/kulipi-kuna/ladder', '/kulipi-kuna/rounds'] as $url) {
+        $this->actingAs($tenantAdmin)->get($url)->assertForbidden();
+    }
 });

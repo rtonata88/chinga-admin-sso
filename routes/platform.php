@@ -5,10 +5,11 @@ use App\Http\Controllers\Admin\Games\FantasyRoundController;
 use App\Http\Controllers\Admin\Games\FantasySettingsController;
 use App\Http\Controllers\Admin\Games\FantasyTeamController;
 use App\Http\Controllers\Admin\Games\GameSettingsController;
+use App\Http\Controllers\Admin\Games\KulipiKunaConsoleController;
 use App\Http\Controllers\Admin\Games\VrrrPhaConsoleController;
 use App\Http\Controllers\Operator\LiveWagersController;
-use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\CompanyController;
+use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\GameController;
 use App\Http\Controllers\Platform\InvoiceController;
 use App\Http\Controllers\Platform\PlatformRoleManagementController;
@@ -92,6 +93,17 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('vrr
         ->name('rounds.show');
     Route::get('exposure', [VrrrPhaConsoleController::class, 'exposure'])->name('exposure');
     Route::get('rtp', [VrrrPhaConsoleController::class, 'rtp'])->name('rtp');
+});
+
+// Kulipi Kuna consoles (K4): rounds and RTP on the shared pages, riding by level, ladder verify.
+Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('kulipi-kuna')->name('kulipi-kuna.')->group(function () {
+    Route::get('rounds', [KulipiKunaConsoleController::class, 'rounds'])->name('rounds');
+    Route::get('rounds/{id}', [KulipiKunaConsoleController::class, 'round'])
+        ->whereNumber('id')
+        ->name('rounds.show');
+    Route::get('riding', [KulipiKunaConsoleController::class, 'riding'])->name('riding');
+    Route::get('rtp', [KulipiKunaConsoleController::class, 'rtp'])->name('rtp');
+    Route::get('ladder', [KulipiKunaConsoleController::class, 'ladder'])->name('ladder');
 });
 
 // Operator Console — trading desk views (Live Wagers Monitor first).

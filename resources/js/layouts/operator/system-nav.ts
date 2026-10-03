@@ -27,11 +27,13 @@ import {
     Gauge,
     History,
     Landmark,
+    Layers,
     LayoutGrid,
     LineChart,
     ListChecks,
     MapPin,
     Percent,
+    ShieldCheck,
     Ticket,
     Trophy,
     Users,
@@ -67,6 +69,13 @@ const GAME_EXTRAS: Record<string, NavLink[]> = {
         { label: 'Rounds', href: '/vrrr-pha/rounds', icon: LineChart },
         { label: 'Exposure', href: '/vrrr-pha/exposure', icon: Activity },
         { label: 'RTP', href: '/vrrr-pha/rtp', icon: Percent },
+    ],
+    // Kulipi Kuna consoles (K4): rounds, riding liability by level, realised RTP, ladder verify.
+    'kulipi-kuna': [
+        { label: 'Rounds', href: '/kulipi-kuna/rounds', icon: LineChart },
+        { label: 'Riding', href: '/kulipi-kuna/riding', icon: Layers },
+        { label: 'RTP', href: '/kulipi-kuna/rtp', icon: Percent },
+        { label: 'Verify ladder', href: '/kulipi-kuna/ladder', icon: ShieldCheck },
     ],
 };
 

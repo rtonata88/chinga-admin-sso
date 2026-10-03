@@ -45,8 +45,19 @@ abstract class ProvablyFairConsoleController extends Controller
         return ['one' => 'bet', 'many' => 'bets', 'paid_out_meta' => 'to cashed-out bets'];
     }
 
+    /**
+     * Round states whose seed audit can run. A game that verifies something
+     * other than a round (Kulipi Kuna verifies ladders) returns [].
+     *
+     * @return list<string>
+     */
+    protected function revealedStates(): array
+    {
+        return self::REVEALED;
+    }
+
     /** Props every console page reads to label and link itself. */
-    private function gameProps(): array
+    protected function gameProps(): array
     {
         return ['game' => ['name' => $this->gameName(), 'base' => $this->base(), 'terms' => $this->terms()]];
     }
@@ -64,8 +75,8 @@ abstract class ProvablyFairConsoleController extends Controller
             $rounds = $response['data'] ?? [];
             $total = $response['meta']['total'] ?? null;
         } catch (\Throwable $e) {
-            Log::warning('VrrrPha rounds failed', ['error' => $e->getMessage()]);
-            $error = 'Could not load rounds. Is the Vrrr Pha engine reachable?';
+            Log::warning($this->gameName().' rounds failed', ['error' => $e->getMessage()]);
+            $error = sprintf('Could not load rounds. Is the %s engine reachable?', $this->gameName());
         }
 
         return Inertia::render('vrrr-pha/rounds', $this->gameProps() + [
@@ -92,17 +103,17 @@ abstract class ProvablyFairConsoleController extends Controller
             $round = $this->client->getRound($id);
             $bets = $this->client->listRoundBets($id, 500, 0)['data'] ?? [];
         } catch (\Throwable $e) {
-            Log::warning('VrrrPha round failed', ['id' => $id, 'error' => $e->getMessage()]);
-            $error = 'Could not load the round. Is the Vrrr Pha engine reachable?';
+            Log::warning($this->gameName().' round failed', ['id' => $id, 'error' => $e->getMessage()]);
+            $error = sprintf('Could not load the round. Is the %s engine reachable?', $this->gameName());
         }
 
         // The audit only exists once the seeds are revealed; a failure here
         // must not take the round page down with it.
-        if ($round !== null && in_array($round['state'] ?? null, self::REVEALED, true)) {
+        if ($round !== null && in_array($round['state'] ?? null, $this->revealedStates(), true)) {
             try {
                 $verify = $this->client->verifyRound($id);
             } catch (\Throwable $e) {
-                Log::warning('VrrrPha verify failed', ['id' => $id, 'error' => $e->getMessage()]);
+                Log::warning($this->gameName().' verify failed', ['id' => $id, 'error' => $e->getMessage()]);
                 $verify = ['error' => 'The seed audit could not be run.'];
             }
         }
@@ -126,8 +137,8 @@ abstract class ProvablyFairConsoleController extends Controller
         try {
             $rows = $this->client->exposure($tenantUuid)['data'] ?? [];
         } catch (\Throwable $e) {
-            Log::warning('VrrrPha exposure failed', ['error' => $e->getMessage()]);
-            $error = 'Could not load exposure. Is the Vrrr Pha engine reachable?';
+            Log::warning($this->gameName().' exposure failed', ['error' => $e->getMessage()]);
+            $error = sprintf('Could not load exposure. Is the %s engine reachable?', $this->gameName());
         }
 
         return Inertia::render('vrrr-pha/exposure', $this->gameProps() + [
@@ -152,8 +163,8 @@ abstract class ProvablyFairConsoleController extends Controller
             $rtp = $this->client->rtp($tenantUuid, $from->toIso8601String(), $to->toIso8601String());
             $days = $this->client->statsByDay($tenantUuid, $from->toIso8601String(), $to->toIso8601String())['days'] ?? [];
         } catch (\Throwable $e) {
-            Log::warning('VrrrPha rtp failed', ['error' => $e->getMessage()]);
-            $error = 'Could not load RTP. Is the Vrrr Pha engine reachable?';
+            Log::warning($this->gameName().' rtp failed', ['error' => $e->getMessage()]);
+            $error = sprintf('Could not load RTP. Is the %s engine reachable?', $this->gameName());
         }
 
         return Inertia::render('vrrr-pha/rtp', $this->gameProps() + [
@@ -170,7 +181,7 @@ abstract class ProvablyFairConsoleController extends Controller
     }
 
     /** A tenant filter is a uuid or nothing; anything else is dropped rather than forwarded. */
-    private function tenantUuid(Request $request): ?string
+    protected function tenantUuid(Request $request): ?string
     {
         $raw = (string) $request->query('tenant_uuid', '');
 
@@ -207,13 +218,13 @@ abstract class ProvablyFairConsoleController extends Controller
         }
     }
 
-    private function tenants(): array
+    protected function tenants(): array
     {
         return Tenant::query()->where('status', 'active')->orderBy('name')->get(['uuid', 'name', 'slug'])->all();
     }
 
     /** @return array<string, string> uuid → name, for labelling engine rows that only carry the uuid */
-    private function tenantNames(): array
+    protected function tenantNames(): array
     {
         return Tenant::query()->pluck('name', 'uuid')->all();
     }

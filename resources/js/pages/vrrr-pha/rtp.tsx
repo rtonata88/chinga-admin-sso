@@ -15,6 +15,7 @@ import { ERROR_BOX, PANEL, SELECT_RESET, TAP, formatNAD, formatRatioPct, num } f
 interface Rtp {
     period: { from: string; to: string; tenant_uuid: string | null };
     bets_placed: number;
+    depth_histogram?: { level: number; ladders: number }[];
     rounds: number;
     total_wagered: string;
     total_paid_out: string;
@@ -223,6 +224,32 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                     </div>
                 </div>
 
+                {rtp?.depth_histogram && rtp.depth_histogram.length > 0 && (
+                    <div data-testid="depth-histogram" className="cgo-table-wrap" style={{ marginTop: 18, borderRadius: 8 }}>
+                        <table className="cgo-wagers">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: 140 }}>Ended at level</th>
+                                    <th className="cgo-r" style={{ width: 140 }}>{(game.terms ?? BET_TERMS).many}</th>
+                                    <th className="cgo-r" style={{ width: 120 }}>Share</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(() => {
+                                    const total = rtp.depth_histogram.reduce((s, d) => s + d.ladders, 0);
+                                    return rtp.depth_histogram.map((d) => (
+                                        <tr key={d.level}>
+                                            <td><span className="cgo-name" style={{ fontFamily: 'var(--cg-mono)' }}>{d.level}</span></td>
+                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(d.ladders)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-odds">{total > 0 ? formatRatioPct(d.ladders / total) : '—'}</span></td>
+                                        </tr>
+                                    ));
+                                })()}
+                            </tbody>
+                        </table>
+                        <div className="cgo-table-foot"><span>How deep finished {(game.terms ?? BET_TERMS).many} went: the level each collected at or lost on.</span></div>
+                    </div>
+                )}
                 <section style={{ ...PANEL, marginTop: 18, fontSize: 13, color: 'var(--cg-fg-2)', lineHeight: 1.5 }}>
                     <div className="cgo-eyebrow" style={{ marginBottom: 6 }}>Reading this page</div>
                     Realised RTP converges on the theoretical figure only over a large sample. A few hundred bets can sit several points either side of it without anything being wrong; the deviation reads red only once the window holds at least a thousand bets and sits three or more points away. A persistent gap on a large sample is the signal to audit rounds.
