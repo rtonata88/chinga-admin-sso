@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Games;
 use App\Http\Controllers\Controller;
 use App\Models\Game;
 use App\Models\Tenant;
+use App\Services\GameSettingsAuditor;
 use App\Support\FantasySettingsSchema;
 use App\Support\SettingsSchema;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,7 @@ use Inertia\Response;
  */
 class GameSettingsController extends Controller
 {
-    public function index(Game $game): Response
+    public function index(Game $game, GameSettingsAuditor $auditor): Response
     {
         $schema = SettingsSchema::fromGame($game);
 
@@ -56,14 +57,16 @@ class GameSettingsController extends Controller
             ],
             'schema' => $game->settings_schema ?? ['type' => 'object', 'properties' => (object) []],
             'tenants' => $tenants,
+            'audits' => $auditor->recent($game),
         ]);
     }
 
-    public function updateGlobal(Request $request, Game $game): RedirectResponse
+    public function updateGlobal(Request $request, Game $game, GameSettingsAuditor $auditor): RedirectResponse
     {
         $schema = SettingsSchema::fromGame($game);
         $validated = $request->validate($schema->rules());
         $next = self::withoutNulls($validated);
+        $beforeSettings = $game->settings ?? [];
 
         // PRD §11 admin guardrails: the theoretical RTP is computed on every save and every
         // change of it is logged with before and after. The allowed band is the schema's
@@ -83,13 +86,14 @@ class GameSettingsController extends Controller
 
         // Full replace, restricted to schema keys; a null means "unset".
         $game->update(['settings' => $next]);
+        $auditor->record($game, null, $request->user(), $beforeSettings, $next, $before, $after);
 
         $note = $after === null ? '' : sprintf(' Theoretical RTP is now %.2f%%.', $after * 100);
 
         return redirect()->back()->with('success', 'Global settings updated.'.$note);
     }
 
-    public function updateTenant(Request $request, Game $game, string $tenantUuid): RedirectResponse
+    public function updateTenant(Request $request, Game $game, string $tenantUuid, GameSettingsAuditor $auditor): RedirectResponse
     {
         $schema = SettingsSchema::fromGame($game);
         $tenant = Tenant::where('uuid', $tenantUuid)->firstOrFail();
@@ -104,10 +108,25 @@ class GameSettingsController extends Controller
         // empty field means "inherit the global default".
         $overrides = self::withoutNulls($validated['custom_settings'] ?? []);
 
+        $pivot = $game->tenants()->where('tenants.id', $tenant->id)->first()?->pivot;
+        $beforeTenant = ['enabled' => (bool) ($pivot?->enabled ?? true), 'custom_settings' => $pivot?->custom_settings ?? []];
+
         $game->tenants()->updateExistingPivot($tenant->id, [
             'enabled' => $validated['enabled'] ?? true,
             'custom_settings' => $overrides === [] ? null : $overrides,
         ]);
+
+        $afterTenant = ['enabled' => (bool) ($validated['enabled'] ?? true), 'custom_settings' => $overrides];
+        $global = $game->settings ?? [];
+        $auditor->record(
+            $game,
+            $tenant,
+            $request->user(),
+            $beforeTenant,
+            $afterTenant,
+            FantasySettingsSchema::rtp(array_merge($global, $beforeTenant['custom_settings'])),
+            FantasySettingsSchema::rtp(array_merge($global, $overrides)),
+        );
 
         return redirect()->back()->with('success', "Settings updated for {$tenant->name}.");
     }

@@ -28,10 +28,22 @@ interface TenantConfig {
     custom_settings: SettingsValues;
 }
 
+interface AuditRow {
+    id: number;
+    at: string;
+    by: string | null;
+    scope: 'global' | 'tenant';
+    tenant: string | null;
+    changes: { key: string; before: unknown; after: unknown }[];
+    rtp_before: number | null;
+    rtp_after: number | null;
+}
+
 interface Props {
     game: { uuid: string; name: string; slug: string; settings: SettingsValues; theoretical_rtp?: number | null; expected_winners?: number | null; grid_size?: number | null };
     schema: SettingsSchema;
     tenants: TenantConfig[];
+    audits?: AuditRow[];
 }
 
 function sparse(values: SettingsValues): SettingsValues {
@@ -42,7 +54,7 @@ function sparse(values: SettingsValues): SettingsValues {
     return out;
 }
 
-export default function GameSettings({ game, schema, tenants }: Props) {
+export default function GameSettings({ game, schema, tenants, audits = [] }: Props) {
     const [globalSettings, setGlobalSettings] = useState<SettingsValues>(game.settings || {});
     const [tenantStates, setTenantStates] = useState<Record<string, { enabled: boolean; settings: SettingsValues }>>(
         () => {
@@ -325,6 +337,45 @@ export default function GameSettings({ game, schema, tenants }: Props) {
                         </div>
                     </PanelShell>
                 )}
+
+                <PanelShell title="History" description={<>The latest settings changes for this game, newest first. Every save is recorded with the RTP before and after.</>}>
+                    {audits.length === 0 ? (
+                        <div style={{ fontSize: 13, color: 'var(--cg-fg-3)' }}>No changes recorded yet.</div>
+                    ) : (
+                        <table className="cgo-wagers" data-testid="settings-history">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: 170 }}>When</th>
+                                    <th style={{ width: 160 }}>Who</th>
+                                    <th style={{ width: 170 }}>Where</th>
+                                    <th>What changed</th>
+                                    <th className="cgo-r" style={{ width: 150 }}>RTP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {audits.map((a) => (
+                                    <tr key={a.id}>
+                                        <td><span className="cgo-uid">{new Date(a.at).toLocaleString('en-GB')}</span></td>
+                                        <td>{a.by ?? '—'}</td>
+                                        <td>{a.scope === 'global' ? 'All tenants' : (a.tenant ?? 'A tenant')}</td>
+                                        <td style={{ fontSize: 12 }}>
+                                            {a.changes.map((c) => (
+                                                <div key={c.key}>
+                                                    <span className="cgo-uid">{c.key}</span> {JSON.stringify(c.before) ?? '—'} → {JSON.stringify(c.after) ?? '—'}
+                                                </div>
+                                            ))}
+                                        </td>
+                                        <td className="cgo-r">
+                                            {a.rtp_before === a.rtp_after
+                                                ? a.rtp_after === null ? '—' : `${(a.rtp_after * 100).toFixed(2)}%`
+                                                : `${a.rtp_before === null ? '—' : (a.rtp_before * 100).toFixed(2) + '%'} → ${a.rtp_after === null ? '—' : (a.rtp_after * 100).toFixed(2) + '%'}`}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </PanelShell>
             </div>
 
         </UserLayout>
