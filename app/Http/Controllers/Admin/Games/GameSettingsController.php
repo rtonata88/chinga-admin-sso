@@ -7,10 +7,12 @@ use App\Models\Game;
 use App\Models\Tenant;
 use App\Services\GameSettingsAuditor;
 use App\Support\FantasySettingsSchema;
+use App\Support\KulipiKunaConfigRules;
 use App\Support\SettingsSchema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -66,6 +68,22 @@ class GameSettingsController extends Controller
         $schema = SettingsSchema::fromGame($game);
         $validated = $request->validate($schema->rules());
         $next = self::withoutNulls($validated);
+
+        if ($game->slug === KulipiKunaConfigRules::GAME_SLUG) {
+            $errors = KulipiKunaConfigRules::violations($next);
+            if ($errors === []) {
+                foreach ($game->tenants()->get() as $t) {
+                    $overrides = $t->pivot->custom_settings ?? [];
+                    foreach (KulipiKunaConfigRules::violations(array_merge($next, is_array($overrides) ? $overrides : [])) as $key => $message) {
+                        $errors[$key] ??= "{$t->name}'s overrides would break this: {$message}";
+                    }
+                }
+            }
+            if ($errors !== []) {
+                throw ValidationException::withMessages($errors);
+            }
+        }
+
         $beforeSettings = $game->settings ?? [];
 
         // PRD §11 admin guardrails: the theoretical RTP is computed on every save and every
@@ -107,6 +125,15 @@ class GameSettingsController extends Controller
         // Overrides stay sparse: only keys with a value are stored, so an
         // empty field means "inherit the global default".
         $overrides = self::withoutNulls($validated['custom_settings'] ?? []);
+
+        if ($game->slug === KulipiKunaConfigRules::GAME_SLUG) {
+            $errors = KulipiKunaConfigRules::violations(array_merge($game->settings ?? [], $overrides));
+            if ($errors !== []) {
+                throw ValidationException::withMessages(
+                    collect($errors)->mapWithKeys(fn ($m, $k) => ["custom_settings.{$k}" => $m])->all()
+                );
+            }
+        }
 
         $pivot = $game->tenants()->where('tenants.id', $tenant->id)->first()?->pivot;
         $beforeTenant = ['enabled' => (bool) ($pivot?->enabled ?? true), 'custom_settings' => $pivot?->custom_settings ?? []];

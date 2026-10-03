@@ -1,0 +1,12 @@
+{
+  "comment": "Shared Kulipi Kuna save-rule cases. The SSO keeps a verbatim copy at tests/Fixtures/kulipi-config-cases.json; change both together.",
+  "cases": [
+    { "name": "launch defaults", "settings": { "house_edge": 0.04, "hard_level_cap": 10, "max_win_per_ladder": 16000, "min_bet_amount": 5, "max_bet_amount": 50 }, "valid": true, "messageContains": null },
+    { "name": "min above max", "settings": { "house_edge": 0.04, "hard_level_cap": 10, "max_win_per_ladder": 16000, "min_bet_amount": 60, "max_bet_amount": 50 }, "valid": false, "messageContains": "min_bet_amount" },
+    { "name": "max win below level 1 at the max bet (1.92 × 50 = 96)", "settings": { "house_edge": 0.04, "hard_level_cap": 10, "max_win_per_ladder": 95, "min_bet_amount": 5, "max_bet_amount": 50 }, "valid": false, "messageContains": "max_win_per_ladder" },
+    { "name": "max win exactly level 1 at the max bet", "settings": { "house_edge": 0.04, "hard_level_cap": 10, "max_win_per_ladder": 96, "min_bet_amount": 5, "max_bet_amount": 50 }, "valid": true, "messageContains": null },
+    { "name": "10% edge: 1.80 × 50 = 90 fits exactly", "settings": { "house_edge": 0.1, "hard_level_cap": 10, "max_win_per_ladder": 90, "min_bet_amount": 5, "max_bet_amount": 50 }, "valid": true, "messageContains": null },
+    { "name": "level cap above 10", "settings": { "house_edge": 0.04, "hard_level_cap": 11, "max_win_per_ladder": 16000, "min_bet_amount": 5, "max_bet_amount": 50 }, "valid": false, "messageContains": "hard_level_cap" },
+    { "name": "level cap of 1", "settings": { "house_edge": 0.04, "hard_level_cap": 1, "max_win_per_ladder": 16000, "min_bet_amount": 5, "max_bet_amount": 50 }, "valid": true, "messageContains": null }
+  ]
+}

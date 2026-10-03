@@ -12,6 +12,7 @@ import { Toast } from 'primereact/toast';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { FieldLabel, PanelShell } from '@/components/games/panels';
+import { depthRows } from './kulipi-depth';
 import {
     SchemaForm,
     keysInGroup,
@@ -143,7 +144,7 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                             <div className="cgo-stat-strip">
                                 {typeof game.theoretical_rtp === 'number' && (
                                     <div className="cgo-stat" data-testid="theoretical-rtp">
-                                        <div className="cgo-stat-label">Theoretical RTP</div>
+                                        <div className="cgo-stat-label">{game.slug === 'kulipi-kuna' ? 'Return to player at every level' : 'Theoretical RTP'}</div>
                                         <div className="cgo-stat-value">{(game.theoretical_rtp * 100).toFixed(2)}%</div>
                                         <div className="cgo-stat-note">House edge is the only setting that changes it.</div>
                                     </div>
@@ -160,6 +161,30 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+                        {game.slug === 'kulipi-kuna' && (
+                            <div data-testid="kulipi-depth" style={{ marginTop: 14 }}>
+                                <div className="cgo-stat-label" style={{ marginBottom: 6 }}>How deep each stake can climb</div>
+                                <table className="cgo-wagers" style={{ maxWidth: 520 }}>
+                                    <thead>
+                                        <tr>
+                                            <th>Stake</th>
+                                            <th className="cgo-r">Deepest level</th>
+                                            <th className="cgo-r">That level pays</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {depthRows(globalSettings).map((r) => (
+                                            <tr key={r.stake}>
+                                                <td>N${r.stake}</td>
+                                                <td className="cgo-r">{r.depth === 0 ? 'none' : r.depth}</td>
+                                                <td className="cgo-r">{r.pays}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <div className="cgo-stat-note">Updates as you edit. A ladder&apos;s depth is fixed when it starts; a payout is never cut.</div>
                             </div>
                         )}
                     </div>
