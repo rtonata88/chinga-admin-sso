@@ -36,7 +36,7 @@ function kulipiEngine(string $tenantUuid, array $overrides = []): void
     Http::fake(array_merge([
         'sso.test/oauth/token' => Http::response(['access_token' => 'tok', 'expires_in' => 600]),
         'kulipi.test/api/admin/riding*' => Http::response([
-            'tenant_uuid' => $tenantUuid, 'total_riding' => '20160.00', 'cap' => '25000.00', 'used' => '0.8064', 'alert' => true,
+            'tenant_uuid' => $tenantUuid, 'total_riding' => '20160.00', 'cap' => '25000.00', 'used' => '0.8064', 'alert' => true, 'held_credits' => 2,
             'levels' => [
                 ['level' => 1, 'ladders' => 40, 'riding' => '7680.00'],
                 ['level' => 2, 'ladders' => 20, 'riding' => '7680.00'],
@@ -123,6 +123,13 @@ it('renders riding by level for a tenant, with the 80% alert', function () {
             ->has('riding.levels', 3)
             ->where('filters.tenant_uuid', $this->tenant->uuid)
             ->where('error', null));
+});
+
+it('shows how many credits are held for reconciliation', function () {
+    kulipiEngine($this->tenant->uuid);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/riding?tenant_uuid='.$this->tenant->uuid)
+        ->assertInertia(fn (Assert $page) => $page->where('riding.held_credits', 2));
 });
 
 it('asks the engine for all tenants when none is picked, and never forwards a slug', function () {

@@ -18,6 +18,7 @@ interface Riding {
     cap: string | null;
     used: string | null;
     alert: boolean;
+    held_credits?: number;
     levels: { level: number; ladders: number; riding: string }[];
 }
 
@@ -92,6 +93,13 @@ export default function RidingPage({ game, riding, tenants = [], filters, fetche
                 {riding?.alert && (
                     <div data-testid="riding-alert" style={{ ...ERROR_BOX, borderColor: 'var(--cg-neg)' }}>
                         Riding is at {formatRatioPct(riding.used, 0)} of this tenant&apos;s cap. New ladders are refused once it is reached; continues never are.
+                    </div>
+                )}
+
+                {(riding?.held_credits ?? 0) > 0 && (
+                    <div data-testid="held-credits" style={ERROR_BOX}>
+                        <strong style={{ color: 'var(--cg-neg)' }}>{riding?.held_credits} held credit{riding?.held_credits === 1 ? '' : 's'}:</strong>{' '}
+                        winnings the engine stopped retrying after 8 attempts. Reconcile each by its kk_win_ reference in the wallet ledger.
                     </div>
                 )}
 
