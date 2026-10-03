@@ -30,10 +30,12 @@ interface Props {
     game: { name: string; base: string };
     ladderId: number | null;
     result: Result | null;
+    /** True when the ladder has no revealed level yet: nothing to verify, no verdict. */
+    pending?: boolean;
     error: string | null;
 }
 
-export default function LadderVerifyPage({ game, ladderId, result, error }: Props) {
+export default function LadderVerifyPage({ game, ladderId, result, pending = false, error }: Props) {
     const [id, setId] = useState(ladderId === null ? '' : String(ladderId));
     const submit = (e: { preventDefault: () => void }) => {
         e.preventDefault();
@@ -72,11 +74,15 @@ export default function LadderVerifyPage({ game, ladderId, result, error }: Prop
                 {result && (
                     <section data-testid="ladder-verify" style={{ ...PANEL, marginTop: 18 }}>
                         <div className="cgo-eyebrow" style={{ marginBottom: 6 }}>Ladder #{result.ladder_id}</div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: result.valid ? 'var(--cg-pos)' : 'var(--cg-neg)' }}>
-                            {result.valid ? `Verified: all ${result.steps} revealed levels match their seeds and commitments.` : `${result.mismatches.length} mismatch${result.mismatches.length === 1 ? '' : 'es'} found.`}
-                        </div>
+                        {pending || result.steps === 0 ? (
+                            <div style={{ fontSize: 15, fontWeight: 600 }}>Nothing revealed yet for this ladder.</div>
+                        ) : (
+                            <div style={{ fontSize: 15, fontWeight: 600, color: result.valid ? 'var(--cg-pos)' : 'var(--cg-neg)' }}>
+                                {result.valid ? `Verified: all ${result.steps} revealed levels match their seeds and commitments.` : `${result.mismatches.length} mismatch${result.mismatches.length === 1 ? '' : 'es'} found.`}
+                            </div>
+                        )}
                         <div className="cgo-uid" style={{ marginTop: 6 }}>Player {result.user_uuid}</div>
-                        {result.mismatches.length > 0 && (
+                        {!(pending || result.steps === 0) && result.mismatches.length > 0 && (
                             <table className="cgo-wagers" style={{ marginTop: 12 }}>
                                 <thead>
                                     <tr>

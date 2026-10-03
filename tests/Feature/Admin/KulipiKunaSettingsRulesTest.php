@@ -76,3 +76,25 @@ it('leaves other games alone', function () {
         ->put("/platform/games/{$other->uuid}/settings/global", ['min_bet_amount' => 60, 'max_bet_amount' => 50])
         ->assertSessionHasNoErrors();
 });
+
+/** Runs resources/js/pages/games/kulipi-depth.ts under node (type stripping) and returns depthRows for each settings set. */
+function depthPreview(array ...$settings): array
+{
+    $module = base_path('resources/js/pages/games/kulipi-depth.ts');
+    $script = 'import { depthRows } from '.json_encode('file://'.$module).'; const cases = JSON.parse(process.argv[1]);'
+        .' const t = Date.now(); const out = cases.map((c) => depthRows(c).length); console.log(JSON.stringify({ out, ms: Date.now() - t }));';
+    $process = new \Symfony\Component\Process\Process(['node', '--no-warnings', '--input-type=module', '-e', $script, json_encode($settings)]);
+    $process->mustRun();
+
+    return json_decode(trim($process->getOutput()), true);
+}
+
+it('draws no depth preview for an off-grid edge or a stake range too wide to list', function () {
+    $result = depthPreview(
+        kulipiSettings(),
+        kulipiSettings(['house_edge' => 0.043]),
+        kulipiSettings(['max_bet_amount' => 5000000, 'max_win_per_ladder' => 100000000]),
+        kulipiSettings(['max_bet_amount' => 1005, 'max_win_per_ladder' => 2000000]),
+    );
+    expect($result['out'])->toBe([10, 0, 0, 201]);
+});

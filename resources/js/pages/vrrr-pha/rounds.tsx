@@ -56,6 +56,8 @@ interface GameProps {
     name: string;
     base: string;
     terms?: Terms;
+    /** 'crash' rounds have a crash point; 'ladder' rounds (Kulipi Kuna) do not. Defaults to 'crash'. */
+    kind?: 'crash' | 'ladder';
 }
 
 interface Props {
@@ -79,6 +81,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
     };
 
     const isEmpty = rounds.length === 0;
+    const crash = (game.kind ?? 'crash') === 'crash';
     const page = filters?.page ?? 1;
     const perPage = filters?.per_page ?? 25;
     const total = filters?.total ?? null;
@@ -106,7 +109,9 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                         <div className="cgo-eyebrow">{game.name}</div>
                         <h1 className="cgo-title">Rounds</h1>
                         <div className="cgo-subtitle">
-                            Round history — crash points, bets, and the seed audit for every settled round.
+                            {crash
+                                ? 'Round history — crash points, bets, and the seed audit for every settled round.'
+                                : `Round history — the ${(game.terms ?? BET_TERMS).many} placed in every round.`}
                         </div>
                     </div>
                 </div>
@@ -167,7 +172,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                                 <th style={{ width: 90 }}>Round</th>
                                 <th style={{ width: 180 }}>Opened</th>
                                 <th style={{ width: 160 }}>Tenant</th>
-                                <th className="cgo-r" style={{ width: 100 }}>Crash</th>
+                                {crash && <th className="cgo-r" style={{ width: 100 }}>Crash</th>}
                                 <th className="cgo-r" style={{ width: 70 }}>Bets</th>
                                 <th className="cgo-r" style={{ width: 130 }}>Wagered</th>
                                 <th className="cgo-r" style={{ width: 130 }}>Paid out</th>
@@ -179,7 +184,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                         <tbody>
                             {isEmpty ? (
                                 <tr>
-                                    <td colSpan={10} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
+                                    <td colSpan={crash ? 10 : 9} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
                                         No rounds match the current filters.
                                     </td>
                                 </tr>
@@ -200,11 +205,13 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                                             </td>
                                             <td><span className="cgo-uid">{formatDateTime(r.opened_at)}</span></td>
                                             <td>{tenantLabel(r.tenant_uuid, tenantNames)}</td>
-                                            <td className="cgo-r">
-                                                <span className="cgo-odds" style={{ color: r.crash_point === null ? 'var(--cg-fg-3)' : undefined }}>
-                                                    {r.crash_point === null ? 'in play' : formatMultiplier(r.crash_point)}
-                                                </span>
-                                            </td>
+                                            {crash && (
+                                                <td className="cgo-r">
+                                                    <span className="cgo-odds" style={{ color: r.crash_point === null ? 'var(--cg-fg-3)' : undefined }}>
+                                                        {r.crash_point === null ? 'in play' : formatMultiplier(r.crash_point)}
+                                                    </span>
+                                                </td>
+                                            )}
                                             <td className="cgo-r"><span className="cgo-odds">{formatCount(r.bet_count)}</span></td>
                                             <td className="cgo-r">
                                                 <span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(wagered)}</span>

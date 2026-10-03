@@ -59,6 +59,10 @@ function kulipiEngine(string $tenantUuid, array $overrides = []): void
             'ladder_id' => 42, 'user_uuid' => '5fbaab9c-013f-427d-81ea-4be1ed8713de', 'steps' => 1, 'valid' => false,
             'mismatches' => [['roundId' => 7, 'level' => 1, 'field' => 'objectHand', 'expected' => 'left', 'published' => 'right']],
         ]),
+        'kulipi.test/api/admin/ladders/43/verify' => Http::response([
+            'ladder_id' => 43, 'user_uuid' => '5fbaab9c-013f-427d-81ea-4be1ed8713de', 'steps' => 0, 'valid' => false,
+            'mismatches' => [['roundId' => null, 'level' => null, 'field' => 'sequence', 'expected' => '1', 'published' => '0']],
+        ]),
         'kulipi.test/api/admin/ladders/404/verify' => Http::response(['message' => 'ladder not found'], 404),
     ], $overrides));
 }
@@ -157,16 +161,53 @@ it('verifies a ladder by id, and says plainly when it does not exist', function 
         ->assertInertia(fn (Assert $page) => $page->component('kulipi-kuna/ladder')->where('ladderId', null)->where('result', null));
     $this->actingAs($this->platformAdmin)
         ->get('/kulipi-kuna/ladder?id=41')
-        ->assertInertia(fn (Assert $page) => $page->where('ladderId', 41)->where('result.valid', true)->where('error', null));
+        ->assertInertia(fn (Assert $page) => $page->where('ladderId', 41)->where('result.valid', true)->where('pending', false)->where('error', null));
     $this->actingAs($this->platformAdmin)
         ->get('/kulipi-kuna/ladder?id=42')
-        ->assertInertia(fn (Assert $page) => $page->where('result.valid', false)->has('result.mismatches', 1));
+        ->assertInertia(fn (Assert $page) => $page->where('result.valid', false)->where('pending', false)->has('result.mismatches', 1));
     $this->actingAs($this->platformAdmin)
         ->get('/kulipi-kuna/ladder?id=404')
         ->assertInertia(fn (Assert $page) => $page->where('result', null)->where('error', 'Ladder #404 was not found.'));
     $this->actingAs($this->platformAdmin)
         ->get('/kulipi-kuna/ladder?id=abc')
         ->assertInertia(fn (Assert $page) => $page->where('ladderId', null));
+});
+
+it('marks a ladder with nothing revealed yet as pending, not as a mismatch', function () {
+    kulipiEngine($this->tenant->uuid);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/ladder?id=43')
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('result.steps', 0)
+            ->where('pending', true)
+            ->where('error', null));
+});
+
+it('keeps the tenant filter when a tenant has no round yet, so the page can say why there is no cap', function () {
+    kulipiEngine($this->tenant->uuid, [
+        'kulipi.test/api/admin/riding*' => Http::response([
+            'tenant_uuid' => $this->tenant->uuid, 'total_riding' => '0.00', 'cap' => null, 'used' => null, 'alert' => false, 'levels' => [],
+        ]),
+    ]);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/riding?tenant_uuid='.$this->tenant->uuid)
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.tenant_uuid', $this->tenant->uuid)
+            ->where('riding.cap', null));
+});
+
+it('tells the shared rounds pages its rounds are ladder rounds, without crash fields', function () {
+    kulipiEngine($this->tenant->uuid, [
+        'kulipi.test/api/admin/rounds/7/bets*' => Http::response(['data' => [], 'meta' => ['limit' => 500, 'offset' => 0, 'total' => 0]]),
+        'kulipi.test/api/admin/rounds/7' => Http::response(['id' => 7, 'sequence' => 7, 'tenant_uuid' => $this->tenant->uuid, 'state' => 'SETTLED']),
+        'kulipi.test/api/admin/rounds*' => Http::response(['data' => [], 'meta' => ['limit' => 25, 'offset' => 0, 'total' => 0]]),
+    ]);
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/rounds')
+        ->assertInertia(fn (Assert $page) => $page->component('vrrr-pha/rounds')->where('game.kind', 'ladder'));
+    $this->actingAs($this->platformAdmin)
+        ->get('/kulipi-kuna/rounds/7')
+        ->assertInertia(fn (Assert $page) => $page->component('vrrr-pha/round-detail')->where('game.kind', 'ladder'));
 });
 
 it('serves RTP through the shared page with the ladder nouns and the depth histogram', function () {

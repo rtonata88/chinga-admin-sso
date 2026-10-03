@@ -81,11 +81,11 @@ export default function RidingPage({ game, riding, tenants = [], filters, fetche
                 <div className="cgo-kpis">
                     <KpiCard label="Riding" value={formatCurrencyCompact(num(riding?.total_riding))} brass meta="value of every live ladder" />
                     <KpiCard label="Live ladders" value={formatCount(ladders)} meta="across all levels" />
-                    <KpiCard label="Cap" value={riding?.cap ? formatCurrencyCompact(num(riding.cap)) : '—'} meta={riding?.cap ? 'max total riding per round' : 'pick a tenant: the cap is per tenant'} />
+                    <KpiCard label="Cap" value={riding?.cap ? formatCurrencyCompact(num(riding.cap)) : '—'} meta={riding?.cap ? 'max total riding per round' : filters?.tenant_uuid ? 'No round yet for this tenant, so no cap to compare against.' : 'pick a tenant: the cap is per tenant'} />
                     <KpiCard
                         label="Cap used"
                         value={riding?.used ? formatRatioPct(riding.used, 0) : '—'}
-                        meta={riding?.cap ? (riding.alert ? 'at or above 80%: new ladders will soon be refused' : 'below 80%') : 'no cap without a tenant'}
+                        meta={riding?.cap ? (riding.alert ? 'at or above 80%: new ladders will soon be refused' : 'below 80%') : filters?.tenant_uuid ? 'no round yet for this tenant' : 'no cap without a tenant'}
                     />
                 </div>
 

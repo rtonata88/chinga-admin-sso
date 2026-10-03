@@ -36,6 +36,11 @@ class KulipiKunaConsoleController extends ProvablyFairConsoleController
         return ['one' => 'ladder', 'many' => 'ladders', 'paid_out_meta' => 'to collected ladders'];
     }
 
+    protected function kind(): string
+    {
+        return 'ladder';
+    }
+
     protected function revealedStates(): array
     {
         return [];
@@ -84,6 +89,9 @@ class KulipiKunaConsoleController extends ProvablyFairConsoleController
         return Inertia::render('kulipi-kuna/ladder', $this->gameProps() + [
             'ladderId' => $id,
             'result' => $result,
+            // A ladder with no revealed level yet has nothing to verify: the engine
+            // reports a sequence mismatch for it, which is not a verdict.
+            'pending' => $result !== null && (int) ($result['steps'] ?? 0) === 0,
             'error' => $error,
         ]);
     }

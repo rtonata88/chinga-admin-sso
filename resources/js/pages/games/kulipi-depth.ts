@@ -28,13 +28,19 @@ function nad(cents: number): string {
     return `N$${whole}.${String(cents % 100).padStart(2, '0')}`;
 }
 
+/** More stake tiers than this and the preview is not drawn. */
+export const MAX_TIERS = 200;
+
 export function depthRows(settings: Record<string, unknown>): DepthRow[] {
     const edgeMil = Math.round(num(settings.house_edge, 0.04) * 1000);
     const cap = Math.trunc(num(settings.hard_level_cap, 10));
     const maxWinCents = Math.trunc(num(settings.max_win_per_ladder, 16000)) * 100;
     const min = Math.trunc(num(settings.min_bet_amount, 5));
     const max = Math.trunc(num(settings.max_bet_amount, 50));
-    if (edgeMil < 20 || edgeMil > 100 || cap < 1 || cap > 10 || min < 1 || max < min) return [];
+    // The engine only accepts an edge on the 0.005 grid, so an off-grid edge
+    // has no depth table; and a huge typed max must not build a million rows.
+    if (edgeMil < 20 || edgeMil > 100 || edgeMil % 5 !== 0 || cap < 1 || cap > 10 || min < 1 || max < min) return [];
+    if ((max - min) / 5 > MAX_TIERS) return [];
 
     const tiers = new Set<number>([min, max]);
     for (let s = Math.ceil(min / 5) * 5; s < max; s += 5) if (s > min) tiers.add(s);

@@ -114,6 +114,7 @@ test('the rounds console lists the engine rounds and filters tenants by uuid onl
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('vrrr-pha/rounds')
+            ->where('game.kind', 'crash')
             ->has('rounds', 2)
             ->where('rounds.0.state', 'PULLING')
             ->where('rounds.0.crash_point', null)

@@ -56,10 +56,22 @@ abstract class ProvablyFairConsoleController extends Controller
         return self::REVEALED;
     }
 
+    /**
+     * What a round looks like on the shared rounds pages: 'crash' rounds carry a
+     * crash point, growth rate and pulling/crashed times; 'ladder' rounds do not,
+     * and the pages leave those fields out.
+     *
+     * @return 'crash'|'ladder'
+     */
+    protected function kind(): string
+    {
+        return 'crash';
+    }
+
     /** Props every console page reads to label and link itself. */
     protected function gameProps(): array
     {
-        return ['game' => ['name' => $this->gameName(), 'base' => $this->base(), 'terms' => $this->terms()]];
+        return ['game' => ['name' => $this->gameName(), 'base' => $this->base(), 'terms' => $this->terms(), 'kind' => $this->kind()]];
     }
 
     public function rounds(Request $request): Response

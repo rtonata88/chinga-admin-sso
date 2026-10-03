@@ -57,6 +57,7 @@ function sparse(values: SettingsValues): SettingsValues {
 
 export default function GameSettings({ game, schema, tenants, audits = [] }: Props) {
     const [globalSettings, setGlobalSettings] = useState<SettingsValues>(game.settings || {});
+    const kulipiDepth = game.slug === 'kulipi-kuna' ? depthRows(globalSettings) : [];
     const [tenantStates, setTenantStates] = useState<Record<string, { enabled: boolean; settings: SettingsValues }>>(
         () => {
             const state: Record<string, { enabled: boolean; settings: SettingsValues }> = {};
@@ -175,7 +176,12 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {depthRows(globalSettings).map((r) => (
+                                        {kulipiDepth.length === 0 && (
+                                            <tr>
+                                                <td colSpan={3}>No preview: the settings as typed are outside the rules, or span too many stake tiers.</td>
+                                            </tr>
+                                        )}
+                                        {kulipiDepth.map((r) => (
                                             <tr key={r.stake}>
                                                 <td>N${r.stake}</td>
                                                 <td className="cgo-r">{r.depth === 0 ? 'none' : r.depth}</td>

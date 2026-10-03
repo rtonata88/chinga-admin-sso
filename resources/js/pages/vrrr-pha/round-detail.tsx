@@ -79,6 +79,8 @@ interface GameProps {
     name: string;
     base: string;
     terms?: Terms;
+    /** 'crash' rounds have a crash point, growth rate and pulling/crashed times; 'ladder' rounds (Kulipi Kuna) do not. Defaults to 'crash'. */
+    kind?: 'crash' | 'ladder';
 }
 
 interface Props {
@@ -131,7 +133,8 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
     }
 
     const state = statePill(round.state);
-    const revealed = round.crash_point !== undefined;
+    const crash = (game.kind ?? 'crash') === 'crash';
+    const revealed = crash ? round.crash_point !== undefined : round.server_seed != null;
     const wagered = num(round.total_wagered);
     const paidOut = num(round.total_paid_out);
     const ggr = wagered - paidOut;
@@ -151,20 +154,22 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                         </h1>
                         <div className="cgo-subtitle">
                             Opened {formatDateTime(round.opened_at)}
-                            {round.pulling_at ? ` · Pulling ${formatDateTime(round.pulling_at)}` : ''}
-                            {round.crashed_at ? ` · Crashed ${formatDateTime(round.crashed_at)}` : ''}
+                            {crash && round.pulling_at ? ` · Pulling ${formatDateTime(round.pulling_at)}` : ''}
+                            {crash && round.crashed_at ? ` · Crashed ${formatDateTime(round.crashed_at)}` : ''}
                             {round.settled_at ? ` · Settled ${formatDateTime(round.settled_at)}` : ''}
                         </div>
                     </div>
                 </div>
 
-                <div className="cgo-kpis cgo-kpis--5">
-                    <KpiCard
-                        label="Crash point"
-                        value={revealed ? formatMultiplier(round.crash_point) : 'in play'}
-                        brass={revealed}
-                        meta={revealed ? 'server-drawn, sealed at open' : 'hidden until the round crashes'}
-                    />
+                <div className={crash ? 'cgo-kpis cgo-kpis--5' : 'cgo-kpis'}>
+                    {crash && (
+                        <KpiCard
+                            label="Crash point"
+                            value={revealed ? formatMultiplier(round.crash_point) : 'in play'}
+                            brass={revealed}
+                            meta={revealed ? 'server-drawn, sealed at open' : 'hidden until the round crashes'}
+                        />
+                    )}
                     <KpiCard label="Bets" value={formatCount(round.bet_count)} meta="excluding cancelled" />
                     <KpiCard label="Wagered" value={formatCurrencyCompact(wagered)} meta="staked" />
                     <KpiCard label="Paid out" value={formatCurrencyCompact(paidOut)} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
@@ -185,12 +190,18 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                             </>
                         ) : (
                             <div style={{ padding: '10px 0', fontSize: 13, color: 'var(--cg-fg-3)' }}>
-                                The server seed and crash point are revealed when the round crashes. Only the commitment is public until then.
+                                {crash
+                                    ? 'The server seed and crash point are revealed when the round crashes. Only the commitment is public until then.'
+                                    : 'The server seed is revealed when the round settles. Only the commitment is public until then.'}
                             </div>
                         )}
                         <Field label="House edge" value={formatRatioPct(round.house_edge)} mono />
-                        <Field label="Max multiplier" value={formatMultiplier(round.max_multiplier)} mono />
-                        <Field label="Growth rate k" value={String(round.growth_rate_k)} mono />
+                        {crash && (
+                            <>
+                                <Field label="Max multiplier" value={formatMultiplier(round.max_multiplier)} mono />
+                                <Field label="Growth rate k" value={String(round.growth_rate_k)} mono />
+                            </>
+                        )}
 
                         {verify && (
                             <div
@@ -233,8 +244,12 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                         <Field label="Round id" value={String(round.id)} mono />
                         <Field label="Tenant" value={`${tenantLabel(round.tenant_uuid, tenantNames)} · ${round.tenant_uuid}`} mono wrap />
                         <Field label="Opened" value={formatDateTime(round.opened_at)} />
-                        <Field label="Pulling" value={formatDateTime(round.pulling_at)} />
-                        <Field label="Crashed" value={formatDateTime(round.crashed_at)} />
+                        {crash && (
+                            <>
+                                <Field label="Pulling" value={formatDateTime(round.pulling_at)} />
+                                <Field label="Crashed" value={formatDateTime(round.crashed_at)} />
+                            </>
+                        )}
                         <Field label="Settled" value={formatDateTime(round.settled_at)} />
                         <Field label="Max exposure" value={`NAD ${formatNAD(round.max_exposure)}`} mono />
                     </section>
