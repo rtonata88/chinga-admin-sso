@@ -104,6 +104,24 @@ class User extends Authenticatable
     }
 
     /**
+     * Passport password-grant lookup: a player may sign in with their email or their username.
+     *
+     * Runs through the normal global scopes, so soft-deleted users never match and a resolved
+     * tenant (the X-Tenant-ID header carried by the auth proxy) scopes the lookup. Usernames and
+     * emails are unique per tenant only, so with no tenant resolved and more than one match this
+     * refuses (null) rather than guessing whose account is meant.
+     */
+    public function findForPassport(string $username): ?User
+    {
+        $matches = $this->newQuery()
+            ->where(fn ($query) => $query->where('email', $username)->orWhere('username', $username))
+            ->limit(2)
+            ->get();
+
+        return $matches->count() === 1 ? $matches->first() : null;
+    }
+
+    /**
      * Check if the account is locked.
      */
     public function isLocked(): bool
@@ -138,6 +156,7 @@ class User extends Authenticatable
     public function incrementFailedLoginAttempts(): int
     {
         $this->increment('failed_login_attempts');
+
         return $this->failed_login_attempts;
     }
 
