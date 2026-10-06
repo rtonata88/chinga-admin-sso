@@ -38,7 +38,7 @@ class KulipiKunaGameSeeder extends Seeder
             ['slug' => self::SLUG],
             [
                 'name' => 'Kulipi Kuna',
-                'description' => 'Which hand has it? Pick a hand. Win, then collect or go again for double.',
+                'description' => 'Which hand has it? Pick a hand. Win, then cash out or continue for double.',
                 'type' => 'instant',
                 'status' => 'development',
                 'version' => '0.1.0',
