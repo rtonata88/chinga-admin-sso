@@ -24,15 +24,16 @@ interface Rtp {
     house_edge: string | null;
 }
 
+// Engines differ slightly in what they send per day; a missing count shows as 0, never a crashed page.
 interface Day {
     day: string;
-    bets_placed: number;
-    active_players: number;
+    bets_placed?: number;
+    active_players?: number;
     total_wagered: string;
     total_paid_out: string;
     ggr: string;
-    real_ggr: string;
-    rounds: number;
+    real_ggr?: string;
+    rounds?: number;
 }
 
 interface TenantOption {
@@ -199,9 +200,9 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                                     return (
                                         <tr key={d.day}>
                                             <td><span className="cgo-uid">{formatDay(d.day)}</span></td>
-                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(d.rounds)}</span></td>
-                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(d.bets_placed)}</span></td>
-                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(d.active_players)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(d.rounds ?? 0)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(d.bets_placed ?? 0)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(d.active_players ?? 0)}</span></td>
                                             <td className="cgo-r">
                                                 <span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(wagered)}</span>
                                             </td>
@@ -209,7 +210,7 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                                             <td className="cgo-r">
                                                 <span className="cgo-payout" style={{ color: ggr < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}>{formatNAD(ggr)}</span>
                                             </td>
-                                            <td className="cgo-r"><span className="cgo-payout">{formatNAD(d.real_ggr)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-payout">{formatNAD(num(d.real_ggr))}</span></td>
                                             <td className="cgo-r"><span className="cgo-odds">{formatRatioPct(dayRtp)}</span></td>
                                         </tr>
                                     );
