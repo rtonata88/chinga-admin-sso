@@ -12,6 +12,7 @@ import { Toast } from 'primereact/toast';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { FieldLabel, PanelShell } from '@/components/games/panels';
+import { ceilingRows } from './dorex-ceiling';
 import { depthRows } from './kulipi-depth';
 import {
     SchemaForm,
@@ -58,6 +59,7 @@ function sparse(values: SettingsValues): SettingsValues {
 export default function GameSettings({ game, schema, tenants, audits = [] }: Props) {
     const [globalSettings, setGlobalSettings] = useState<SettingsValues>(game.settings || {});
     const kulipiDepth = game.slug === 'kulipi-kuna' ? depthRows(globalSettings) : [];
+    const dorexCeilings = game.slug === 'dorex' ? ceilingRows(globalSettings) : [];
     const [tenantStates, setTenantStates] = useState<Record<string, { enabled: boolean; settings: SettingsValues }>>(
         () => {
             const state: Record<string, { enabled: boolean; settings: SettingsValues }> = {};
@@ -145,7 +147,7 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                             <div className="cgo-stat-strip">
                                 {typeof game.theoretical_rtp === 'number' && (
                                     <div className="cgo-stat" data-testid="theoretical-rtp">
-                                        <div className="cgo-stat-label">{game.slug === 'kulipi-kuna' ? 'Return to player at every level' : 'Theoretical RTP'}</div>
+                                        <div className="cgo-stat-label">{game.slug === 'kulipi-kuna' ? 'Return to player at every level' : game.slug === 'dorex' ? 'Return to player for every strategy' : 'Theoretical RTP'}</div>
                                         <div className="cgo-stat-value">{(game.theoretical_rtp * 100).toFixed(2)}%</div>
                                         <div className="cgo-stat-note">House edge is the only setting that changes it.</div>
                                     </div>
@@ -191,6 +193,38 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                     </tbody>
                                 </table>
                                 <div className="cgo-stat-note">Updates as you edit. A ladder&apos;s depth is fixed when it starts; a payout is never cut.</div>
+                            </div>
+                        )}
+                        {game.slug === 'dorex' && (
+                            <div data-testid="dorex-ceilings" style={{ marginTop: 14 }}>
+                                <div className="cgo-stat-label" style={{ marginBottom: 6 }}>The ceiling each stake gets</div>
+                                <table className="cgo-wagers" style={{ maxWidth: 520 }}>
+                                    <thead>
+                                        <tr>
+                                            <th>Stake</th>
+                                            <th className="cgo-r">Ceiling</th>
+                                            <th className="cgo-r">Most it can pay</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {dorexCeilings.length === 0 && (
+                                            <tr>
+                                                <td colSpan={3}>No preview: the settings as typed are outside the rules, or span too many stake tiers.</td>
+                                            </tr>
+                                        )}
+                                        {dorexCeilings.map((r) => (
+                                            <tr key={r.stake}>
+                                                <td>N${r.stake}</td>
+                                                <td className="cgo-r">{r.ceiling}</td>
+                                                <td className="cgo-r">{r.mostPaid}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <div className="cgo-stat-note">
+                                    Updates as you edit. A stake closes at the first tick at or above its ceiling and is paid that tick&apos;s price, never
+                                    cut; the ceiling is set so that price still fits the max win.
+                                </div>
                             </div>
                         )}
                     </div>

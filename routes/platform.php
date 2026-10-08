@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\Games\DorexConsoleController;
 use App\Http\Controllers\Admin\Games\FantasyConsoleController;
 use App\Http\Controllers\Admin\Games\FantasyRoundController;
 use App\Http\Controllers\Admin\Games\FantasySettingsController;
@@ -104,6 +105,16 @@ Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('kul
     Route::get('riding', [KulipiKunaConsoleController::class, 'riding'])->name('riding');
     Route::get('rtp', [KulipiKunaConsoleController::class, 'rtp'])->name('rtp');
     Route::get('ladder', [KulipiKunaConsoleController::class, 'ladder'])->name('ladder');
+});
+
+// Dorex consoles (X4): rounds with the path audit, live exposure, realised RTP against its standard error.
+Route::middleware(['auth', 'verified', EnsurePlatformAdmin::class])->prefix('dorex')->name('dorex.')->group(function () {
+    Route::get('rounds', [DorexConsoleController::class, 'rounds'])->name('rounds');
+    Route::get('rounds/{id}', [DorexConsoleController::class, 'round'])
+        ->whereNumber('id')
+        ->name('rounds.show');
+    Route::get('exposure', [DorexConsoleController::class, 'exposure'])->name('exposure');
+    Route::get('rtp', [DorexConsoleController::class, 'rtp'])->name('rtp');
 });
 
 // Operator Console — trading desk views (Live Wagers Monitor first).

@@ -77,6 +77,12 @@ const GAME_EXTRAS: Record<string, NavLink[]> = {
         { label: 'RTP', href: '/kulipi-kuna/rtp', icon: Percent },
         { label: 'Verify ladder', href: '/kulipi-kuna/ladder', icon: ShieldCheck },
     ],
+    // Dorex consoles (X4): rounds with the path audit, live exposure, realised RTP.
+    dorex: [
+        { label: 'Rounds', href: '/dorex/rounds', icon: LineChart },
+        { label: 'Exposure', href: '/dorex/exposure', icon: Activity },
+        { label: 'RTP', href: '/dorex/rtp', icon: Percent },
+    ],
 };
 
 export function gameNavGroup(game: NavGame): NavGroup {

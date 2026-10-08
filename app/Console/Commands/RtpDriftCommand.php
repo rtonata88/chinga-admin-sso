@@ -15,6 +15,10 @@ use Illuminate\Support\Facades\Log;
  * days; a deviation past the threshold on a sample big enough to mean
  * something is logged as a warning (and shown on the console). This is
  * how the next pricing bug is caught before a player finds it.
+ *
+ * An engine that sends the realised RTP's standard error (Dorex: its return per stake is
+ * heavy-tailed) is judged at 3.5 standard errors instead of the flat threshold and sample
+ * size, so a long hold-to-end run neither hides a real drift nor raises a false one.
  */
 class RtpDriftCommand extends Command
 {
@@ -53,13 +57,21 @@ class RtpDriftCommand extends Command
                 continue;
             }
             $delta = $realised - $theoretical;
+            $se = isset($r['standard_error']) && is_numeric($r['standard_error']) ? (float) $r['standard_error'] : null;
             $line = sprintf('%s: realised %.2f%% vs theoretical %.2f%% (%+.2f pts, %d bets)', $game->name, $realised * 100, $theoretical * 100, $delta * 100, $bets);
-            if ($bets >= $minBets && abs($delta) >= $threshold) {
+            if ($se !== null && $se > 0) {
+                $band = 3.5 * $se;
+                $line .= sprintf(' — band ±%.2f pts (3.5σ)', $band * 100);
+                $drift = abs($delta) > $band;
+            } else {
+                $drift = $bets >= $minBets && abs($delta) >= $threshold;
+            }
+            if ($drift) {
                 $drifted++;
                 $this->error("DRIFT {$line}");
-                Log::warning('rtp_drift.detected', ['game' => $game->slug, 'realised' => $realised, 'theoretical' => $theoretical, 'delta' => $delta, 'bets' => $bets, 'days' => $days]);
+                Log::warning('rtp_drift.detected', ['game' => $game->slug, 'realised' => $realised, 'theoretical' => $theoretical, 'delta' => $delta, 'bets' => $bets, 'days' => $days, 'standard_error' => $se]);
             } else {
-                $this->info($line.($bets < $minBets ? ' — sample too small to judge' : ''));
+                $this->info($line.($se === null && $bets < $minBets ? ' — sample too small to judge' : ''));
             }
         }
 

@@ -28,7 +28,10 @@ interface Round {
     bet_count: number;
     total_wagered: string;
     total_paid_out: string;
-    max_exposure: string;
+    max_exposure?: string;
+    /** 'path' rounds (Dorex): how the path ended and its highest price, null until it has ended. */
+    path_end?: 'margin_call' | 'max_price' | 'round_end' | null;
+    peak_price?: string | null;
 }
 
 interface TenantOption {
@@ -52,12 +55,18 @@ interface Terms {
 }
 const BET_TERMS: Terms = { one: 'bet', many: 'bets', paid_out_meta: 'to cashed-out bets' };
 
+const PATH_END: Record<'margin_call' | 'max_price' | 'round_end', string> = {
+    margin_call: 'margin call',
+    max_price: 'price ceiling',
+    round_end: 'full length',
+};
+
 interface GameProps {
     name: string;
     base: string;
     terms?: Terms;
-    /** 'crash' rounds have a crash point; 'ladder' rounds (Kulipi Kuna) do not. Defaults to 'crash'. */
-    kind?: 'crash' | 'ladder';
+    /** 'crash' rounds have a crash point; 'ladder' rounds (Kulipi Kuna) do not; 'path' rounds (Dorex) end and peak. Defaults to 'crash'. */
+    kind?: 'crash' | 'ladder' | 'path';
 }
 
 interface Props {
@@ -82,6 +91,8 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
 
     const isEmpty = rounds.length === 0;
     const crash = (game.kind ?? 'crash') === 'crash';
+    const path = game.kind === 'path';
+    const extraCol = crash || path;
     const page = filters?.page ?? 1;
     const perPage = filters?.per_page ?? 25;
     const total = filters?.total ?? null;
@@ -111,7 +122,9 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                         <div className="cgo-subtitle">
                             {crash
                                 ? 'Round history — crash points, bets, and the seed audit for every settled round.'
-                                : `Round history — the ${(game.terms ?? BET_TERMS).many} placed in every round.`}
+                                : path
+                                  ? 'Round history — how each path ended, its peak, and the path audit for every ended round.'
+                                  : `Round history — the ${(game.terms ?? BET_TERMS).many} placed in every round.`}
                         </div>
                     </div>
                 </div>
@@ -173,6 +186,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                                 <th style={{ width: 180 }}>Opened</th>
                                 <th style={{ width: 160 }}>Tenant</th>
                                 {crash && <th className="cgo-r" style={{ width: 100 }}>Crash</th>}
+                                {path && <th style={{ width: 170 }}>Ended</th>}
                                 <th className="cgo-r" style={{ width: 70 }}>Bets</th>
                                 <th className="cgo-r" style={{ width: 130 }}>Wagered</th>
                                 <th className="cgo-r" style={{ width: 130 }}>Paid out</th>
@@ -184,7 +198,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                         <tbody>
                             {isEmpty ? (
                                 <tr>
-                                    <td colSpan={crash ? 10 : 9} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
+                                    <td colSpan={extraCol ? 10 : 9} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>
                                         No rounds match the current filters.
                                     </td>
                                 </tr>
@@ -209,6 +223,13 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                                                 <td className="cgo-r">
                                                     <span className="cgo-odds" style={{ color: r.crash_point === null ? 'var(--cg-fg-3)' : undefined }}>
                                                         {r.crash_point === null ? 'in play' : formatMultiplier(r.crash_point)}
+                                                    </span>
+                                                </td>
+                                            )}
+                                            {path && (
+                                                <td>
+                                                    <span className="cgo-uid" style={{ color: r.path_end ? undefined : 'var(--cg-fg-3)' }}>
+                                                        {r.path_end ? `${PATH_END[r.path_end]} · peak ${num(r.peak_price).toFixed(4)}` : 'in play'}
                                                     </span>
                                                 </td>
                                             )}

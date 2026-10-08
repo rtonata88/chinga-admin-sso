@@ -9,7 +9,8 @@ use App\Models\Game;
  * Resolves the admin client for a game by its catalogue row (PRD §4 P4).
  * Chinga Fantasy keeps its subclass for the jackpot endpoint and the
  * legacy URL fallback, Vrrr Pha for its RTP, exposure and seed-audit
- * consoles, Kulipi Kuna for its riding, RTP and ladder-verify consoles;
+ * consoles, Kulipi Kuna for its riding, RTP and ladder-verify consoles,
+ * Dorex for its RTP, exposure and path-audit consoles;
  * every other game gets the generic HTTP client.
  */
 class GameAdminClientFactory
@@ -26,6 +27,10 @@ class GameAdminClientFactory
 
         if ($game->slug === KulipiKunaAdminClient::GAME_SLUG) {
             return new KulipiKunaAdminClient($game);
+        }
+
+        if ($game->slug === DorexAdminClient::GAME_SLUG) {
+            return new DorexAdminClient($game);
         }
 
         return new HttpGameAdminClient($game);

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Game;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\DorexConfigRules;
 use App\Support\FantasySettingsSchema;
 use App\Support\KulipiKunaConfigRules;
 use App\Support\SettingsSchema;
@@ -16,13 +17,13 @@ use Illuminate\Validation\ValidationException;
 /**
  * The one way game settings are written (K4 final review, findings 1 and 2).
  * Every write runs in a transaction: lock the game row (and the tenant_games
- * row for a tenant write), read the before state, apply the Kulipi Kuna
- * rules to the effective settings, write, then audit. The audit row and the
+ * row for a tenant write), read the before state, apply the game's own
+ * rules (Kulipi Kuna, Dorex) to the effective settings, write, then audit. The audit row and the
  * settings change commit together or not at all.
  *
  * Lock order is always game row, then tenant_games row, so a global save
  * and a tenant save on the same game serialise instead of deadlocking, and
- * the Kulipi check of a global save sees every tenant's current overrides.
+ * a global save's rule check sees every tenant's current overrides.
  */
 class GameSettingsWriter
 {
@@ -68,7 +69,7 @@ class GameSettingsWriter
      * Replace the game's global settings. Returns the theoretical RTP after
      * the save (null when the game does not price by house edge).
      *
-     * @throws ValidationException when the Kulipi Kuna rules refuse the result
+     * @throws ValidationException when the game's rules refuse the result
      */
     public function writeGlobal(Game $game, array $next, ?User $user, string $errorPrefix = ''): ?float
     {
@@ -76,8 +77,9 @@ class GameSettingsWriter
             $locked = Game::query()->lockForUpdate()->findOrFail($game->id);
             $beforeSettings = $locked->settings ?? [];
 
-            if ($locked->slug === KulipiKunaConfigRules::GAME_SLUG) {
-                $errors = KulipiKunaConfigRules::violations($next);
+            $rules = self::rules($locked);
+            if ($rules !== null) {
+                $errors = $rules($next);
                 if ($errors === []) {
                     $rows = DB::table('tenant_games')
                         ->join('tenants', 'tenants.id', '=', 'tenant_games.tenant_id')
@@ -86,7 +88,7 @@ class GameSettingsWriter
                         ->get(['tenants.name', 'tenant_games.custom_settings']);
                     foreach ($rows as $row) {
                         $overrides = self::decode($row->custom_settings);
-                        foreach (KulipiKunaConfigRules::violations(array_merge($next, $overrides)) as $key => $message) {
+                        foreach ($rules(array_merge($next, $overrides)) as $key => $message) {
                             $errors[$key] ??= "{$row->name}'s overrides would break this: {$message}";
                         }
                     }
@@ -128,7 +130,7 @@ class GameSettingsWriter
      * custom_settings (the tenants page's toggle and Manage games) must never
      * wipe an operator's overrides.
      *
-     * @throws ValidationException when the Kulipi Kuna rules refuse the merged settings
+     * @throws ValidationException when the game's rules refuse the merged settings
      */
     public function writeTenant(Game $game, Tenant $tenant, bool $enabled, ?array $overrides, ?User $user, string $errorPrefix = 'custom_settings.'): void
     {
@@ -144,7 +146,7 @@ class GameSettingsWriter
             $stored = self::decode($row->custom_settings);
             $overrides ??= $stored;
             $global = $locked->settings ?? [];
-            $this->assertKulipiTenant($locked, $global, $overrides, $errorPrefix);
+            $this->assertTenantRules($locked, $global, $overrides, $errorPrefix);
 
             $before = ['enabled' => (bool) $row->enabled, 'custom_settings' => $stored];
             $after = ['enabled' => $enabled, 'custom_settings' => $overrides];
@@ -187,7 +189,7 @@ class GameSettingsWriter
 
             $overrides ??= [];
             $global = $locked->settings ?? [];
-            $this->assertKulipiTenant($locked, $global, $overrides, $errorPrefix);
+            $this->assertTenantRules($locked, $global, $overrides, $errorPrefix);
 
             DB::table('tenant_games')->insert([
                 'tenant_id' => $tenant->id,
@@ -219,12 +221,28 @@ class GameSettingsWriter
         });
     }
 
-    private function assertKulipiTenant(Game $game, array $global, array $overrides, string $errorPrefix): void
+    /**
+     * The game's own save rules beyond its schema, or null when it has none: each mirrors the
+     * engine's config validation, so the SSO never saves a config its engine would refuse.
+     *
+     * @return (callable(array): array<string, string>)|null
+     */
+    private static function rules(Game $game): ?callable
     {
-        if ($game->slug !== KulipiKunaConfigRules::GAME_SLUG) {
+        return match ($game->slug) {
+            KulipiKunaConfigRules::GAME_SLUG => KulipiKunaConfigRules::violations(...),
+            DorexConfigRules::GAME_SLUG => DorexConfigRules::violations(...),
+            default => null,
+        };
+    }
+
+    private function assertTenantRules(Game $game, array $global, array $overrides, string $errorPrefix): void
+    {
+        $rules = self::rules($game);
+        if ($rules === null) {
             return;
         }
-        $errors = KulipiKunaConfigRules::violations(array_merge($global, $overrides));
+        $errors = $rules(array_merge($global, $overrides));
         if ($errors !== []) {
             throw self::prefixed($errors, $errorPrefix);
         }

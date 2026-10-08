@@ -22,6 +22,8 @@ interface Rtp {
     realised_rtp: string | null;
     theoretical_rtp: string | null;
     house_edge: string | null;
+    /** Standard error of the realised RTP, when the engine sends one (Dorex): drift is then judged at 3.5σ. */
+    standard_error?: string | null;
 }
 
 // Engines differ slightly in what they send per day; a missing count shows as 0, never a crashed page.
@@ -72,11 +74,20 @@ function formatDay(iso: string): string {
     return Number.isNaN(d.getTime()) ? iso : DAY_FMT.format(d);
 }
 
-/** Realised RTP swings on small samples; the deviation reads red only when the sample is large enough to mean something. */
-function deviation(realised: number | null, theoretical: number | null, bets: number): { text: string; color: string } {
+/**
+ * Realised RTP swings on small samples; the deviation reads red only when the sample is large
+ * enough to mean something. With a standard error from the engine, "large enough" is exact: red
+ * past 3.5σ, whatever the count. Without one, the old rule of thumb: 1,000 bets and 3 points.
+ */
+function deviation(realised: number | null, theoretical: number | null, bets: number, se: number | null): { text: string; color: string } {
     if (realised === null || theoretical === null) return { text: 'no data', color: 'var(--cg-fg-3)' };
     const d = (realised - theoretical) * 100;
     const text = `${d >= 0 ? '+' : ''}${d.toFixed(2)} pts vs theoretical`;
+    if (se !== null && se > 0) {
+        const band = 3.5 * se * 100;
+        const banded = `${text} · band ±${band.toFixed(2)}`;
+        return { text: banded, color: Math.abs(d) > band ? 'var(--cg-neg)' : 'var(--cg-pos)' };
+    }
     if (bets < 1000) return { text: `${text} · small sample`, color: 'var(--cg-fg-3)' };
     if (Math.abs(d) >= 3) return { text, color: 'var(--cg-neg)' };
     return { text, color: 'var(--cg-pos)' };
@@ -100,7 +111,8 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
 
     const realised = rtp?.realised_rtp === null || rtp?.realised_rtp === undefined ? null : num(rtp.realised_rtp);
     const theoretical = rtp?.theoretical_rtp === null || rtp?.theoretical_rtp === undefined ? null : num(rtp.theoretical_rtp);
-    const dev = deviation(realised, theoretical, rtp?.bets_placed ?? 0);
+    const se = rtp?.standard_error === null || rtp?.standard_error === undefined ? null : num(rtp.standard_error);
+    const dev = deviation(realised, theoretical, rtp?.bets_placed ?? 0, se);
 
     return (
         <UserLayout title={`${game.name} RTP`}>
