@@ -56,6 +56,13 @@ return [
         'launch_url' => env('KULIPI_KUNA_LAUNCH_URL'),
     ],
 
+    // Dorex engine, applied by DorexGameSeeder to games.backend_url /
+    // games.launch_url. Null by default, as for the other games.
+    'dorex' => [
+        'backend_url' => env('DOREX_BACKEND_URL'),
+        'launch_url' => env('DOREX_LAUNCH_URL'),
+    ],
+
     // SSO-internal OAuth client used to obtain a client_credentials token
     // for calling trusted partner services (e.g. chinga-fantasy admin APIs).
     'sso_internal' => [
