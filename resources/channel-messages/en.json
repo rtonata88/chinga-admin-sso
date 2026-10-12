@@ -26,7 +26,7 @@
   "kk.too_late": "Time ran out, so your winnings were collected: {payout}.\nBalance {balance}\n1 Main menu\n0 Exit",
   "kk.insufficient": "Your balance {balance} is less than the {stake} stake.\n1 Deposit\n0 Back",
   "kk.live": "You have a ladder in play.\nLevel {level} reached.\n1 Collect {collect}\n2 Continue: level {next} pays {next_pays}",
-  "kk.how": "Pick the hand that holds the object. Level 1 pays {level1} on a {stake} stake, and every level doubles. Collect any time. No reply = collect.\n0 Back",
+  "kk.how": "Pick the hand that holds the object. Level 1 pays {level1} on a {stake} stake; each level doubles. Collect any time. No reply = collect.\n0 Back",
   "kk.history": "Your last ladders\n{lines}\n0 Back",
   "kk.history_none": "No ladders yet.\n0 Back",
   "kk.table_full": "The table is full for a moment. Please try again shortly.\n0 Back",
@@ -48,5 +48,9 @@
   "sms.deposit_ok": "Deposit of {amount} from {provider} received. Balance {balance}. Ref {ref}",
   "sms.deposit_failed": "Your deposit of {amount} was not completed. Nothing was taken from {provider}. Ref {ref}",
   "sms.withdraw_ok": "{amount} sent to your {provider} account. Balance {balance}. Ref {ref}",
-  "sms.withdraw_failed": "Your withdrawal of {amount} could not be paid, so it is back in your balance ({balance}). Ref {ref}"
+  "sms.withdraw_failed": "Your withdrawal of {amount} could not be paid, so it is back in your balance ({balance}). Ref {ref}",
+  "kk.hand_left": "Left",
+  "kk.hand_right": "Right",
+  "kk.history_won": "#{ladder} {stake}: won {payout} (level {level})",
+  "kk.history_lost": "#{ladder} {stake}: lost at level {level}"
 }

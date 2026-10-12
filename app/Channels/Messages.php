@@ -56,6 +56,6 @@ class Messages
     /** "{amount}" → the value; an unknown placeholder is left visible rather than silently dropped. */
     public static function render(string $text, array $params): string
     {
-        return preg_replace_callback('/\{([a-z_]+)\}/', fn ($m) => array_key_exists($m[1], $params) ? (string) $params[$m[1]] : $m[0], $text) ?? $text;
+        return preg_replace_callback('/\{([a-z_0-9]+)\}/', fn ($m) => array_key_exists($m[1], $params) ? (string) $params[$m[1]] : $m[0], $text) ?? $text;
     }
 }

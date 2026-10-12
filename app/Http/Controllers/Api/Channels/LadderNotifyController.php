@@ -53,7 +53,7 @@ class LadderNotifyController extends Controller
             'commitment' => $data['commitment'],
             'seed' => $data['server_seed'] ?? '',
             'level' => $data['level'] ?? '',
-            'hand' => $data['hand'] ?? '',
+            'hand' => isset($data['hand']) ? (\App\Channels\Messages::forTenant($tenant, $user->language)["kk.hand_{$data['hand']}"] ?? $data['hand']) : '',
             'payout' => isset($data['payout']) ? Currencies::format($data['payout'], $profile) : '',
             'stake' => isset($data['stake']) ? Currencies::format($data['stake'], $profile) : '',
             'balance' => Currencies::format((string) $user->getOrCreateWallet()->fresh()->balance, $profile),
