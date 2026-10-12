@@ -32,14 +32,16 @@ class GameSettingsController extends Controller
         $expectedWinners = $rtp === null ? null : FantasySettingsSchema::expectedWinners($effective);
 
         $tenants = $game->tenants()
-            ->select('tenants.id', 'tenants.uuid', 'tenants.name', 'tenants.slug')
+            ->select('tenants.id', 'tenants.uuid', 'tenants.name', 'tenants.slug', 'tenants.currency')
             ->orderBy('tenants.name')
             ->get()
             ->map(fn (Tenant $tenant) => [
                 'uuid' => $tenant->uuid,
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
+                'currency' => $tenant->currency ?: 'NAD',
                 'enabled' => (bool) $tenant->pivot->enabled,
+                'display_name' => $tenant->pivot->display_name,
                 'custom_settings' => (object) ($tenant->pivot->custom_settings ?? []),
             ]);
 
@@ -80,7 +82,7 @@ class GameSettingsController extends Controller
         $schema = SettingsSchema::fromGame($game);
         $tenant = Tenant::where('uuid', $tenantUuid)->firstOrFail();
 
-        $rules = ['enabled' => ['boolean'], 'custom_settings' => ['nullable', 'array']];
+        $rules = ['enabled' => ['boolean'], 'custom_settings' => ['nullable', 'array'], 'display_name' => ['nullable', 'string', 'max:60']];
         foreach ($schema->rules(tenantOverride: true) as $key => $set) {
             $rules["custom_settings.{$key}"] = $set;
         }
@@ -91,7 +93,8 @@ class GameSettingsController extends Controller
         $overrides = self::withoutNulls($validated['custom_settings'] ?? []);
 
         // 404 when the tenant does not have this game; nothing is written.
-        $writer->writeTenant($game, $tenant, (bool) ($validated['enabled'] ?? true), $overrides, $request->user());
+        $writer->writeTenant($game, $tenant, (bool) ($validated['enabled'] ?? true), $overrides, $request->user(),
+            displayName: $request->exists('display_name') ? ($validated['display_name'] ?? null) : false);
 
         return redirect()->back()->with('success', "Settings updated for {$tenant->name}.");
     }

@@ -117,7 +117,7 @@ class Tenant extends Model
     {
         return $this->belongsToMany(Game::class, 'tenant_games')
             ->using(TenantGame::class)
-            ->withPivot(['enabled', 'custom_settings'])
+            ->withPivot(['enabled', 'display_name', 'custom_settings'])
             ->withTimestamps();
     }
 

@@ -82,7 +82,7 @@ Route::prefix('v1')->group(function () {
     Route::post('tenant/resolve', function (\Illuminate\Http\Request $request) {
         $slug = $request->input('slug') ?? $request->header('X-Tenant-ID');
 
-        if (!$slug) {
+        if (! $slug) {
             return response()->json(['message' => 'Tenant slug is required.'], 422);
         }
 
@@ -90,7 +90,7 @@ Route::prefix('v1')->group(function () {
             ->where('status', 'active')
             ->first();
 
-        if (!$tenant) {
+        if (! $tenant) {
             return response()->json(['message' => 'Tenant not found.'], 404);
         }
 
@@ -100,6 +100,7 @@ Route::prefix('v1')->group(function () {
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
                 'currency' => $tenant->currency,
+                'currency_profile' => \App\Support\Currencies::forTenant($tenant),
                 'country_code' => $tenant->country_code,
             ],
         ]);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Services\Tenant\TenantOnboardingService;
+use App\Support\Currencies;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -49,7 +50,7 @@ class TenantController extends Controller
             'logo_url' => ['nullable', 'url', 'max:500'],
             'domain' => ['nullable', 'string', 'max:255', Rule::unique('tenants')],
             'country_code' => ['string', 'size:2'],
-            'currency' => ['string', 'size:3'],
+            'currency' => ['string', Rule::in(Currencies::codes())],
             'timezone' => ['string', 'max:50'],
             'revenue_share_pct' => ['numeric', 'min:0', 'max:100'],
             'business_model' => ['nullable', 'in:reseller,direct'],
@@ -92,13 +93,22 @@ class TenantController extends Controller
             'logo_url' => ['nullable', 'url', 'max:500'],
             'domain' => ['nullable', 'string', 'max:255', Rule::unique('tenants')->ignore($tenant->id)],
             'country_code' => ['string', 'size:2'],
-            'currency' => ['string', 'size:3'],
+            'currency' => ['string', Rule::in(Currencies::codes())],
             'timezone' => ['string', 'max:50'],
             'revenue_share_pct' => ['numeric', 'min:0', 'max:100'],
             'contract_starts_at' => ['nullable', 'date'],
             'contract_ends_at' => ['nullable', 'date'],
             'settings' => ['nullable', 'array'],
         ]);
+
+        // A wallet keeps the currency it was opened in; changing the tenant's would show
+        // every existing balance in the wrong money.
+        if (isset($validated['currency']) && $validated['currency'] !== $tenant->currency
+            && \App\Models\Wallet::where('tenant_id', $tenant->id)->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'currency' => 'This tenant already has wallets, so its currency cannot change.',
+            ]);
+        }
 
         $tenant->update($validated);
 

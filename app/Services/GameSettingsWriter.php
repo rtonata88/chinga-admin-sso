@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Game;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Currencies;
 use App\Support\DorexConfigRules;
 use App\Support\FantasySettingsSchema;
 use App\Support\KulipiKunaConfigRules;
@@ -85,10 +86,11 @@ class GameSettingsWriter
                         ->join('tenants', 'tenants.id', '=', 'tenant_games.tenant_id')
                         ->where('tenant_games.game_id', $locked->id)
                         ->orderBy('tenants.name')
-                        ->get(['tenants.name', 'tenant_games.custom_settings']);
+                        ->get(['tenants.name', 'tenants.currency', 'tenants.settings', 'tenant_games.custom_settings']);
                     foreach ($rows as $row) {
                         $overrides = self::decode($row->custom_settings);
-                        foreach ($rules(array_merge($next, $overrides)) as $key => $message) {
+                        $currency = Currencies::profile($row->currency ?: 'NAD', self::decode($row->settings)['currency_symbol'] ?? null);
+                        foreach ($rules(array_merge($next, $overrides), $currency) as $key => $message) {
                             $errors[$key] ??= "{$row->name}'s overrides would break this: {$message}";
                         }
                     }
@@ -128,13 +130,14 @@ class GameSettingsWriter
      * already be attached to the game; otherwise 404 and nothing is written.
      * Null overrides mean "keep what is stored": a caller that did not send
      * custom_settings (the tenants page's toggle and Manage games) must never
-     * wipe an operator's overrides.
+     * wipe an operator's overrides. $displayName is the name players see on
+     * this tenant (false keeps the stored one, null or blank clears it).
      *
      * @throws ValidationException when the game's rules refuse the merged settings
      */
-    public function writeTenant(Game $game, Tenant $tenant, bool $enabled, ?array $overrides, ?User $user, string $errorPrefix = 'custom_settings.'): void
+    public function writeTenant(Game $game, Tenant $tenant, bool $enabled, ?array $overrides, ?User $user, string $errorPrefix = 'custom_settings.', string|false|null $displayName = false): void
     {
-        DB::transaction(function () use ($game, $tenant, $enabled, $overrides, $user, $errorPrefix) {
+        DB::transaction(function () use ($game, $tenant, $enabled, $overrides, $user, $errorPrefix, $displayName) {
             $locked = Game::query()->lockForUpdate()->findOrFail($game->id);
             $row = DB::table('tenant_games')
                 ->where('game_id', $locked->id)
@@ -146,13 +149,20 @@ class GameSettingsWriter
             $stored = self::decode($row->custom_settings);
             $overrides ??= $stored;
             $global = $locked->settings ?? [];
-            $this->assertTenantRules($locked, $global, $overrides, $errorPrefix);
+            $this->assertTenantRules($locked, $tenant, $global, $overrides, $errorPrefix);
 
+            // false keeps the stored name; null or blank returns to the catalogue name.
+            $name = $displayName === false ? $row->display_name : (trim((string) $displayName) === '' ? null : trim((string) $displayName));
             $before = ['enabled' => (bool) $row->enabled, 'custom_settings' => $stored];
             $after = ['enabled' => $enabled, 'custom_settings' => $overrides];
+            if ($name !== $row->display_name) {
+                $before['display_name'] = $row->display_name;
+                $after['display_name'] = $name;
+            }
 
             DB::table('tenant_games')->where('id', $row->id)->update([
                 'enabled' => $enabled,
+                'display_name' => $name,
                 'custom_settings' => $overrides === [] ? null : json_encode($overrides),
                 'updated_at' => now(),
             ]);
@@ -189,7 +199,7 @@ class GameSettingsWriter
 
             $overrides ??= [];
             $global = $locked->settings ?? [];
-            $this->assertTenantRules($locked, $global, $overrides, $errorPrefix);
+            $this->assertTenantRules($locked, $tenant, $global, $overrides, $errorPrefix);
 
             DB::table('tenant_games')->insert([
                 'tenant_id' => $tenant->id,
@@ -225,7 +235,9 @@ class GameSettingsWriter
      * The game's own save rules beyond its schema, or null when it has none: each mirrors the
      * engine's config validation, so the SSO never saves a config its engine would refuse.
      *
-     * @return (callable(array): array<string, string>)|null
+     * Each is called with the merged settings and the tenant's currency profile.
+     *
+     * @return (callable(array, array|null): array<string, string>)|null
      */
     private static function rules(Game $game): ?callable
     {
@@ -236,13 +248,13 @@ class GameSettingsWriter
         };
     }
 
-    private function assertTenantRules(Game $game, array $global, array $overrides, string $errorPrefix): void
+    private function assertTenantRules(Game $game, Tenant $tenant, array $global, array $overrides, string $errorPrefix): void
     {
         $rules = self::rules($game);
         if ($rules === null) {
             return;
         }
-        $errors = $rules(array_merge($global, $overrides));
+        $errors = $rules(array_merge($global, $overrides), Currencies::forTenant($tenant));
         if ($errors !== []) {
             throw self::prefixed($errors, $errorPrefix);
         }

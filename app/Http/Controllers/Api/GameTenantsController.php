@@ -42,6 +42,7 @@ class GameTenantsController extends Controller
                 'name' => $tenant->name,
                 'country_code' => $tenant->country_code,
                 'currency' => $tenant->currency,
+                'game_name' => $tenant->pivot->display_name ?: $game->name,
                 'status' => $tenant->status,
             ])
             ->values();

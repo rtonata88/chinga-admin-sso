@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasRoles;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use App\Models\Concerns\BelongsToTenant;
-use App\Models\Concerns\HasRoles;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Passport\HasApiTokens;
@@ -20,7 +20,7 @@ use Laravel\Passport\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, HasApiTokens, Notifiable, TwoFactorAuthenticatable, SoftDeletes, BelongsToTenant, HasRoles;
+    use BelongsToTenant, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes, TwoFactorAuthenticatable;
 
     /**
      * The attributes that are mass assignable.
@@ -223,7 +223,9 @@ class User extends Authenticatable
             return $wallet;
         }
 
-        $tenant = app('current_tenant');
+        // The wallet belongs to the user's own tenant, so it is in that tenant's currency (U-D15),
+        // whatever tenant the request came in on.
+        $tenant = $this->tenant_id ? Tenant::find($this->tenant_id) : app('current_tenant');
         $currency = $currency ?? $tenant?->currency ?? 'NAD';
 
         return $this->wallet()->create([

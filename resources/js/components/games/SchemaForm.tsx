@@ -78,6 +78,7 @@ export function SchemaForm({
     onChange,
     prefix,
     sparse = false,
+    currency = null,
 }: {
     schema: SettingsSchema;
     keys: string[];
@@ -85,6 +86,8 @@ export function SchemaForm({
     onChange: (key: string, value: unknown) => void;
     prefix?: string;
     sparse?: boolean;
+    /** The tenant's ISO currency (USSD design U-D15); null on the global defaults, which each tenant reads in its own currency. */
+    currency?: string | null;
 }) {
     const fieldId = (key: string) => (prefix ? `${prefix}-${key}` : key);
 
@@ -93,7 +96,8 @@ export function SchemaForm({
             {keys.map((key) => {
                 const p = schema.properties[key];
                 if (!p) return null;
-                const label = p.title ?? humanise(key);
+                // Schema titles were written for Namibia ("Max stake (NAD)"); money is in the tenant's currency.
+                const label = (p.title ?? humanise(key)).replace('(NAD)', currency ? `(${currency})` : "(each tenant's currency)");
                 const value = values[key];
                 const id = fieldId(key);
 
@@ -104,7 +108,9 @@ export function SchemaForm({
                         const isInt = p.type === 'integer';
                         const numberProps =
                             p['x-format'] === 'currency'
-                                ? { mode: 'currency' as const, currency: 'NAD', locale: 'en-ZA', minFractionDigits: 2 }
+                                ? currency
+                                    ? { mode: 'currency' as const, currency, locale: 'en-ZA', minFractionDigits: 0, maxFractionDigits: 2 }
+                                    : { minFractionDigits: 0, maxFractionDigits: 2 }
                                 : p['x-format'] === 'percent'
                                   ? { suffix: '%', minFractionDigits: isInt ? 0 : 2 }
                                   : { minFractionDigits: isInt ? 0 : 2, maxFractionDigits: isInt ? 0 : 6 };

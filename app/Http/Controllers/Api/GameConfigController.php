@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FantasyTeam;
 use App\Models\Game;
 use App\Models\Tenant;
+use App\Support\Currencies;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -40,6 +41,7 @@ class GameConfigController extends Controller
         $tenantUuid = $request->input('tenant_uuid');
         $tenantSettings = [];
         $matchedTenant = null;
+        $displayName = null;
 
         if ($tenantUuid) {
             // Strict UUID match. An unknown tenant is an error, not "global
@@ -52,6 +54,7 @@ class GameConfigController extends Controller
             $pivot = $game->tenants()->where('tenants.id', $matchedTenant->id)->first();
             if ($pivot) {
                 $tenantSettings = $pivot->pivot->custom_settings ?? [];
+                $displayName = $pivot->pivot->display_name;
             }
         }
 
@@ -64,6 +67,10 @@ class GameConfigController extends Controller
             'game_uuid' => $game->uuid,
             'tenant_uuid' => $matchedTenant?->uuid,
             'settings' => $mergedSettings,
+            // What players on this tenant call the game; the catalogue name unless the tenant renamed it.
+            'game_name' => $displayName ?: $game->name,
+            // U-D15: money settings above are in this currency; null without a tenant.
+            'currency' => $matchedTenant ? Currencies::forTenant($matchedTenant) : null,
         ]);
     }
 }

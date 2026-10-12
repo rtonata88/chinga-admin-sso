@@ -7,6 +7,7 @@
 
 import UserLayout from '@/layouts/user-layout';
 import { Head, router, usePage } from '@inertiajs/react';
+import { InputText } from 'primereact/inputtext';
 import { InputSwitch } from 'primereact/inputswitch';
 import { Toast } from 'primereact/toast';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -26,7 +27,9 @@ interface TenantConfig {
     uuid: string;
     name: string;
     slug: string;
+    currency: string;
     enabled: boolean;
+    display_name: string | null;
     custom_settings: SettingsValues;
 }
 
@@ -60,10 +63,11 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
     const [globalSettings, setGlobalSettings] = useState<SettingsValues>(game.settings || {});
     const kulipiDepth = game.slug === 'kulipi-kuna' ? depthRows(globalSettings) : [];
     const dorexCeilings = game.slug === 'dorex' ? ceilingRows(globalSettings) : [];
-    const [tenantStates, setTenantStates] = useState<Record<string, { enabled: boolean; settings: SettingsValues }>>(
+    const [tenantStates, setTenantStates] = useState<Record<string, { enabled: boolean; displayName: string; settings: SettingsValues }>>(
         () => {
-            const state: Record<string, { enabled: boolean; settings: SettingsValues }> = {};
-            for (const t of tenants) state[t.uuid] = { enabled: t.enabled, settings: { ...(t.custom_settings || {}) } };
+            const state: Record<string, { enabled: boolean; displayName: string; settings: SettingsValues }> = {};
+            for (const t of tenants)
+                state[t.uuid] = { enabled: t.enabled, displayName: t.display_name ?? '', settings: { ...(t.custom_settings || {}) } };
             return state;
         },
     );
@@ -111,12 +115,15 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
     const handleTenantEnabledChange = (uuid: string, enabled: boolean) =>
         setTenantStates((prev) => ({ ...prev, [uuid]: { ...prev[uuid], enabled } }));
 
+    const handleTenantNameChange = (uuid: string, displayName: string) =>
+        setTenantStates((prev) => ({ ...prev, [uuid]: { ...prev[uuid], displayName } }));
+
     const handleSaveTenant = (uuid: string) => {
         setSavingTenant(uuid);
         const state = tenantStates[uuid];
         router.put(
             `${base}/tenant/${uuid}`,
-            { enabled: state.enabled, custom_settings: sparse(state.settings) } as unknown as Record<string, never>,
+            { enabled: state.enabled, display_name: state.displayName.trim() || null, custom_settings: sparse(state.settings) } as unknown as Record<string, never>,
             { preserveScroll: true, onFinish: () => setSavingTenant(null) },
         );
     };
@@ -371,6 +378,22 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                                         {savingTenant === tenant.uuid ? 'Saving…' : 'Save'}
                                                     </button>
                                                 </div>
+                                                <div style={{ marginBottom: 16, maxWidth: 420 }}>
+                                                    <label htmlFor={`tenant-${tenant.uuid}-display-name`} style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
+                                                        Name players see on this tenant
+                                                    </label>
+                                                    <InputText
+                                                        id={`tenant-${tenant.uuid}-display-name`}
+                                                        value={state.displayName}
+                                                        onChange={(e) => handleTenantNameChange(tenant.uuid, e.target.value)}
+                                                        placeholder={game.name}
+                                                        maxLength={60}
+                                                        className="w-full"
+                                                    />
+                                                    <div style={{ fontSize: 11, color: 'var(--cg-fg-3)', marginTop: 4 }}>
+                                                        Shown in the game, on USSD and in SMS. Leave empty to use &quot;{game.name}&quot;.
+                                                    </div>
+                                                </div>
                                                 <div style={{ fontSize: 11, color: 'var(--cg-fg-3)', marginBottom: 14 }}>
                                                     Leave fields empty (or on &quot;Inherit global&quot;) to fall back to the global defaults above.
                                                 </div>
@@ -381,6 +404,7 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                                         values={state.settings}
                                                         onChange={(key, value) => handleTenantSettingChange(tenant.uuid, key, value)}
                                                         prefix={`tenant-${tenant.uuid}`}
+                                                        currency={tenant.currency}
                                                         sparse
                                                     />
                                                 ) : (

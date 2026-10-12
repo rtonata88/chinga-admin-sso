@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -31,7 +32,9 @@ class WalletService
      */
     public function createWallet(User $user, ?string $currency = null): Wallet
     {
-        $tenant = app('current_tenant');
+        // The wallet belongs to the user's own tenant, so it is in that tenant's currency (U-D15),
+        // whatever tenant the request came in on.
+        $tenant = $user->tenant_id ? Tenant::find($user->tenant_id) : app('current_tenant');
         $currency = $currency ?? $tenant?->currency ?? 'NAD';
 
         return Wallet::create([
