@@ -74,6 +74,7 @@ class AppServiceProvider extends ServiceProvider
             'gaming:read' => 'Read gaming data (admin/reporting, service-to-service)',
             'gaming:write' => 'Manage game content such as team pools (service-to-service)',
             'admin' => 'Administrative access',
+            'channel:ussd' => 'Act for players of bound tenants over USSD (service-to-service)',
         ]);
 
         // Set default scopes for tokens without specified scopes

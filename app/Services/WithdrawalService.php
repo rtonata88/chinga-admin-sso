@@ -125,14 +125,15 @@ class WithdrawalService
         return $request->fresh();
     }
 
-    public function reject(WithdrawalRequest $request, User $admin, string $reason): WithdrawalRequest
+    public function reject(WithdrawalRequest $request, ?User $admin, string $reason): WithdrawalRequest
     {
         $this->ensureStatus($request, ['requested', 'approved']);
-        $this->refund($request, $admin);
+        // A system rejection (a failed mobile-money payout) refunds as the player's own movement.
+        $this->refund($request, $admin ?? User::findOrFail($request->user_id));
 
         $request->update([
             'status' => 'rejected',
-            'reviewed_by' => $admin->id,
+            'reviewed_by' => $admin?->id,
             'reviewed_at' => now(),
             'rejection_reason' => $reason,
         ]);
@@ -154,13 +155,14 @@ class WithdrawalService
         return $request->fresh();
     }
 
-    public function markPaid(WithdrawalRequest $request, User $admin, ?string $externalReference = null): WithdrawalRequest
+    public function markPaid(WithdrawalRequest $request, ?User $admin, ?string $externalReference = null): WithdrawalRequest
     {
         $this->ensureStatus($request, ['approved']);
 
         $request->update([
             'status' => 'paid',
-            'paid_by' => $admin->id,
+            // Null when a payout rail confirmed it (USSD design U-D9), not a person.
+            'paid_by' => $admin?->id,
             'paid_at' => now(),
             'external_reference' => $externalReference,
         ]);
@@ -170,14 +172,14 @@ class WithdrawalService
 
     private function refund(WithdrawalRequest $request, User $performedBy): void
     {
-        if (!$request->hold_transaction_id) {
+        if (! $request->hold_transaction_id) {
             return; // nothing to refund
         }
         if ($request->refund_transaction_id) {
             return; // already refunded
         }
         $hold = $request->holdTransaction;
-        if (!$hold) {
+        if (! $hold) {
             return;
         }
 
@@ -192,7 +194,7 @@ class WithdrawalService
 
     private function ensureStatus(WithdrawalRequest $request, array $allowed): void
     {
-        if (!in_array($request->status, $allowed, true)) {
+        if (! in_array($request->status, $allowed, true)) {
             throw new \RuntimeException(
                 "Cannot perform action on withdrawal in status '{$request->status}' (allowed: ".implode(', ', $allowed).')'
             );
@@ -201,11 +203,11 @@ class WithdrawalService
 
     private function validateMethod(?string $method, array $config): void
     {
-        if (!$method || !in_array($method, self::VALID_METHODS, true)) {
+        if (! $method || ! in_array($method, self::VALID_METHODS, true)) {
             throw new \InvalidArgumentException('Invalid payment method.');
         }
         $allowed = $config['allowed_methods'] ?? self::VALID_METHODS;
-        if (!in_array($method, $allowed, true)) {
+        if (! in_array($method, $allowed, true)) {
             throw new \InvalidArgumentException("Payment method '$method' is not enabled for this tenant.");
         }
     }
@@ -225,7 +227,7 @@ class WithdrawalService
         }
         // Players can only withdraw what they've won — deposits stay locked
         // until they're played through and turn into winnings.
-        if (!$wallet->hasSufficientWithdrawableBalance($amount)) {
+        if (! $wallet->hasSufficientWithdrawableBalance($amount)) {
             throw new \RuntimeException(
                 'You can only withdraw funds you have won through play. Deposits are locked until you win with them.'
             );
@@ -274,7 +276,7 @@ class WithdrawalService
                 if (empty($details['venue_uuid'])) {
                     throw new \InvalidArgumentException('Missing payment_details.venue_uuid for venue_cash.');
                 }
-                if (!Venue::where('uuid', $details['venue_uuid'])->exists()) {
+                if (! Venue::where('uuid', $details['venue_uuid'])->exists()) {
                     throw new \InvalidArgumentException('Selected venue not found.');
                 }
                 break;
