@@ -40,7 +40,7 @@ class ChannelDemoReset extends Command
         $n = 0;
         DB::transaction(function () use ($tenant, &$n) {
             User::where('tenant_id', $tenant->id)->where('user_type', 'mobile')->get()->each(function (User $u) use (&$n) {
-                $u->forceFill(['phone' => 'retired-'.$u->id, 'status' => 'suspended'])->save();
+                $u->forceFill(['phone' => 'retired-'.$u->id, 'email' => 'retired-'.$u->id.'@retired.invalid', 'status' => 'suspended'])->save();
                 $u->delete();
                 $n++;
             });
