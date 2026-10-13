@@ -27,7 +27,7 @@ class LadderNotifyController extends Controller
             'game_uuid' => ['required', 'uuid'],
             'tenant_uuid' => ['required', 'uuid'],
             'user_uuid' => ['required', 'uuid'],
-            'event' => ['required', 'in:prepared,collected,no_action,cap,busted'],
+            'event' => ['required', 'in:prepared,collected,no_action,cap,busted,void'],
             'ladder_id' => ['required', 'integer', 'min:1'],
             'commitment' => ['required', 'regex:/^[0-9a-f]{64}$/'],
             'server_seed' => ['nullable', 'regex:/^[0-9a-f]{64}$/'],

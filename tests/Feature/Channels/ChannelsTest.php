@@ -179,6 +179,14 @@ it('sends the ladder SMS from the engine in the tenant money, with a verify link
     $text = SmsMessage::where('purpose', 'sms.collected')->value('text');
     expect($text)->toContain('Kulipi Kuna ladder 42: you collected P38.40 at level 2')->toContain('/v/42?c=abababababab');
 
+    // Fairness v2: a voided pick is explained, with what was paid back.
+    $this->withToken($token)->postJson('/api/v1/notify/ladder', [
+        'game_uuid' => $this->game->uuid, 'tenant_uuid' => $this->tenant->uuid, 'user_uuid' => $user->uuid,
+        'event' => 'void', 'ladder_id' => 44, 'commitment' => $commitment, 'server_seed' => str_repeat('cd', 32), 'level' => 3, 'payout' => '38.40',
+    ])->assertOk()->assertJsonPath('status', 'sent');
+    expect(SmsMessage::where('purpose', 'sms.void')->value('text'))
+        ->toContain('Kulipi Kuna ladder 44: your level 3 pick was cancelled because its independent fairness check did not complete. P38.40 paid back.');
+
     $web = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->withToken($token)->postJson('/api/v1/notify/ladder', [
         'game_uuid' => $this->game->uuid, 'tenant_uuid' => $this->tenant->uuid, 'user_uuid' => $web->uuid,
