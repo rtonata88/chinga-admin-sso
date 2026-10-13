@@ -17,7 +17,7 @@
   "kk.step_note": " in steps of {step}",
   "kk.stake_invalid": "{amount} is not a stake we can take. Stakes are {min} to {max}{step_note}.\n0 Back",
   "kk.confirm": "Stake {stake}\nLevel 1 pays {level1}\nLevel 2 pays {level2}\nTop: level {top} pays {top_pays}\n1 Confirm\n0 Back",
-  "kk.client_seed": "Fairness code sent by SMS.\nNow type any 4 digits. They are mixed with that code, so the hands are set by both of us:",
+  "kk.client_seed": "Fairness code sent by SMS.\nType any 4 digits. They go into the result together with the fairness code:",
   "kk.client_seed_invalid": "Please type exactly 4 digits, 0 to 9.",
   "kk.first_pick": "Your digits: {digits}\nLevel 1 pays {pays}\nWhich hand has it?\n1 Left\n2 Right",
   "kk.pick": "Level {level} pays {pays}\nWhich hand has it?\n1 Left\n2 Right",
