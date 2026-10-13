@@ -35,6 +35,10 @@ class LadderNotifyController extends Controller
             'payout' => ['nullable', 'regex:/^\d+\.\d{2}$/'],
             'stake' => ['nullable', 'regex:/^\d+\.\d{2}$/'],
             'hand' => ['nullable', 'in:left,right'],
+            // Fairness v2: the verify link carries its own random key (the commitment becomes
+            // derivable once the epoch is revealed, so it cannot be the gate).
+            'verify_key' => ['nullable', 'regex:/^[0-9a-f]{32}$/'],
+            'fairness' => ['nullable', 'in:v1,v2'],
         ]);
         $game = Game::where('uuid', $data['game_uuid'])->firstOrFail();
         $client = OAuthClientGames::clientIdFromRequest($request);
@@ -57,7 +61,8 @@ class LadderNotifyController extends Controller
             'payout' => isset($data['payout']) ? Currencies::format($data['payout'], $profile) : '',
             'stake' => isset($data['stake']) ? Currencies::format($data['stake'], $profile) : '',
             'balance' => Currencies::format((string) $user->getOrCreateWallet()->fresh()->balance, $profile),
-            'verify_url' => "{$base}/v/{$data['ladder_id']}?c=".substr($data['commitment'], 0, 12),
+            'verify_url' => "{$base}/v/{$data['ladder_id']}?c=".substr($data['commitment'], 0, 12)
+                .(isset($data['verify_key']) ? "&k={$data['verify_key']}&v=2" : ''),
         ];
         $key = $data['event'] === 'prepared' ? 'sms.commitment' : "sms.{$data['event']}";
         $sent = $sms->sendKey($tenant, $user, $user->phone, $key, $params);
