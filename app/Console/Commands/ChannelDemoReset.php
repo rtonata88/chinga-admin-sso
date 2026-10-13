@@ -46,6 +46,8 @@ class ChannelDemoReset extends Command
             });
             DB::table('mobile_money_transactions')->where('tenant_id', $tenant->id)->whereIn('status', ['initiated', 'pending', 'unknown'])->update(['status' => 'failed', 'last_error' => 'demo reset', 'updated_at' => now()]);
             DB::table('sms_messages')->where('tenant_id', $tenant->id)->delete();
+            // Load-test subscribers and any others: the seeder below puts back the demo's six.
+            DB::table('channel_sim_subscribers')->where('tenant_id', $tenant->id)->delete();
         });
         (new ChannelDemoSeeder)->run();
         $this->info("Retired {$n} mobile account(s); subscribers, prompts and inboxes reset.");
