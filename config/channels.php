@@ -6,6 +6,8 @@ return [
     | development and demos only: never on in production.
     */
     'simulator' => (bool) env('CHANNEL_SIMULATOR', false),
+    // Load tests only: the simulator's SMS driver waits this long per message.
+    'simulator_sms_delay_ms' => (int) env('CHANNEL_SIM_SMS_DELAY_MS', 0),
 
     // The terms players accept on first dial (USSD design §6). Bump to ask again.
     'terms_version' => env('CHANNEL_TERMS_VERSION', '2026-10'),
