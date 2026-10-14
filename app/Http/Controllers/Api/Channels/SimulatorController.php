@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\Channels;
 
+use App\Channels\ChannelRegistry;
 use App\Channels\Contracts\ProviderOutcome;
 use App\Http\Controllers\Controller;
 use App\Models\MobileMoneyTransaction;
 use App\Models\SmsMessage;
+use App\Models\Tenant;
 use App\Services\Channels\MobileMoneyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,11 +20,22 @@ use Illuminate\Support\Facades\DB;
  */
 class SimulatorController extends Controller
 {
-    use ChannelAuth;
+    use ChannelAuth {
+        tenantFor as channelTenant;
+    }
 
     public function __construct()
     {
         abort_unless((bool) config('channels.simulator'), 404);
+    }
+
+    /** Only a tenant the simulator may run for (a sandbox outside local development). */
+    protected function tenantFor(Request $request): Tenant
+    {
+        $tenant = $this->channelTenant($request);
+        abort_unless(ChannelRegistry::simulatorAllowed($tenant), 404);
+
+        return $tenant;
     }
 
     public function subscribers(Request $request): JsonResponse

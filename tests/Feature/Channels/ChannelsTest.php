@@ -205,3 +205,83 @@ it('hides the simulator unless it is switched on', function () {
     config(['channels.simulator' => false]);
     gw('GET', '/api/v1/channels/simulator/subscribers')->assertNotFound();
 });
+
+it('runs the simulator outside development only for the sandbox tenants listed', function () {
+    // Admitted while still in testing, so the player exists before the environment changes.
+    $user = admit();
+    app()->detectEnvironment(fn () => 'production');
+
+    // On, but no tenant listed: nothing simulated anywhere.
+    expect(\App\Channels\ChannelRegistry::simulatorAllowed($this->tenant))->toBeFalse();
+    gw('GET', '/api/v1/channels/simulator/subscribers')->assertNotFound();
+    expect(fn () => app(\App\Channels\ChannelRegistry::class)->kyc($this->tenant)->lookup('+26771000001'))
+        ->toThrow(RuntimeException::class, 'disabled for this tenant');
+    $before = (string) $user->getOrCreateWallet()->fresh()->balance;
+    try {
+        gw('POST', '/api/v1/channels/deposits', ['user_uuid' => $user->uuid, 'amount' => '50']);
+    } catch (Throwable) {
+        // Refused is all that matters here; the wallet below is the check.
+    }
+    expect((string) $user->getOrCreateWallet()->fresh()->balance)->toBe($before);
+
+    // Another tenant listed: still nothing for this one.
+    config(['channels.simulator_tenants' => [(string) \Illuminate\Support\Str::uuid()]]);
+    expect(\App\Channels\ChannelRegistry::simulatorAllowed($this->tenant))->toBeFalse();
+    gw('GET', '/api/v1/channels/simulator/subscribers')->assertNotFound();
+
+    // This tenant listed: the sandbox works.
+    config(['channels.simulator_tenants' => [$this->tenant->uuid]]);
+    gw('GET', '/api/v1/channels/simulator/subscribers')->assertOk();
+    $ref = gw('POST', '/api/v1/channels/deposits', ['user_uuid' => $user->uuid, 'amount' => '50'])->assertOk()->json('reference');
+    gw('POST', "/api/v1/channels/simulator/prompts/{$ref}", ['approve' => true, 'pin' => '1234'])->assertOk()->assertJsonPath('status', 'succeeded');
+    expect((string) $user->getOrCreateWallet()->fresh()->balance)->toBe(bcadd($before, '50', 2));
+
+    // Switched off, the list does not matter.
+    config(['channels.simulator' => false]);
+    expect(\App\Channels\ChannelRegistry::simulatorAllowed($this->tenant))->toBeFalse();
+});
+
+it('seeds an integration sandbox on its own tenant, with a client bound to it alone', function () {
+    $this->seed(\Database\Seeders\ChannelSandboxSeeder::class);
+    $sandbox = Tenant::where('slug', \Database\Seeders\ChannelSandboxSeeder::TENANT_SLUG)->firstOrFail();
+    $client = Client::where('name', \Database\Seeders\ChannelSandboxSeeder::CLIENT_NAME)->firstOrFail();
+
+    expect($sandbox->id)->not->toBe($this->tenant->id)
+        ->and($sandbox->name)->toBe('Orange Botswana (sandbox)')
+        ->and($sandbox->currency)->toBe('BWP');
+    expect(DB::table('channel_client_tenants')->where('oauth_client_id', $client->id)->pluck('tenant_id')->all())->toBe([$sandbox->id]);
+    expect($client->fresh()->scopes)->toBe(['channel:ussd']);
+    $ussd = \App\Models\ChannelProvider::where('tenant_id', $sandbox->id)->where('kind', 'ussd')->firstOrFail();
+    expect($ussd->name)->toBe('Orange USSD (sandbox)')
+        ->and(strlen($ussd->config['inbound']['secret']))->toBe(40);
+    expect(\App\Models\ChannelProvider::where('tenant_id', $sandbox->id)->pluck('driver', 'kind')->all())
+        ->toMatchArray(['mobile_money' => 'simulator', 'kyc' => 'simulator', 'sms' => 'simulator']);
+    expect(DB::table('tenant_games')->where('tenant_id', $sandbox->id)->where('game_id', $this->game->id)->value('enabled'))->toBeTruthy();
+
+    // Seeding again creates nothing new and keeps the secret Orange already has.
+    $secret = $ussd->config['inbound']['secret'];
+    $this->seed(\Database\Seeders\ChannelSandboxSeeder::class);
+    expect(\App\Models\ChannelProvider::where('tenant_id', $sandbox->id)->where('kind', 'ussd')->count())->toBe(1)
+        ->and($ussd->fresh()->config['inbound']['secret'])->toBe($secret)
+        ->and(Client::where('name', \Database\Seeders\ChannelSandboxSeeder::CLIENT_NAME)->count())->toBe(1);
+});
+
+it("adds a provider's test number only to a listed sandbox tenant", function () {
+    $this->seed(\Database\Seeders\ChannelSandboxSeeder::class);
+    $sandbox = Tenant::where('slug', 'orange-bw-sandbox')->firstOrFail();
+    app()->detectEnvironment(fn () => 'production');
+
+    $this->artisan('channels:sandbox-subscriber', ['msisdn' => '71 234 567'])->assertFailed();
+    $this->artisan('channels:sandbox-subscriber', ['msisdn' => '+26771234567', '--tenant' => 'orange-bw-demo'])->assertFailed();
+    expect(DB::table('channel_sim_subscribers')->where('msisdn', '+26771234567')->exists())->toBeFalse();
+
+    config(['channels.simulator_tenants' => [$sandbox->uuid]]);
+    $this->artisan('channels:sandbox-subscriber', ['msisdn' => '71 234 567', '--money' => '250.00'])->assertSuccessful();
+    $row = DB::table('channel_sim_subscribers')->where('tenant_id', $sandbox->id)->where('msisdn', '+26771234567')->first();
+    expect($row)->not->toBeNull()
+        ->and($row->kyc)->toBe('verified')
+        ->and((string) $row->money_balance)->toBe('250.00');
+    // The demo tenant (not listed) is still refused.
+    $this->artisan('channels:sandbox-subscriber', ['msisdn' => '+26771234568', '--tenant' => 'orange-bw-demo'])->assertFailed();
+    $this->artisan('channels:sandbox-subscriber', ['msisdn' => '+26771234567', '--money' => 'lots'])->assertFailed();
+});

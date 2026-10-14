@@ -28,12 +28,27 @@ class ChannelDemoSeeder extends Seeder
 
     public const CODE = '*123*45#';
 
+    protected function tenantName(): string
+    {
+        return 'Orange Botswana (demo)';
+    }
+
+    protected function ussdProviderName(): string
+    {
+        return 'USSD simulator';
+    }
+
+    protected function serviceCode(): string
+    {
+        return static::CODE;
+    }
+
     public function run(): void
     {
         $game = Game::where('slug', 'kulipi-kuna')->firstOrFail();
-        $tenant = Tenant::firstOrCreate(['slug' => self::TENANT_SLUG], [
+        $tenant = Tenant::firstOrCreate(['slug' => static::TENANT_SLUG], [
             'uuid' => (string) Str::uuid(),
-            'name' => 'Orange Botswana (demo)',
+            'name' => $this->tenantName(),
             'contact_email' => 'demo@orange-bw.invalid',
             'contact_phone' => '+267 123',
             'country_code' => 'BW',
@@ -58,14 +73,16 @@ class ChannelDemoSeeder extends Seeder
             ['tenant_id' => $tenant->id, 'kind' => $kind, 'driver' => $driver],
             ['name' => $name, 'config' => $config, 'status' => 'active'],
         );
-        $ussd = $provider('ussd', 'generic', 'USSD simulator', ['inbound' => [
+        $providerSecret = Str::random(40);
+        $ussdExisted = ChannelProvider::where(['tenant_id' => $tenant->id, 'kind' => 'ussd', 'driver' => 'generic'])->exists();
+        $ussd = $provider('ussd', 'generic', $this->ussdProviderName(), ['inbound' => [
             'protocol' => 'generic',
             'format' => 'json',
             'fields' => ['session' => 'sessionId', 'msisdn' => 'phoneNumber', 'code' => 'serviceCode', 'input' => 'text'],
             'input_mode' => 'cumulative',
             'separator' => '*',
             'reply' => 'prefix',
-            'secret' => Str::random(40),
+            'secret' => $providerSecret,
             'allow_ips' => [],
         ]]);
         $provider('mobile_money', 'simulator', 'Orange Money');
@@ -73,7 +90,7 @@ class ChannelDemoSeeder extends Seeder
         $provider('sms', 'simulator', 'Orange SMS');
 
         DB::table('ussd_service_codes')->updateOrInsert(
-            ['channel_provider_id' => $ussd->id, 'code' => self::CODE],
+            ['channel_provider_id' => $ussd->id, 'code' => $this->serviceCode()],
             ['tenant_id' => $tenant->id, 'game_id' => $game->id, 'status' => 'active', 'updated_at' => now(), 'created_at' => now()],
         );
 
@@ -92,12 +109,18 @@ class ChannelDemoSeeder extends Seeder
             );
         }
 
-        $client = $this->firstOrCreateClient(self::CLIENT_NAME, fn (ClientRepository $c) => $c->createClientCredentialsGrantClient(self::CLIENT_NAME));
+        $client = $this->firstOrCreateClient(static::CLIENT_NAME, fn (ClientRepository $c) => $c->createClientCredentialsGrantClient(static::CLIENT_NAME));
         $this->restrictClientScopes($client, ['channel:ussd']);
         DB::table('channel_client_tenants')->updateOrInsert(
             ['oauth_client_id' => $client->id, 'tenant_id' => $tenant->id],
             ['updated_at' => now(), 'created_at' => now()],
         );
+        $this->report($tenant, $ussd, $ussdExisted ? null : $providerSecret, $client);
+    }
+
+    /** The demo keeps the gateway's secret in a gitignored file for scripts/ussd-demo.sh, never printed. */
+    protected function report(Tenant $tenant, ChannelProvider $ussd, ?string $providerSecret, \Laravel\Passport\Client $client): void
+    {
         // Tests make their own client in their own database: never overwrite the dev gateway's file.
         if ($client->plainSecret !== null && ! app()->runningUnitTests()) {
             file_put_contents(storage_path('app/ussd-gateway-client.json'), json_encode([
@@ -109,7 +132,7 @@ class ChannelDemoSeeder extends Seeder
 
         $this->command?->info('USSD demo seeded.');
         $this->command?->line("  Tenant:         {$tenant->name} ({$tenant->uuid}), BWP");
-        $this->command?->line('  Service code:   '.self::CODE.' → Kulipi Kuna');
+        $this->command?->line('  Service code:   '.$this->serviceCode().' → Kulipi Kuna');
         $this->command?->line("  USSD provider:  {$ussd->uuid}");
         $this->command?->line("  Gateway client: {$client->id} (secret in storage/app/ussd-gateway-client.json when newly created)");
     }
