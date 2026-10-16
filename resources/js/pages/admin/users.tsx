@@ -8,6 +8,7 @@
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { csrfHeader } from '@/lib/csrf';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Checkbox } from 'primereact/checkbox';
@@ -155,9 +156,6 @@ export default function Users() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, statusFilter, userTypeFilter]);
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const openRoleDialog = async (user: User) => {
         setRoleDialogUser(user);
         setRoleDialogOpen(true);
@@ -196,7 +194,7 @@ export default function Users() {
             const headers = {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': getCsrfToken(),
+                ...csrfHeader(),
             };
 
             for (const role of toAdd) {
@@ -243,7 +241,7 @@ export default function Users() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify(createForm),

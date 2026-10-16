@@ -1,10 +1,8 @@
+import { csrfHeader } from './csrf';
+
 /**
  * Get CSRF token from the page meta tag
  */
-function getCsrfToken(): string {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta?.getAttribute('content') || '';
-}
 
 /**
  * API fetch wrapper that includes CSRF token and proper headers
@@ -15,7 +13,7 @@ export async function api<T = unknown>(
 ): Promise<{ success: boolean; data?: T; message?: string; meta?: unknown }> {
     const headers: HeadersInit = {
         Accept: 'application/json',
-        'X-CSRF-TOKEN': getCsrfToken(),
+        ...csrfHeader(),
         ...(options.headers || {}),
     };
 

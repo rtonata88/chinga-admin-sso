@@ -7,6 +7,7 @@
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { csrfHeader } from '@/lib/csrf';
 import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -75,9 +76,6 @@ export default function VenuesIndex() {
         email: '',
     });
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const fetchVenues = async () => {
         setLoading(true);
         try {
@@ -129,7 +127,7 @@ export default function VenuesIndex() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify(formData),

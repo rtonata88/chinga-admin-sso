@@ -10,6 +10,7 @@ import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import { MoneyFigure } from '@/components/operator/money-figure';
 import { formatMoney, toCents, useCurrencies, useTenantCurrency } from '@/lib/money';
 import UserLayout from '@/layouts/user-layout';
+import { csrfHeader } from '@/lib/csrf';
 import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -93,10 +94,6 @@ function formatDate(iso: string | null): string {
 
 function formatDateTime(iso: string | null): string {
     return iso ? DATETIME_FMT.format(new Date(iso)) : '—';
-}
-
-function getCsrfToken(): string {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 }
 
 interface InfoItem {
@@ -241,7 +238,7 @@ export default function UserShow({ uuid }: { uuid: string }) {
     const apiCall = async (url: string, method: string = 'POST', body?: Record<string, unknown>) => {
         const response = await fetch(url, {
             method,
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...csrfHeader() },
             credentials: 'same-origin',
             body: body ? JSON.stringify(body) : undefined,
         });

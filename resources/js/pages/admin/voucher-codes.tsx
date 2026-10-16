@@ -13,6 +13,7 @@ import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { type Amount, type CurrencyProfile, formatFigure, formatMoney, useCurrencies } from '@/lib/money';
+import { csrfHeader } from '@/lib/csrf';
 import { useEffect, useMemo, useState } from 'react';
 
 interface Venue {
@@ -66,7 +67,6 @@ function statusPill(status: string): string {
         default: return 'void';
     }
 }
-
 
 const DATE_FMT = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -189,9 +189,6 @@ export default function VoucherCodes() {
         { code: string; balance: Amount; currency: string } | null
     >(null);
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const fetchVenues = async () => {
         try {
             const response = await fetch('/api/v1/admin/venues?per_page=500&sort_by=name&sort_dir=asc', {
@@ -247,7 +244,7 @@ export default function VoucherCodes() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({
@@ -287,7 +284,7 @@ export default function VoucherCodes() {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 credentials: 'same-origin',
             });

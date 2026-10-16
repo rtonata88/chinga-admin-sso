@@ -8,6 +8,7 @@
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { csrfHeader } from '@/lib/csrf';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -194,25 +195,11 @@ export default function TenantShow() {
 
     const { uuid } = usePage<{ uuid: string }>().props;
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
-    // Read the XSRF-TOKEN cookie (URL-decoded) — Laravel refreshes this
-    // on every response, so it stays in sync even after long sessions
-    // where the meta-tag-based X-CSRF-TOKEN has gone stale. This is what
-    // axios sends by default. Sending both maximises the chance one of
-    // them passes Laravel's ValidateCsrfToken check.
-    const getXsrfCookie = () => {
-        const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
-        return match ? decodeURIComponent(match[1]) : '';
-    };
-
     const csrfHeaders = (): Record<string, string> => ({
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': getCsrfToken(),
-        'X-XSRF-TOKEN': getXsrfCookie(),
+        ...csrfHeader(),
     });
 
     const fetchAdmins = async (tenantId: number) => {
@@ -386,7 +373,7 @@ export default function TenantShow() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify({
                     games: selectedGameUuids.map((gameUuid) => {
@@ -437,7 +424,7 @@ export default function TenantShow() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify({
                     revenue_share_pct: revenue,
@@ -475,7 +462,7 @@ export default function TenantShow() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify({ enabled: newEnabled }),
             });
@@ -512,7 +499,7 @@ export default function TenantShow() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify(formData),
             });

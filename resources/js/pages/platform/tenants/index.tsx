@@ -7,6 +7,7 @@
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import type { CurrencyProfile } from '@/lib/money';
+import { csrfHeader } from '@/lib/csrf';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -72,9 +73,6 @@ export default function TenantsIndex() {
     const [formData, setFormData] = useState(initialFormData);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const fetchTenants = (searchQuery = '', status = '') => {
         setLoading(true);
         const params = new URLSearchParams();
@@ -117,7 +115,7 @@ export default function TenantsIndex() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify(formData),
             });

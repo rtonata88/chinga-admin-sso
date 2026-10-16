@@ -7,6 +7,7 @@
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { type Amount, toCents, formatFigure, useCurrencies } from '@/lib/money';
+import { csrfHeader } from '@/lib/csrf';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -63,17 +64,12 @@ function methodLabel(method: Withdrawal['payment_method']): string {
     }[method];
 }
 
-
 const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
 
 function formatDateTime(iso: string): string {
     return DATETIME_FMT.format(new Date(iso));
-}
-
-function getCsrfToken(): string {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 }
 
 export default function Withdrawals() {
@@ -142,7 +138,7 @@ export default function Withdrawals() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify(body),

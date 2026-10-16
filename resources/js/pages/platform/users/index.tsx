@@ -2,6 +2,7 @@ import PageHeader from '@/components/acumatica/Common/PageHeader';
 import StatusBadge from '@/components/acumatica/Common/StatusBadge';
 import UserLayout from '@/layouts/user-layout';
 import type { StatusVariant } from '@/types/acumatica';
+import { csrfHeader } from '@/lib/csrf';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Chip } from 'primereact/chip';
@@ -109,10 +110,6 @@ export default function PlatformUsersIndex() {
     const [selectedTenantRoles, setSelectedTenantRoles] = useState<string[]>([]);
     const [tenantRoleAssignments, setTenantRoleAssignments] = useState<{ role: string; display_name: string; tenant_id: number; tenant_name: string }[]>([]);
 
-    const getCsrfToken = () => {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    };
-
     const fetchUsers = async () => {
         setLoading(true);
         try {
@@ -218,7 +215,7 @@ export default function PlatformUsersIndex() {
         const headers = {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': getCsrfToken(),
+            ...csrfHeader(),
         };
 
         try {
@@ -286,7 +283,7 @@ export default function PlatformUsersIndex() {
                     method: 'DELETE',
                     headers: {
                         Accept: 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
+                        ...csrfHeader(),
                     },
                 }
             );
@@ -324,7 +321,7 @@ export default function PlatformUsersIndex() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify(createForm),
             });

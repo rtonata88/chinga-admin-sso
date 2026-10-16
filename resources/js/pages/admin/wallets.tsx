@@ -8,6 +8,7 @@
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import { type Amount, type CurrencyTotal, formatFigure, formatTotals, useCurrencies } from '@/lib/money';
 import UserLayout from '@/layouts/user-layout';
+import { csrfHeader } from '@/lib/csrf';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -103,9 +104,6 @@ export default function Wallets() {
     const [withdrawReference, setWithdrawReference] = useState('');
     const [withdrawLoading, setWithdrawLoading] = useState(false);
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const fetchWallets = async () => {
         setLoading(true);
         try {
@@ -150,7 +148,7 @@ export default function Wallets() {
         try {
             const response = await fetch(`/api/v1/admin/wallets/${depositWallet.uuid}/deposit`, {
                 method: 'POST',
-                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...csrfHeader() },
                 body: JSON.stringify({ amount: depositAmount.trim(), reference: depositReference || undefined }),
             });
             const data = await response.json();
@@ -173,7 +171,7 @@ export default function Wallets() {
         try {
             const response = await fetch(`/api/v1/admin/wallets/${withdrawWallet.uuid}/withdraw`, {
                 method: 'POST',
-                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...csrfHeader() },
                 body: JSON.stringify({ amount: withdrawAmount.trim(), reference: withdrawReference || undefined }),
             });
             const data = await response.json();
@@ -194,7 +192,7 @@ export default function Wallets() {
         if (!confirm(`Freeze wallet for ${wallet.user.name}?`)) return;
         try {
             const response = await fetch(`/api/v1/admin/wallets/${wallet.uuid}/freeze`, {
-                method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+                method: 'POST', headers: { Accept: 'application/json', ...csrfHeader() },
             });
             const data = await response.json();
             if (data.success) {
@@ -211,7 +209,7 @@ export default function Wallets() {
     const handleActivate = async (wallet: Wallet) => {
         try {
             const response = await fetch(`/api/v1/admin/wallets/${wallet.uuid}/activate`, {
-                method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+                method: 'POST', headers: { Accept: 'application/json', ...csrfHeader() },
             });
             const data = await response.json();
             if (data.success) {

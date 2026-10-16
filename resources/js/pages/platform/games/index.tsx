@@ -6,6 +6,7 @@
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { csrfHeader } from '@/lib/csrf';
 import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -80,9 +81,6 @@ export default function GamesIndex() {
         launch_url: '',
     });
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const fetchGames = () => {
         setLoading(true);
         const params = new URLSearchParams();
@@ -130,7 +128,7 @@ export default function GamesIndex() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify({
                     ...formData,

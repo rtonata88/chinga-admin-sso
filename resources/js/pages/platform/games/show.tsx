@@ -6,6 +6,7 @@
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { csrfHeader } from '@/lib/csrf';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -143,9 +144,6 @@ export default function GameShow() {
 
     const { uuid } = usePage<{ uuid: string }>().props;
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const fetchGame = () => {
         setLoading(true);
         fetch(`/api/v1/platform/games/${uuid}`, {
@@ -190,7 +188,7 @@ export default function GameShow() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 body: JSON.stringify({
                     ...editForm,

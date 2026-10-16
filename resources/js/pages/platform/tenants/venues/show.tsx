@@ -8,6 +8,7 @@
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { formatMoneyCompact, useCurrencies } from '@/lib/money';
+import { csrfHeader } from '@/lib/csrf';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -200,9 +201,6 @@ export default function VenueShow() {
 
     const apiBase = `/api/v1/platform/tenants/${tenantUuid}/venues/${uuid}`;
 
-    const getCsrfToken = () =>
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
     const fetchVenue = async () => {
         try {
             const response = await fetch(apiBase, {
@@ -261,7 +259,7 @@ export default function VenueShow() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify(staffForm),
@@ -291,7 +289,7 @@ export default function VenueShow() {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify(terminalForm),
@@ -318,7 +316,7 @@ export default function VenueShow() {
         try {
             const response = await fetch(`${apiBase}/${action}`, {
                 method: 'POST',
-                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+                headers: { Accept: 'application/json', ...csrfHeader() },
                 credentials: 'same-origin',
             });
             const data = await response.json();
