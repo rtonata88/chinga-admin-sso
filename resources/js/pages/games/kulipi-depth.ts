@@ -5,6 +5,9 @@
 // hundredths of the stake, as in @chinga/kulipi-math: level(n) =
 // (1000 − edge‰) / 5 × 2^(n−1); depth is the largest n ≤ cap whose payout
 // fits max_win_per_ladder. Display only; the engine does its own maths.
+// Stakes and max win are whole units of each tenant's own currency, so the
+// payout is shown in the currency given (or as a bare figure when the
+// game's tenants span several).
 //
 // Checked by hand against the PRD table (edge 0.04, cap 10, max win 16000;
 // level 1 = 192 hundredths of the stake):
@@ -23,15 +26,27 @@ const num = (v: unknown, fallback: number): number => {
     return Number.isFinite(n) ? n : fallback;
 };
 
-function nad(cents: number): string {
-    const whole = Math.floor(cents / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    return `N$${whole}.${String(cents % 100).padStart(2, '0')}`;
+/**
+ * Turns a 2dp decimal string into what the page shows (formatMoney in the
+ * caller's currency). Taken as a function so this module stays free of
+ * imports: KulipiKunaSettingsRulesTest runs it under plain node.
+ */
+export type MoneyFormat = (amount: string) => string;
+
+/** No currency (the game's tenants span several): the grouped figure alone. */
+const bare: MoneyFormat = (amount) => {
+    const [whole, cents] = amount.split('.');
+    return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${cents}`;
+};
+
+function money(cents: number, format: MoneyFormat): string {
+    return format(`${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`);
 }
 
 /** More stake tiers than this and the preview is not drawn. */
 export const MAX_TIERS = 200;
 
-export function depthRows(settings: Record<string, unknown>): DepthRow[] {
+export function depthRows(settings: Record<string, unknown>, format: MoneyFormat = bare): DepthRow[] {
     const edgeMil = Math.round(num(settings.house_edge, 0.04) * 1000);
     const cap = Math.trunc(num(settings.hard_level_cap, 10));
     const maxWinCents = Math.trunc(num(settings.max_win_per_ladder, 16000)) * 100;
@@ -54,6 +69,6 @@ export function depthRows(settings: Record<string, unknown>): DepthRow[] {
                 if (stake * level1 * 2 ** (n - 1) > maxWinCents) break;
                 depth = n;
             }
-            return { stake, depth, pays: depth === 0 ? '—' : nad(stake * level1 * 2 ** (depth - 1)) };
+            return { stake, depth, pays: depth === 0 ? '—' : money(stake * level1 * 2 ** (depth - 1), format) };
         });
 }

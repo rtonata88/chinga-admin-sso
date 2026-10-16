@@ -74,7 +74,8 @@ class DorexConsoleController extends ProvablyFairConsoleController
         }
 
         return Inertia::render('dorex/round-detail', $this->gameProps() + [
-            'round' => $round,
+            // Positions do not name a tenant: they are in the round's tenant's currency.
+            'round' => $round === null ? null : $this->currencies()->tagOne($round),
             'positions' => $positions,
             'verify' => $verify,
             'tenantNames' => $this->tenantNames(),

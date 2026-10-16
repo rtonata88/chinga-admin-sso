@@ -7,6 +7,7 @@ use App\Models\CompanyProfile;
 use App\Models\Tenant;
 use App\Models\TenantInvoice;
 use App\Services\Billing\InvoiceService;
+use App\Support\Currencies;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -184,6 +185,10 @@ class TenantInvoiceController extends Controller
                 'amount_due' => $f['amount_due'],
             ],
             'record' => $record,
+            // An issued invoice is in the currency it was issued in; a preview in the tenant's.
+            'currency' => $record && $record->currency !== $tenant->currency
+                ? Currencies::profile($record->currency)
+                : Currencies::forTenant($tenant),
         ];
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Models\TenantInvoice;
 use App\Models\TenantInvoicePayment;
 use App\Services\Billing\InvoiceService;
+use App\Support\Currencies;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,6 +17,9 @@ use Inertia\Response;
  * Issued invoices and their payments. Platform admins see every tenant
  * and can record payments or void; a tenant admin sees their own
  * invoices read-only (the same page, without the actions).
+ *
+ * Every invoice is in its own currency (its tenant's, fixed at issue), so
+ * the list totals are one figure per currency and never added across them.
  */
 class InvoiceController extends Controller
 {
@@ -39,7 +43,12 @@ class InvoiceController extends Controller
                 : $query->where('status', $status);
         }
 
-        $rows = $query->get()->map(fn (TenantInvoice $i) => [
+        $invoices = $query->get();
+        $outstanding = fn (TenantInvoice $i): string => bccomp((string) $i->amount_due, (string) $i->amount_paid, 2) > 0
+            ? bcsub((string) $i->amount_due, (string) $i->amount_paid, 2)
+            : '0.00';
+
+        $rows = $invoices->map(fn (TenantInvoice $i) => [
             'id' => $i->id,
             'number' => $i->number,
             'tenant_uuid' => $i->tenant?->uuid,
@@ -50,23 +59,30 @@ class InvoiceController extends Controller
             'due_at' => $i->due_at->toDateString(),
             'status' => $i->status,
             'overdue' => $i->isOverdue(),
+            // Every figure on the row is in this currency; amounts are exact decimal strings.
             'currency' => $i->currency,
-            'ggr' => (float) $i->ggr,
-            'amount_due' => (float) $i->amount_due,
-            'amount_paid' => (float) $i->amount_paid,
-            'outstanding' => $i->outstanding(),
+            'ggr' => (string) $i->ggr,
+            'amount_due' => (string) $i->amount_due,
+            'amount_paid' => (string) $i->amount_paid,
+            'outstanding' => $outstanding($i),
             'paid_at' => $i->paid_at?->toIso8601String(),
         ])->values();
 
-        $open = $rows->filter(fn ($r) => ! in_array($r['status'], [TenantInvoice::STATUS_PAID, TenantInvoice::STATUS_VOID], true));
+        $closed = [TenantInvoice::STATUS_PAID, TenantInvoice::STATUS_VOID];
+        $byCurrency = Currencies::totalsByCurrency($invoices->map(fn (TenantInvoice $i) => [
+            'currency' => $i->currency,
+            'outstanding' => in_array($i->status, $closed, true) ? '0' : $outstanding($i),
+            'overdue' => ! in_array($i->status, $closed, true) && $i->isOverdue() ? $outstanding($i) : '0',
+            'paid' => $i->isVoid() ? '0' : (string) $i->amount_paid,
+        ]), ['outstanding', 'overdue', 'paid']);
 
         return Inertia::render('invoices/index', [
             'rows' => $rows,
             'totals' => [
                 'count' => $rows->count(),
-                'outstanding' => round($open->sum('outstanding'), 2),
-                'overdue' => round($open->filter(fn ($r) => $r['overdue'])->sum('outstanding'), 2),
-                'paid' => round($rows->where('status', '!=', TenantInvoice::STATUS_VOID)->sum('amount_paid'), 2),
+                // [{currency, outstanding, overdue, paid}]: one entry per currency, replacing
+                // the scalar outstanding/overdue/paid that added currencies together.
+                'by_currency' => $byCurrency,
             ],
             'tenants' => $manage
                 ? Tenant::where('business_model', 'reseller')->orderBy('name')->get(['uuid', 'name'])->map(fn ($t) => ['uuid' => $t->uuid, 'name' => $t->name])

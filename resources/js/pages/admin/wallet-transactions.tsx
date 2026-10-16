@@ -4,9 +4,13 @@
 // /tenant-overview. KPI strip (5-up) → filter bar (multi-toggle
 // type chips, source chips, game select, date range, search) →
 // transactions table → pager.
+//
+// Each transaction shows in its wallet's or code's currency; the KPI sums
+// are one figure per currency (a tenant admin's are their tenant's).
 
-import { KpiCard, formatCount, formatCurrencyCompact, formatNAD } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { type CurrencyTotal, formatFigure, formatTotals, toCents, useCurrencies } from '@/lib/money';
 import { Head } from '@inertiajs/react';
 import { Toast } from 'primereact/toast';
 import { useEffect, useRef, useState } from 'react';
@@ -37,12 +41,12 @@ interface Meta {
     total: number;
 }
 
+type StatField = 'total_deposits' | 'total_withdrawals' | 'total_bets' | 'total_wins';
+
 interface Stats {
     total_transactions: number;
-    total_deposits: string;
-    total_withdrawals: string;
-    total_bets: string;
-    total_wins: string;
+    /** One entry per currency, never summed across currencies. */
+    totals: CurrencyTotal<StatField>[];
 }
 
 const CREDIT_TYPES = new Set(['deposit', 'win', 'load', 'transfer_in']);
@@ -89,6 +93,7 @@ export default function WalletTransactions() {
     const toast = useRef<Toast>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [meta, setMeta] = useState<Meta | null>(null);
+    const profileOf = useCurrencies();
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -201,22 +206,22 @@ export default function WalletTransactions() {
                     />
                     <KpiCard
                         label="Deposits & loads"
-                        value={stats ? formatCurrencyCompact(parseFloat(stats.total_deposits)) : '—'}
+                        value={stats ? formatTotals(stats.totals, 'total_deposits', profileOf, true) : '—'}
                         meta="money in"
                     />
                     <KpiCard
                         label="Withdrawals & cashouts"
-                        value={stats ? formatCurrencyCompact(parseFloat(stats.total_withdrawals)) : '—'}
+                        value={stats ? formatTotals(stats.totals, 'total_withdrawals', profileOf, true) : '—'}
                         meta="money out"
                     />
                     <KpiCard
                         label="Bets & losses"
-                        value={stats ? formatCurrencyCompact(parseFloat(stats.total_bets)) : '—'}
+                        value={stats ? formatTotals(stats.totals, 'total_bets', profileOf, true) : '—'}
                         meta="staked"
                     />
                     <KpiCard
                         label="Wins"
-                        value={stats ? formatCurrencyCompact(parseFloat(stats.total_wins)) : '—'}
+                        value={stats ? formatTotals(stats.totals, 'total_wins', profileOf, true) : '—'}
                         brass
                         meta="paid to players"
                     />
@@ -353,7 +358,8 @@ export default function WalletTransactions() {
                                 transactions.map((t) => {
                                     const isCredit = CREDIT_TYPES.has(t.type);
                                     const isDebit = DEBIT_TYPES.has(t.type);
-                                    const absAmount = Math.abs(parseFloat(t.amount));
+                                    const p = profileOf(t.currency);
+                                    const absAmount = Math.abs(toCents(t.amount)) / 100;
                                     const sign = isCredit ? '+' : isDebit ? '−' : '';
                                     const amountColor = isCredit ? 'var(--cg-pos)' : isDebit ? 'var(--cg-neg)' : 'var(--cg-fg-1)';
                                     return (
@@ -392,12 +398,12 @@ export default function WalletTransactions() {
                                                     style={{ color: amountColor }}
                                                 >
                                                     {sign}<span className="cgo-ccy">{t.currency}</span>
-                                                    {formatNAD(absAmount)}
+                                                    {p ? formatFigure(absAmount, p) : t.amount}
                                                 </span>
                                             </td>
                                             <td className="cgo-r hidden md:table-cell">
                                                 <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
-                                                    {formatNAD(parseFloat(t.balance_before))} → {formatNAD(parseFloat(t.balance_after))}
+                                                    {p ? `${formatFigure(t.balance_before, p)} → ${formatFigure(t.balance_after, p)}` : `${t.balance_before} → ${t.balance_after}`}
                                                 </span>
                                             </td>
                                             <td className="hidden md:table-cell">

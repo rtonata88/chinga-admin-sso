@@ -6,7 +6,8 @@
 // tenant's venue from here. Add-staff and add-terminal dialogs stay
 // on PrimeReact for their multi-field form state.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
+import { type Amount, formatMoneyCompact, useCurrencies } from '@/lib/money';
 import UserLayout from '@/layouts/user-layout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
@@ -36,10 +37,12 @@ interface VenueDetails {
     staff_count: number;
     terminals_count: number;
     voucher_codes_count: number;
+    /** In the venue's currency: its codes are issued in it. */
     stats: {
-        active_codes_balance: number;
-        total_loaded: number;
-        total_cashed_out: number;
+        currency: string | null;
+        active_codes_balance: Amount;
+        total_loaded: Amount;
+        total_cashed_out: Amount;
     };
     /** Chinga Fantasy over the counter, last 30 days; null when the engine could not be reached. */
     fantasy_counter: { period_days: number; tickets: number; rounds: number; stake: string; won: string; paid_out: string; unpaid_won: string } | null;
@@ -164,6 +167,10 @@ export default function VenueShow() {
     const apiBase = `/api/v1/admin/venues/${uuid}`;
 
     const [venue, setVenue] = useState<VenueDetails | null>(null);
+    const profileOf = useCurrencies();
+    // Every figure on this page is in the venue's currency.
+    const venueCurrency = profileOf(venue?.stats?.currency ?? venue?.currency);
+    const money = (v: Amount) => (venueCurrency ? formatMoneyCompact(v, venueCurrency) : '—');
     const [staff, setStaff] = useState<Staff[]>([]);
     const [terminals, setTerminals] = useState<Terminal[]>([]);
     const [loading, setLoading] = useState(true);
@@ -448,9 +455,9 @@ export default function VenueShow() {
                     <KpiCard label="Voucher codes" value={formatCount(venue.voucher_codes_count)} meta="lifetime issued" />
                     <KpiCard
                         label="Active balance"
-                        value={formatCurrencyCompact(venue.stats?.active_codes_balance ?? 0)}
+                        value={money(venue.stats?.active_codes_balance ?? 0)}
                         brass
-                        meta={venue.currency || 'NAD'}
+                        meta={venueCurrency?.code ?? '—'}
                     />
                 </div>
 
@@ -461,10 +468,10 @@ export default function VenueShow() {
                 {venue.fantasy_counter ? (
                     <div className="cgo-kpis" data-testid="fantasy-counter">
                         <KpiCard label="Tickets sold" value={formatCount(venue.fantasy_counter.tickets)} meta={`${formatCount(venue.fantasy_counter.rounds)} rounds`} />
-                        <KpiCard label="Stake taken" value={formatCurrencyCompact(Number(venue.fantasy_counter.stake))} meta="cash in at the counter" />
-                        <KpiCard label="Winnings" value={formatCurrencyCompact(Number(venue.fantasy_counter.won))} meta="credited to the float" />
-                        <KpiCard label="Paid out" value={formatCurrencyCompact(Number(venue.fantasy_counter.paid_out))} meta="cash out at the counter" />
-                        <KpiCard label="Uncollected" value={formatCurrencyCompact(Number(venue.fantasy_counter.unpaid_won))} brass meta="won, slip not yet presented" />
+                        <KpiCard label="Stake taken" value={money(venue.fantasy_counter.stake)} meta="cash in at the counter" />
+                        <KpiCard label="Winnings" value={money(venue.fantasy_counter.won)} meta="credited to the float" />
+                        <KpiCard label="Paid out" value={money(venue.fantasy_counter.paid_out)} meta="cash out at the counter" />
+                        <KpiCard label="Uncollected" value={money(venue.fantasy_counter.unpaid_won)} brass meta="won, slip not yet presented" />
                     </div>
                 ) : (
                     <div className="cgo-subtitle" data-testid="fantasy-counter-unavailable" style={{ marginBottom: 24 }}>The Chinga Fantasy engine could not be reached; counter figures are unavailable.</div>

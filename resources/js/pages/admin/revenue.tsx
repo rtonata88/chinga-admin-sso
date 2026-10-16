@@ -5,48 +5,50 @@
 // `revenue:calculate` artisan job (cron at 02:00). Default range is
 // year-to-date — narrower windows often look empty because the job
 // only writes a row per closed period, not in real time.
+//
+// Money is never added across currencies: the summary is one figure per
+// currency (a tenant admin's is exactly one, their tenant's), the by-game
+// table has one row per (game, currency), and each record shows in its
+// tenant's currency.
 
-import { KpiCard, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard } from '@/components/operator/kpi-card';
+import { MoneyFigure } from '@/components/operator/money-figure';
 import UserLayout from '@/layouts/user-layout';
+import { type Amount, type CurrencyTotal, formatTotals, toCents, useCurrencies } from '@/lib/money';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
-interface RevenueTotals {
-    total_bets: number;
-    total_wins: number;
-    gross_gaming_revenue: number;
-    chinga_share: number;
-    tenant_share: number;
-}
+type TotalField = 'total_bets' | 'total_wins' | 'gross_gaming_revenue' | 'chinga_share' | 'tenant_share';
+
+/** One entry per currency. */
+type RevenueTotals = CurrencyTotal<TotalField>[];
 
 interface GameRevenue {
     game_id: number;
     game: { uuid: string; name: string } | null;
-    total_bets: number;
-    total_wins: number;
-    gross_gaming_revenue: number;
-    tenant_share: number;
+    /** null on a platform error row for a game that could not be reached. */
+    currency: string | null;
+    total_bets: Amount;
+    total_wins: Amount;
+    gross_gaming_revenue: Amount;
+    tenant_share: Amount;
+    error?: string | null;
 }
 
 interface RevenueRecord {
     id: number;
     game: { uuid: string; name: string } | null;
+    /** The record's tenant's currency. */
+    currency: string | null;
     period_type: string;
     period_start: string;
     period_end: string;
-    total_bets: number;
-    total_wins: number;
-    gross_gaming_revenue: number;
-    chinga_share: number;
-    tenant_share: number;
+    total_bets: Amount;
+    total_wins: Amount;
+    gross_gaming_revenue: Amount;
+    chinga_share: Amount;
+    tenant_share: Amount;
     status: string;
-}
-
-function formatNAD(value: number | null | undefined): string {
-    return Number(value || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
 }
 
 function statusPill(status: string): string {
@@ -74,6 +76,7 @@ function yearStartIso(): string {
 }
 
 export default function TenantRevenue() {
+    const profileOf = useCurrencies();
     const [totals, setTotals] = useState<RevenueTotals | null>(null);
     const [perGame, setPerGame] = useState<GameRevenue[]>([]);
     const [records, setRecords] = useState<RevenueRecord[]>([]);
@@ -136,7 +139,9 @@ export default function TenantRevenue() {
         fetchRecords();
     };
 
-    const empty = !loading && (!totals || (totals.gross_gaming_revenue === 0 && records.length === 0));
+    const empty =
+        !loading && (!totals || (totals.every((t) => toCents(t.gross_gaming_revenue) === 0) && records.length === 0));
+    const total = (field: TotalField) => (totals ? formatTotals(totals, field, profileOf, true) : '—');
 
     return (
         <UserLayout title="Revenue">
@@ -171,28 +176,28 @@ export default function TenantRevenue() {
                 <div className="cgo-kpis cgo-kpis--5">
                     <KpiCard
                         label="Total bets"
-                        value={totals ? formatCurrencyCompact(totals.total_bets) : '—'}
+                        value={total('total_bets')}
                         meta="staked"
                     />
                     <KpiCard
                         label="Total wins"
-                        value={totals ? formatCurrencyCompact(totals.total_wins) : '—'}
+                        value={total('total_wins')}
                         meta="paid out"
                     />
                     <KpiCard
                         label="Gross Gaming Revenue"
-                        value={totals ? formatCurrencyCompact(totals.gross_gaming_revenue) : '—'}
+                        value={total('gross_gaming_revenue')}
                         meta="bets − wins"
                     />
                     <KpiCard
                         label="Your share"
-                        value={totals ? formatCurrencyCompact(totals.tenant_share) : '—'}
+                        value={total('tenant_share')}
                         brass
                         meta="after split"
                     />
                     <KpiCard
                         label="Platform share"
-                        value={totals ? formatCurrencyCompact(totals.chinga_share) : '—'}
+                        value={total('chinga_share')}
                         meta="retained by platform"
                     />
                 </div>
@@ -303,30 +308,32 @@ export default function TenantRevenue() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {perGame.map((row) => (
-                                        <tr key={row.game_id}>
+                                    {perGame.map((row) => {
+                                        const p = profileOf(row.currency);
+                                        return (
+                                        <tr key={`${row.game_id}:${row.currency ?? ''}`}>
                                             <td>
                                                 <span className="cgo-name">{row.game?.name || 'Unknown'}</span>
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-stake">
-                                                    <span className="cgo-ccy">NAD</span>
-                                                    {formatNAD(row.total_bets)}
+                                                    <MoneyFigure value={row.total_bets} profile={p} />
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
-                                                <span className="cgo-payout">{formatNAD(row.total_wins)}</span>
+                                                <span className="cgo-payout"><MoneyFigure value={row.total_wins} profile={p} code={false} /></span>
                                             </td>
                                             <td className="cgo-r">
-                                                <span className="cgo-payout">{formatNAD(row.gross_gaming_revenue)}</span>
+                                                <span className="cgo-payout"><MoneyFigure value={row.gross_gaming_revenue} profile={p} code={false} /></span>
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-payout" style={{ color: 'var(--cg-brass-hi)' }}>
-                                                    {formatNAD(row.tenant_share)}
+                                                    <MoneyFigure value={row.tenant_share} profile={p} code={false} />
                                                 </span>
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -376,7 +383,9 @@ export default function TenantRevenue() {
                                     </td>
                                 </tr>
                             ) : (
-                                records.map((r) => (
+                                records.map((r) => {
+                                    const p = profileOf(r.currency);
+                                    return (
                                     <tr key={r.id}>
                                         <td>
                                             <div className="cgo-name">
@@ -393,19 +402,18 @@ export default function TenantRevenue() {
                                         </td>
                                         <td className="cgo-r">
                                             <span className="cgo-stake">
-                                                <span className="cgo-ccy">NAD</span>
-                                                {formatNAD(r.total_bets)}
+                                                <MoneyFigure value={r.total_bets} profile={p} />
                                             </span>
                                         </td>
                                         <td className="cgo-r">
-                                            <span className="cgo-payout">{formatNAD(r.total_wins)}</span>
+                                            <span className="cgo-payout"><MoneyFigure value={r.total_wins} profile={p} code={false} /></span>
                                         </td>
                                         <td className="cgo-r">
-                                            <span className="cgo-payout">{formatNAD(r.gross_gaming_revenue)}</span>
+                                            <span className="cgo-payout"><MoneyFigure value={r.gross_gaming_revenue} profile={p} code={false} /></span>
                                         </td>
                                         <td className="cgo-r">
                                             <span className="cgo-payout" style={{ color: 'var(--cg-brass-hi)' }}>
-                                                {formatNAD(r.tenant_share)}
+                                                <MoneyFigure value={r.tenant_share} profile={p} code={false} />
                                             </span>
                                         </td>
                                         <td>
@@ -414,7 +422,8 @@ export default function TenantRevenue() {
                                             </span>
                                         </td>
                                     </tr>
-                                ))
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

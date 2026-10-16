@@ -72,7 +72,8 @@ class TenantVenueController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],
             'timezone' => ['nullable', 'string', 'max:50'],
-            'currency' => ['nullable', 'string', 'size:3'],
+            // A venue's vouchers fund wallets on the tenant, so it can only be in the tenant's currency.
+            'currency' => ['nullable', 'string', Rule::in([$tenant->currency ?: 'NAD'])],
             'settings' => ['nullable', 'array'],
         ]);
 
@@ -80,6 +81,7 @@ class TenantVenueController extends Controller
             'uuid' => Str::uuid(),
             'tenant_id' => $tenant->id,
             ...$validated,
+            'currency' => $tenant->currency ?: 'NAD',
             'status' => 'active',
         ]);
 
@@ -107,6 +109,7 @@ class TenantVenueController extends Controller
             ->withCount(['staff', 'terminals', 'voucherCodes'])
             ->firstOrFail();
 
+        // Voucher figures are in the venue's currency (its tenant's), returned with them.
         $activeCodesBalance = VoucherCode::where('venue_id', $venue->id)
             ->whereIn('status', ['active', 'in_use'])
             ->sum('balance');
@@ -119,6 +122,7 @@ class TenantVenueController extends Controller
             'data' => [
                 ...$venue->toArray(),
                 'stats' => [
+                    'currency' => $venue->currency,
                     'active_codes_balance' => $activeCodesBalance,
                     'total_loaded' => $totalLoaded,
                     'total_cashed_out' => $totalCashedOut,

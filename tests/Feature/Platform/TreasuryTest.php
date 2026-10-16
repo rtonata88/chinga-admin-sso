@@ -64,7 +64,7 @@ test('the treasury view sums liabilities and computes what is distributable', fu
         'payment_method' => 'bank_transfer', 'payment_details' => [], 'status' => 'paid',
     ]);
 
-    TreasurySetting::current()->update(['bank_balance' => '2500.00', 'variance_reserve' => '400.00', 'tax_pct' => '10.00']);
+    TreasurySetting::current('NAD')->update(['bank_balance' => '2500.00', 'variance_reserve' => '400.00', 'tax_pct' => '10.00']);
 
     // owed 1700, held 300 → liability 2000; month GGR = 500 − 1000 = −500 → tax 0.
     // distributable = 2500 − 2000 − 400 − 0 = 100.
@@ -73,16 +73,19 @@ test('the treasury view sums liabilities and computes what is distributable', fu
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('platform/treasury')
-            ->where('summary.owed', '1700.00')
-            ->where('summary.held', '300.00')
-            ->where('summary.liability', '2000.00')
-            ->where('summary.covered', true)
-            ->where('summary.coverage_pct', '125.0')
-            ->where('summary.tax_provision', '0.00')
-            ->where('summary.distributable', '100.00')
-            ->where('summary.dormant', '500.00')
+            ->has('positions', 1)
+            ->where('positions.0.currency', 'NAD')
+            ->where('positions.0.summary.owed', '1700.00')
+            ->where('positions.0.summary.held', '300.00')
+            ->where('positions.0.summary.liability', '2000.00')
+            ->where('positions.0.summary.covered', true)
+            ->where('positions.0.summary.coverage_pct', '125.0')
+            ->where('positions.0.summary.tax_provision', '0.00')
+            ->where('positions.0.summary.distributable', '100.00')
+            ->where('positions.0.summary.dormant', '500.00')
             ->has('tenants', 1)
             ->where('tenants.0.tenant_name', 'Lucky Star Betting')
+            ->where('tenants.0.currency', 'NAD')
             ->where('tenants.0.wallets', 3)
             ->where('tenants.0.funded', 2)
             ->where('tenants.0.staff_deposits', '1000.00')
@@ -100,27 +103,27 @@ test('a positive month GGR is taxed and an unbacked position is flagged', functi
     ledger($wa, 'deposit', '2000.00');
     ledger($wa, 'bet', '3000.00');
     ledger($wa, 'win', '2000.00');
-    TreasurySetting::current()->update(['bank_balance' => '800.00', 'variance_reserve' => '0.00', 'tax_pct' => '15.00']);
+    TreasurySetting::current('NAD')->update(['bank_balance' => '800.00', 'variance_reserve' => '0.00', 'tax_pct' => '15.00']);
 
     // month GGR 1000 → tax 150; distributable = 800 − 1000 − 0 − 150 = −350.
     $this->actingAs($this->platformAdmin)
         ->get('/platform/treasury')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('summary.covered', false)
-            ->where('summary.surplus', '-200.00')
-            ->where('summary.tax_provision', '150.00')
-            ->where('summary.distributable', '-350.00')
-            ->where('summary.month_ggr', '1000.00')
+            ->where('positions.0.summary.covered', false)
+            ->where('positions.0.summary.surplus', '-200.00')
+            ->where('positions.0.summary.tax_provision', '150.00')
+            ->where('positions.0.summary.distributable', '-350.00')
+            ->where('positions.0.summary.month_ggr', '1000.00')
         );
 });
 
 test('platform admins can save the bank balance, reserve and tax rate', function () {
     $this->actingAs($this->platformAdmin)
-        ->put('/platform/treasury', ['bank_balance' => '38650.00', 'bank_balance_as_of' => '2026-09-21', 'variance_reserve' => '30000', 'tax_pct' => '10'])
+        ->put('/platform/treasury', ['currency' => 'NAD', 'bank_balance' => '38650.00', 'bank_balance_as_of' => '2026-09-21', 'variance_reserve' => '30000', 'tax_pct' => '10'])
         ->assertRedirect('/platform/treasury');
 
-    $s = TreasurySetting::current();
+    $s = TreasurySetting::current('NAD');
     expect((string) $s->bank_balance)->toBe('38650.00')
         ->and($s->bank_balance_as_of->toDateString())->toBe('2026-09-21')
         ->and((string) $s->variance_reserve)->toBe('30000.00')
@@ -129,7 +132,7 @@ test('platform admins can save the bank balance, reserve and tax rate', function
 
     $this->actingAs($this->platformAdmin)
         ->put('/platform/treasury', ['bank_balance' => '-1', 'variance_reserve' => '0', 'tax_pct' => '101'])
-        ->assertSessionHasErrors(['bank_balance', 'tax_pct']);
+        ->assertSessionHasErrors(['currency', 'bank_balance', 'tax_pct']);
 });
 
 test('the treasury is platform-admin only', function () {

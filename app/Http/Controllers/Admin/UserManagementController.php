@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Auth\SecurityAuditService;
 use App\Services\FantasyAdminClient;
+use App\Support\ScopedTotals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -190,6 +191,8 @@ class UserManagementController extends Controller
                 'timezone' => $user->timezone,
                 'language' => $user->language,
                 'user_type' => $user->user_type ?? 'direct',
+                // A player plays only on their own tenant, so their bets are in its currency.
+                'currency' => ScopedTotals::currencyOf($user->tenant),
                 'status' => $user->status,
                 'kyc_level' => $user->kyc_level,
                 'kyc_level_name' => $user->kyc_level_name,
@@ -417,7 +420,7 @@ class UserManagementController extends Controller
         $user = $this->findUser($request, $uuid);
 
         $tenantUuid = $request->query('tenant_uuid');
-        if (!$tenantUuid && !$request->user()?->isPlatformAdmin()) {
+        if (! $tenantUuid && ! $request->user()?->isPlatformAdmin()) {
             $tenantUuid = app('current_tenant')?->uuid;
         }
 
@@ -426,6 +429,7 @@ class UserManagementController extends Controller
 
         try {
             $response = $client->listUserBets($user->uuid, $tenantUuid ?: null, $limit, $offset);
+
             return response()->json([
                 'success' => true,
                 'data' => $response['data'] ?? [],
@@ -435,6 +439,7 @@ class UserManagementController extends Controller
                 'user_uuid' => $uuid,
                 'error' => $e->getMessage(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Could not load fantasy bet history.',

@@ -54,31 +54,11 @@ export function KpiCard({ label, value, brass, delta, meta, spark }: KpiCardProp
     );
 }
 
-// Helpers — used by both /dashboard and /admin to keep formatting
-// consistent. Move into a util module if more pages start using them.
-
-export function formatNAD(n: number): string {
-    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// Helpers shared by /dashboard and /admin. Money goes through '@/lib/money'
+// in its own currency.
 
 export function formatCount(n: number): string {
     return n.toLocaleString('en-US');
-}
-
-/**
- * Compact NAD formatter for KPI display values. Always prefixes with
- * "N$" and uses K/M/B suffixes so even busy days fit a card without
- * wrapping. Decimal precision shrinks as the magnitude grows.
- */
-export function formatCurrencyCompact(n: number): string {
-    const sign = n < 0 ? '-' : '';
-    const abs = Math.abs(n);
-    if (abs >= 1_000_000_000) return `${sign}N$${(abs / 1_000_000_000).toFixed(1)}B`;
-    if (abs >= 1_000_000) return `${sign}N$${(abs / 1_000_000).toFixed(1)}M`;
-    if (abs >= 100_000) return `${sign}N$${(abs / 1_000).toFixed(0)}K`;
-    if (abs >= 1_000) return `${sign}N$${(abs / 1_000).toFixed(1)}K`;
-    if (abs >= 100) return `${sign}N$${abs.toFixed(0)}`;
-    return `${sign}N$${abs.toFixed(2)}`;
 }
 
 /**

@@ -13,6 +13,7 @@ import { Toast } from 'primereact/toast';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { FieldLabel, PanelShell } from '@/components/games/panels';
+import { formatMoney, useCurrencies } from '@/lib/money';
 import { ceilingRows } from './dorex-ceiling';
 import { depthRows } from './kulipi-depth';
 import {
@@ -61,8 +62,15 @@ function sparse(values: SettingsValues): SettingsValues {
 
 export default function GameSettings({ game, schema, tenants, audits = [] }: Props) {
     const [globalSettings, setGlobalSettings] = useState<SettingsValues>(game.settings || {});
-    const kulipiDepth = game.slug === 'kulipi-kuna' ? depthRows(globalSettings) : [];
-    const dorexCeilings = game.slug === 'dorex' ? ceilingRows(globalSettings) : [];
+    // Global stakes and max wins are whole units of each tenant's own currency. The previews
+    // show that currency when the game's tenants share one, and bare figures when they do not.
+    const currencyOf = useCurrencies();
+    const tenantCodes = [...new Set(tenants.map((t) => t.currency))];
+    const previewProfile = tenantCodes.length === 1 ? currencyOf(tenantCodes[0]) : null;
+    const previewMoney = (amount: string | number): string => (previewProfile ? formatMoney(amount, previewProfile) : String(amount));
+    const kulipiDepth = game.slug === 'kulipi-kuna' ? depthRows(globalSettings, previewProfile ? previewMoney : undefined) : [];
+    const dorexCeilings = game.slug === 'dorex' ? ceilingRows(globalSettings, previewProfile ? previewMoney : undefined) : [];
+    const previewNote = previewProfile ? '' : ' Amounts are in each tenant\u2019s own currency.';
     const [tenantStates, setTenantStates] = useState<Record<string, { enabled: boolean; displayName: string; settings: SettingsValues }>>(
         () => {
             const state: Record<string, { enabled: boolean; displayName: string; settings: SettingsValues }> = {};
@@ -192,14 +200,14 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                         )}
                                         {kulipiDepth.map((r) => (
                                             <tr key={r.stake}>
-                                                <td>N${r.stake}</td>
+                                                <td>{previewMoney(r.stake)}</td>
                                                 <td className="cgo-r">{r.depth === 0 ? 'none' : r.depth}</td>
                                                 <td className="cgo-r">{r.pays}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                                <div className="cgo-stat-note">Updates as you edit. A ladder&apos;s depth is fixed when it starts; a payout is never cut.</div>
+                                <div className="cgo-stat-note">Updates as you edit. A ladder&apos;s depth is fixed when it starts; a payout is never cut.{previewNote}</div>
                             </div>
                         )}
                         {game.slug === 'dorex' && (
@@ -221,7 +229,7 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                         )}
                                         {dorexCeilings.map((r) => (
                                             <tr key={r.stake}>
-                                                <td>N${r.stake}</td>
+                                                <td>{previewMoney(r.stake)}</td>
                                                 <td className="cgo-r">{r.ceiling}</td>
                                                 <td className="cgo-r">{r.mostPaid}</td>
                                             </tr>
@@ -230,7 +238,7 @@ export default function GameSettings({ game, schema, tenants, audits = [] }: Pro
                                 </table>
                                 <div className="cgo-stat-note">
                                     Updates as you edit. A stake closes at the first tick at or above its ceiling and is paid that tick&apos;s price, never
-                                    cut; the ceiling is set so that price still fits the max win.
+                                    cut; the ceiling is set so that price still fits the max win.{previewNote}
                                 </div>
                             </div>
                         )}

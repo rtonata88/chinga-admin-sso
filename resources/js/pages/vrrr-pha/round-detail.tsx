@@ -5,17 +5,18 @@
 // has crashed; the engine withholds them before that, and so does this
 // page. The audit result comes from the engine recomputing the crash
 // point from the revealed seeds — it is not recomputed in the browser.
+// Money is in the round's tenant's currency.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { Head, Link } from '@inertiajs/react';
 
 import {
-    ERROR_BOX, PANEL, TAP, formatDateTime, formatMultiplier, formatNAD, formatRatioPct, num, outcomePill,
-    shortUuid, statePill, tenantLabel,
+    ERROR_BOX, type HasCurrency, PANEL, TAP, formatDateTime, formatMultiplier, formatRatioPct, moneyDiff, outcomePill,
+    shortUuid, statePill, tenantLabel, useRowMoney,
 } from './format';
 
-interface Round {
+interface Round extends HasCurrency {
     id: number;
     sequence: number;
     tenant_uuid: string;
@@ -38,7 +39,7 @@ interface Round {
     max_exposure: string;
 }
 
-interface Bet {
+interface Bet extends HasCurrency {
     id: number;
     round_id: number;
     sequence: number;
@@ -112,6 +113,7 @@ function Field({ label, value, mono, wrap }: { label: string; value: string; mon
 }
 
 export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, round, bets = [], verify, tenantNames = {}, error, backHref = `${game.base}/rounds` }: Props) {
+    const money = useRowMoney();
     const back = (
         <Link href={backHref} className={`cg-btn cg-btn--text cg-btn--sm max-sm:leading-10! ${TAP}`} style={{ marginBottom: 12, display: 'inline-block' }}>
             ‹ Back to rounds
@@ -135,9 +137,8 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
     const state = statePill(round.state);
     const crash = (game.kind ?? 'crash') === 'crash';
     const revealed = crash ? round.crash_point !== undefined : round.server_seed != null;
-    const wagered = num(round.total_wagered);
-    const paidOut = num(round.total_paid_out);
-    const ggr = wagered - paidOut;
+    const ccy = round.currency;
+    const ggr = moneyDiff(round.total_wagered, round.total_paid_out);
     const title = `Round #${round.sequence}`;
 
     return (
@@ -171,9 +172,9 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                         />
                     )}
                     <KpiCard label="Bets" value={formatCount(round.bet_count)} meta="excluding cancelled" />
-                    <KpiCard label="Wagered" value={formatCurrencyCompact(wagered)} meta="staked" />
-                    <KpiCard label="Paid out" value={formatCurrencyCompact(paidOut)} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
-                    <KpiCard label="GGR" value={formatCurrencyCompact(ggr)} meta={`max exposure ${formatNAD(round.max_exposure)}`} />
+                    <KpiCard label="Wagered" value={money.compact(round.total_wagered, ccy)} meta="staked" />
+                    <KpiCard label="Paid out" value={money.compact(round.total_paid_out, ccy)} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
+                    <KpiCard label="GGR" value={money.compact(ggr, ccy)} meta={`max exposure ${money.full(round.max_exposure, ccy)}`} />
                 </div>
 
                 {/* Two panels side by side when there is room; min(…, 100%) lets one panel fill a phone without overflowing. */}
@@ -251,7 +252,7 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                             </>
                         )}
                         <Field label="Settled" value={formatDateTime(round.settled_at)} />
-                        <Field label="Max exposure" value={`NAD ${formatNAD(round.max_exposure)}`} mono />
+                        <Field label="Max exposure" value={money.full(round.max_exposure, ccy)} mono />
                     </section>
                 </div>
 
@@ -291,12 +292,12 @@ export default function RoundDetail({ game = { name: 'Vrrr Pha', base: '/vrrr-ph
                                             <td><span className="cgo-uid" title={b.user_uuid}>{shortUuid(b.user_uuid)}</span></td>
                                             <td><span className="cgo-uid">{formatDateTime(b.placed_at)}</span></td>
                                             <td className="cgo-r">
-                                                <span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(b.stake)}</span>
+                                                <span className="cgo-stake"><span className="cgo-ccy">{money.code(b.currency ?? ccy)}</span>{money.figure(b.stake, b.currency ?? ccy)}</span>
                                             </td>
                                             <td className="cgo-r"><span className="cgo-odds">{formatMultiplier(b.auto_cashout_target)}</span></td>
                                             <td className="cgo-r"><span className="cgo-odds">{formatMultiplier(b.cashout_multiplier)}</span></td>
                                             <td className="cgo-r">
-                                                <span className="cgo-payout">{b.payout === null ? '—' : formatNAD(b.payout)}</span>
+                                                <span className="cgo-payout">{b.payout === null ? '—' : money.figure(b.payout, b.currency ?? ccy)}</span>
                                             </td>
                                             <td><span className={`cgo-pill ${o.pill}`}>{o.label}</span></td>
                                             <td><span className="cgo-uid">{b.placed_by ?? '—'}</span></td>

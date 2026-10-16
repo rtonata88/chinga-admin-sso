@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Game;
 use App\Models\Tenant;
+use App\Support\Currencies;
 use App\Support\GameCatalogue;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
@@ -66,7 +67,11 @@ class HandleInertiaRequests extends Middleware
                 'slug' => $tenant->slug,
                 'logo_url' => $tenant->logo_url,
                 'branding' => $tenant->getBranding(),
+                // Every figure a tenant's users see is in this currency (USSD design U-D15).
+                'currency' => Currencies::forTenant($tenant),
             ] : null,
+            // Profiles by code, for consoles that show several tenants' money (each row in its own currency).
+            'currencies' => fn () => Currencies::all(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             // The games this admin administers, from the catalogue, so the
             // nav is generated rather than hardcoded per game (PRD §4 P7).

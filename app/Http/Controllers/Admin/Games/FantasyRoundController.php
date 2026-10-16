@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Games;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Services\FantasyAdminClient;
+use App\Support\TenantCurrencyMap;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -36,7 +37,8 @@ class FantasyRoundController extends Controller
             ->get(['uuid', 'name', 'slug']);
 
         return Inertia::render('fantasy/rounds', [
-            'rounds' => $rounds,
+            // Each round in its tenant's currency; the engine may name the tenant by slug.
+            'rounds' => TenantCurrencyMap::load()->tag($rounds),
             'tenants' => $tenants,
             'filters' => [
                 'tenant_uuid' => $tenantUuid,
@@ -62,9 +64,12 @@ class FantasyRoundController extends Controller
             $error = 'Could not load round details.';
         }
 
+        // The round and its bets in the round's tenant's currency.
+        $currencies = TenantCurrencyMap::load();
+
         return Inertia::render('fantasy/round-detail', [
-            'round' => $round,
-            'bets' => $bets,
+            'round' => $round === null ? null : $currencies->tagOne($round),
+            'bets' => $currencies->tag($bets),
             'error' => $error,
             'backHref' => $request->query('back') === 'admin' ? '/admin/fantasy/rounds' : '/fantasy/rounds',
         ]);
@@ -78,7 +83,7 @@ class FantasyRoundController extends Controller
     public function tenantIndex(Request $request)
     {
         $tenant = app('current_tenant');
-        if (!$tenant) {
+        if (! $tenant) {
             abort(404, 'Tenant not found.');
         }
 
@@ -98,7 +103,8 @@ class FantasyRoundController extends Controller
         }
 
         return Inertia::render('fantasy/rounds', [
-            'rounds' => $rounds,
+            // Each round in its tenant's currency; the engine may name the tenant by slug.
+            'rounds' => TenantCurrencyMap::load()->tag($rounds),
             'tenants' => [],
             'filters' => [
                 'tenant_uuid' => $tenant->uuid,
@@ -115,7 +121,7 @@ class FantasyRoundController extends Controller
     public function tenantShow(Request $request, int $id)
     {
         $tenant = app('current_tenant');
-        if (!$tenant) {
+        if (! $tenant) {
             abort(404);
         }
 
@@ -138,9 +144,12 @@ class FantasyRoundController extends Controller
             $error = 'Could not load round details.';
         }
 
+        // The round and its bets in the round's tenant's currency.
+        $currencies = TenantCurrencyMap::load();
+
         return Inertia::render('fantasy/round-detail', [
-            'round' => $round,
-            'bets' => $bets,
+            'round' => $round === null ? null : $currencies->tagOne($round),
+            'bets' => $currencies->tag($bets),
             'error' => $error,
             'backHref' => '/admin/fantasy/rounds',
         ]);

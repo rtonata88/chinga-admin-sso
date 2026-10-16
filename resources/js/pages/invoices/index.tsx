@@ -4,9 +4,9 @@
 // record payments or void; tenant admins see their own, read-only. The
 // printable invoice itself is the Blade view at /invoices/{number}.
 
-import { KpiCard, formatCurrencyCompact } from '@/components/operator/kpi-card';
-import { formatNAD } from '@/pages/vrrr-pha/format';
+import { KpiCard } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { formatMoney, formatTotals, toCents, useCurrencies, type CurrencyProfile, type CurrencyTotal } from '@/lib/money';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Dialog } from 'primereact/dialog';
 import { Toast } from 'primereact/toast';
@@ -23,17 +23,19 @@ interface Row {
     due_at: string;
     status: 'issued' | 'part_paid' | 'paid' | 'void';
     overdue: boolean;
+    /** The invoice's currency (its tenant's, fixed at issue); every figure on the row is in it. */
     currency: string;
-    ggr: number;
-    amount_due: number;
-    amount_paid: number;
-    outstanding: number;
+    ggr: string;
+    amount_due: string;
+    amount_paid: string;
+    outstanding: string;
     paid_at: string | null;
 }
 
 interface Props {
     rows: Row[];
-    totals: { count: number; outstanding: number; overdue: number; paid: number };
+    /** by_currency: one entry per currency; invoices in different currencies are never added together. */
+    totals: { count: number; by_currency: CurrencyTotal<'outstanding' | 'overdue' | 'paid'>[] };
     tenants: { uuid: string; name: string }[];
     filters: { tenant_uuid: string | null; status: string | null };
     can_manage: boolean;
@@ -84,9 +86,15 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
     const today = new Date().toISOString().slice(0, 10);
     const payment = useForm({ amount: '', paid_at: today, method: 'bank_transfer', reference: '', note: '' });
     const voidForm = useForm({ reason: '' });
+    const lookup = useCurrencies();
+    // A code always resolves (unknown codes show themselves); the fallback only satisfies the type.
+    const profileOf = (code: string): CurrencyProfile => lookup(code) ?? { code, symbol: code, decimals: 2, symbol_position: 'before', space: true, thousands: ',', decimal: '.' };
+    const money = (r: Row, v: string) => formatMoney(v, profileOf(r.currency));
+    const anyOutstanding = totals.by_currency.some((t) => toCents(t.outstanding) > 0);
+    const anyOverdue = totals.by_currency.some((t) => toCents(t.overdue) > 0);
 
     const openPayment = (r: Row) => {
-        payment.setData({ amount: r.outstanding.toFixed(2), paid_at: today, method: 'bank_transfer', reference: '', note: '' });
+        payment.setData({ amount: r.outstanding, paid_at: today, method: 'bank_transfer', reference: '', note: '' });
         payment.clearErrors();
         setPaying(r);
     };
@@ -142,9 +150,9 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
 
                 <div className="cgo-kpis cgo-kpis--4">
                     <KpiCard label="Invoices" value={String(totals.count)} meta="issued, including paid and void" />
-                    <KpiCard label="Outstanding" value={formatCurrencyCompact(totals.outstanding)} brass={totals.outstanding > 0} meta="open invoices, unpaid balance" />
-                    <KpiCard label="Overdue" value={formatCurrencyCompact(totals.overdue)} meta={totals.overdue > 0 ? 'past the due date' : 'nothing past due'} />
-                    <KpiCard label="Collected" value={formatCurrencyCompact(totals.paid)} meta="payments recorded" />
+                    <KpiCard label="Outstanding" value={formatTotals(totals.by_currency, 'outstanding', profileOf, true)} brass={anyOutstanding} meta="open invoices, unpaid balance" />
+                    <KpiCard label="Overdue" value={formatTotals(totals.by_currency, 'overdue', profileOf, true)} meta={anyOverdue ? 'past the due date' : 'nothing past due'} />
+                    <KpiCard label="Collected" value={formatTotals(totals.by_currency, 'paid', profileOf, true)} meta="payments recorded" />
                 </div>
 
                 <div className="cgo-filterbar">
@@ -206,11 +214,11 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                                         {can_manage && <td><div className="cgo-name">{r.tenant_name ?? '—'}</div></td>}
                                         <td className="cgo-mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(r.period_from)} – {fmtDate(r.period_to)}</td>
                                         <td className="cgo-mono" style={{ whiteSpace: 'nowrap', ...(r.overdue ? { color: 'var(--cg-neg)' } : {}) }}>{fmtDate(r.due_at)}</td>
-                                        <td className="cgo-r cgo-mono hidden md:table-cell">{formatNAD(r.ggr)}</td>
-                                        <td className="cgo-r cgo-mono">{formatNAD(r.amount_due)}</td>
-                                        <td className="cgo-r cgo-mono hidden md:table-cell">{formatNAD(r.amount_paid)}</td>
-                                        <td className="cgo-r cgo-mono" style={{ fontWeight: r.outstanding > 0 && r.status !== 'void' ? 600 : undefined }}>
-                                            {r.status === 'void' ? '—' : formatNAD(r.outstanding)}
+                                        <td className="cgo-r cgo-mono hidden md:table-cell">{money(r, r.ggr)}</td>
+                                        <td className="cgo-r cgo-mono">{money(r, r.amount_due)}</td>
+                                        <td className="cgo-r cgo-mono hidden md:table-cell">{money(r, r.amount_paid)}</td>
+                                        <td className="cgo-r cgo-mono" style={{ fontWeight: toCents(r.outstanding) > 0 && r.status !== 'void' ? 600 : undefined }}>
+                                            {r.status === 'void' ? '—' : money(r, r.outstanding)}
                                         </td>
                                         <td><span className={`cgo-pill ${pillClass(r)}`}>{pillLabel(r)}</span></td>
                                         <td>
@@ -219,7 +227,7 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                                                 {can_manage && r.status !== 'paid' && r.status !== 'void' && (
                                                     <button type="button" className="cg-btn cg-btn--primary cg-btn--sm max-sm:min-h-10" onClick={() => openPayment(r)}>Record payment</button>
                                                 )}
-                                                {can_manage && r.status === 'issued' && r.amount_paid === 0 && (
+                                                {can_manage && r.status === 'issued' && toCents(r.amount_paid) === 0 && (
                                                     <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm max-sm:min-h-10" onClick={() => { voidForm.setData('reason', ''); setVoiding(r); }}>Void</button>
                                                 )}
                                             </div>
@@ -252,11 +260,11 @@ export default function Invoices({ rows, totals, tenants, filters, can_manage, m
                 {paying && (
                     <form id="payment-form" onSubmit={submitPayment}>
                         <div style={{ fontSize: 12, color: 'var(--cg-fg-3)', marginBottom: 14 }}>
-                            {paying.tenant_name} · outstanding <b style={{ color: 'var(--cg-fg-1)', fontFamily: 'var(--cg-mono)' }}>{formatNAD(paying.outstanding)}</b>
+                            {paying.tenant_name} · outstanding <b style={{ color: 'var(--cg-fg-1)', fontFamily: 'var(--cg-mono)' }}>{money(paying, paying.outstanding)}</b>
                         </div>
                         <div className="cgo-field-grid">
                             <div className="cgo-field">
-                                <label className="cgo-field-label" htmlFor="pay-amount">{label('Amount')}</label>
+                                <label className="cgo-field-label" htmlFor="pay-amount">{label(`Amount (${paying.currency})`)}</label>
                                 <span className="cgo-input max-sm:min-h-10"><input id="pay-amount" type="number" step="0.01" min="0.01" max={paying.outstanding} value={payment.data.amount} onChange={(e) => payment.setData('amount', e.target.value)} required /></span>
                                 {payment.errors.amount && <div style={{ fontSize: 11, color: 'var(--cg-neg)', marginTop: 4 }}>{payment.errors.amount}</div>}
                             </div>

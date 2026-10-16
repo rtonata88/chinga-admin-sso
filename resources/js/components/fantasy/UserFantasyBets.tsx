@@ -1,4 +1,5 @@
 import StatusBadge from '@/components/acumatica/Common/StatusBadge';
+import { type Amount, type CurrencyProfile, formatMoney, toCents, useCurrencies, useTenantCurrency } from '@/lib/money';
 import type { StatusVariant } from '@/types/acumatica';
 import { Link } from '@inertiajs/react';
 import { Column } from 'primereact/column';
@@ -24,9 +25,8 @@ interface Bet {
     picks: Pick[];
 }
 
-function formatCurrency(amount: string | number): string {
-    const n = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `NAD ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Amount, p: CurrencyProfile | null): string {
+    return p ? formatMoney(amount, p) : '—';
 }
 
 function outcomeVariant(outcome: Bet['outcome']): StatusVariant {
@@ -37,9 +37,14 @@ function outcomeVariant(outcome: Bet['outcome']): StatusVariant {
 
 interface Props {
     userUuid: string;
+    /** The player's tenant's currency (their bets are in it); defaults to the signed-in tenant's. */
+    currency?: string | null;
 }
 
-export function UserFantasyBets({ userUuid }: Props) {
+export function UserFantasyBets({ userUuid, currency }: Props) {
+    const profileOf = useCurrencies();
+    const tenantCurrency = useTenantCurrency();
+    const ccy = profileOf(currency) ?? tenantCurrency;
     const [bets, setBets] = useState<Bet[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -75,8 +80,9 @@ export function UserFantasyBets({ userUuid }: Props) {
 
     const totalBets = bets.length;
     const wins = bets.filter((b) => b.outcome === 'win').length;
-    const totalWagered = bets.reduce((acc, b) => acc + parseFloat(b.bet_amount || '0'), 0);
-    const totalWon = bets.filter((b) => b.outcome === 'win').reduce((acc, b) => acc + parseFloat(b.winning_amount || '0'), 0);
+    // Integer cents, so the sums are exact.
+    const totalWagered = bets.reduce((acc, b) => acc + toCents(b.bet_amount), 0) / 100;
+    const totalWon = bets.filter((b) => b.outcome === 'win').reduce((acc, b) => acc + toCents(b.winning_amount), 0) / 100;
 
     return (
         <div className="acu-fieldset" style={{ '--fieldset-color': 'var(--acu-fieldset-gold)' } as React.CSSProperties}>
@@ -111,8 +117,8 @@ export function UserFantasyBets({ userUuid }: Props) {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                             <SummaryStat label="Bets" value={totalBets.toString()} />
                             <SummaryStat label="Wins" value={`${wins}`} />
-                            <SummaryStat label="Wagered" value={formatCurrency(totalWagered)} />
-                            <SummaryStat label="Won" value={formatCurrency(totalWon)} />
+                            <SummaryStat label="Wagered" value={formatCurrency(totalWagered, ccy)} />
+                            <SummaryStat label="Won" value={formatCurrency(totalWon, ccy)} />
                         </div>
                         <DataTable value={bets} size="small" showGridlines={false} dataKey="id">
                             <Column
@@ -154,7 +160,7 @@ export function UserFantasyBets({ userUuid }: Props) {
                                 header="Wager"
                                 body={(row: Bet) => (
                                     <span className="text-sm" style={{ color: 'var(--acu-text)' }}>
-                                        {formatCurrency(row.bet_amount)}
+                                        {formatCurrency(row.bet_amount, ccy)}
                                     </span>
                                 )}
                             />
@@ -170,7 +176,7 @@ export function UserFantasyBets({ userUuid }: Props) {
                                         className="text-sm font-medium"
                                         style={{ color: row.outcome === 'win' ? '#3FB950' : 'var(--acu-text-light)' }}
                                     >
-                                        {row.outcome === 'win' ? formatCurrency(row.winning_amount) : '—'}
+                                        {row.outcome === 'win' ? formatCurrency(row.winning_amount, ccy) : '—'}
                                     </span>
                                 )}
                             />

@@ -300,7 +300,8 @@
 </head>
 <body>
     @php
-        $fmtMoney = fn($n) => 'N$' . number_format((float) $n, 2, '.', ',');
+        // In the invoice's own currency (the tenant's), never a hardcoded N$.
+        $fmtMoney = fn($n) => \App\Support\Currencies::format(number_format((float) $n, 2, '.', ''), $currency);
         $fmtDate  = fn($iso) => \Carbon\Carbon::parse($iso)->format('j M Y');
     @endphp
 

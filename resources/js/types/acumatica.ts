@@ -39,6 +39,10 @@ export interface GridColumn {
     width?: string;
     frozen?: boolean;
     type?: 'text' | 'number' | 'date' | 'status' | 'rating' | 'currency' | 'boolean';
+    /** type 'currency': one code for the whole column ('BWP'). Without it each row names its own. */
+    currency?: string;
+    /** type 'currency': the row field holding that row's currency code (default 'currency'). */
+    currencyField?: string;
 }
 
 export interface SavedFilter {

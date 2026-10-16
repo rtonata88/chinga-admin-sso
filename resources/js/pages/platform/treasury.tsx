@@ -6,8 +6,9 @@
 // wallet balance and every withdrawal on hold, takes off the variance
 // reserve and the tax provision, and shows what is left to transfer.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { formatFigure, formatMoney, formatMoneyCompact, toCents, useCurrencies, type Amount, type CurrencyProfile } from '@/lib/money';
 import { Head, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 
@@ -40,6 +41,8 @@ interface TenantRow {
     tenant_uuid: string;
     tenant_name: string;
     business_model: string;
+    /** The tenant's currency; every figure on the row is in it. */
+    currency: string;
     wallets: number;
     funded: number;
     owed: string;
@@ -54,37 +57,37 @@ interface TenantRow {
     month_ggr: string;
 }
 
-interface Props {
+/** One currency's treasury: its own bank account, reserve and tax against its own tenants' wallets. */
+interface Position {
+    currency: string;
+    tenant_count: number;
     settings: Settings;
     summary: Summary;
+    totals: Omit<TenantRow, 'tenant_uuid' | 'tenant_name' | 'business_model' | 'currency'>;
+}
+
+interface Props {
+    positions: Position[];
     tenants: TenantRow[];
-    totals: Omit<TenantRow, 'tenant_uuid' | 'tenant_name' | 'business_model'>;
     as_of: string;
     month: string;
     dormant_days: number;
 }
 
-const num = (v: string | number | null | undefined): number => {
-    const n = typeof v === 'string' ? parseFloat(v) : (v ?? 0);
-    return Number.isFinite(n) ? n : 0;
-};
-const nad = (v: string | number | null | undefined): string =>
-    num(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MONTH_FMT = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
 const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 const PANEL: React.CSSProperties = { background: 'var(--cg-ink-card)', border: '1px solid var(--cg-rule)', borderRadius: 8, padding: 16 };
 
-function Signed({ v, bold }: { v: string; bold?: boolean }) {
-    const n = num(v);
+function Signed({ v, p, bold }: { v: string; p: CurrencyProfile; bold?: boolean }) {
     return (
-        <span className="cgo-payout" style={{ color: n < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)', fontWeight: bold ? 600 : undefined }}>
-            {nad(v)}
+        <span className="cgo-payout" style={{ color: toCents(v) < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)', fontWeight: bold ? 600 : undefined }}>
+            {formatFigure(v, p)}
         </span>
     );
 }
 
-function Line({ label, value, sub, minus, total }: { label: string; value: string; sub?: string; minus?: boolean; total?: boolean }) {
+function Line({ label, value, p, sub, minus, total }: { label: string; value: string; p: CurrencyProfile; sub?: string; minus?: boolean; total?: boolean }) {
     return (
         <div style={{
             display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, padding: '8px 0',
@@ -98,14 +101,17 @@ function Line({ label, value, sub, minus, total }: { label: string; value: strin
                 {sub && <div style={{ fontSize: 11, color: 'var(--cg-fg-3)', marginTop: 2 }}>{sub}</div>}
             </div>
             <div style={{ fontFamily: 'var(--cg-mono)', whiteSpace: 'nowrap', fontSize: total ? 16 : 13, color: total ? 'var(--cg-brass-hi)' : 'var(--cg-fg-1)', fontWeight: total ? 600 : undefined, alignSelf: 'center' }}>
-                {num(value) < 0 && total ? <span style={{ color: 'var(--cg-neg)' }}>{nad(value)}</span> : nad(value)}
+                {toCents(value) < 0 && total ? <span style={{ color: 'var(--cg-neg)' }}>{formatMoney(value, p)}</span> : formatMoney(value, p)}
             </div>
         </div>
     );
 }
 
-export default function Treasury({ settings, summary, tenants = [], totals, as_of, month, dormant_days }: Props) {
+/** Calculation, KPIs and inputs for one currency. Nothing here is ever added to another currency's figures. */
+function PositionPanel({ position, p, monthLabel }: { position: Position; p: CurrencyProfile; monthLabel: string }) {
+    const { settings, summary, totals, currency } = position;
     const form = useForm({
+        currency,
         bank_balance: settings.bank_balance,
         bank_balance_as_of: settings.bank_balance_as_of ?? '',
         variance_reserve: settings.variance_reserve,
@@ -115,8 +121,88 @@ export default function Treasury({ settings, summary, tenants = [], totals, as_o
         e.preventDefault();
         form.put('/platform/treasury', { preserveScroll: true });
     };
+    const distributableNeg = toCents(summary.distributable) < 0;
+    const reservePlusTax = (toCents(summary.reserve) + toCents(summary.tax_provision)) / 100;
+    const shortfall: Amount = Math.abs(toCents(summary.surplus)) / 100;
+
+    return (
+        <section data-testid={`position-${currency}`} style={{ marginBottom: 24 }}>
+            <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>
+                {currency}{p.name ? ` · ${p.name}` : ''} · {formatCount(position.tenant_count)} {position.tenant_count === 1 ? 'tenant' : 'tenants'}
+            </div>
+
+            {!summary.covered && (
+                <div data-testid="uncovered" style={{ background: 'var(--cg-ink-card)', border: '1px solid var(--cg-neg)', borderRadius: 6, padding: 14, marginBottom: 18, fontSize: 13, color: 'var(--cg-fg-1)' }}>
+                    <strong style={{ color: 'var(--cg-neg)' }}>{currency} player funds are not fully backed.</strong>{' '}
+                    The bank balance is {formatMoney(summary.bank_balance, p)} against {formatMoney(summary.liability, p)} owed. Nothing is distributable until the shortfall of {formatMoney(shortfall, p)} is covered.
+                </div>
+            )}
+
+            <div className="cgo-kpis cgo-kpis--5">
+                <KpiCard
+                    label="Bank balance"
+                    value={formatMoneyCompact(summary.bank_balance, p)}
+                    meta={settings.bank_balance_as_of ? `entered as of ${settings.bank_balance_as_of}` : 'not entered yet'}
+                />
+                <KpiCard label="Owed to players" value={formatMoneyCompact(summary.liability, p)} meta={`${formatCount(totals.funded)} funded wallets · ${formatCount(totals.held_count)} withdrawals on hold`} />
+                <KpiCard label="Coverage" value={summary.coverage_pct === null ? '—' : `${summary.coverage_pct}%`} meta={summary.covered ? 'bank ÷ owed' : 'below 100%'} />
+                <KpiCard label="Reserve + tax" value={formatMoneyCompact(reservePlusTax, p)} meta={`reserve ${formatFigure(summary.reserve, p)} · tax ${formatFigure(summary.tax_provision, p)}`} />
+                <KpiCard label="Distributable" value={formatMoneyCompact(summary.distributable, p)} brass={!distributableNeg} meta={distributableNeg ? 'nothing to transfer' : 'safe to transfer out'} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 16 }}>
+                <section style={PANEL} data-testid="calculation">
+                    <div className="cgo-eyebrow" style={{ marginBottom: 6 }}>Calculation · {currency}</div>
+                    <Line p={p} label="Bank balance" value={summary.bank_balance} sub={`entered below, from the ${currency} business account`} />
+                    <Line p={p} minus label="Wallet balances" value={summary.owed} sub="every open wallet, including dormant ones" />
+                    <Line p={p} minus label="Withdrawals on hold" value={summary.held} sub="requested or approved, already off the wallet, not yet paid" />
+                    <Line p={p} minus label="Variance reserve" value={summary.reserve} sub="entered below; a bad streak is paid from here" />
+                    <Line p={p} minus label="Tax provision" value={summary.tax_provision} sub={`${settings.tax_pct}% of ${monthLabel} GGR (${formatMoney(summary.month_ggr, p)}), floored at zero`} />
+                    <Line p={p} total label="Distributable" value={summary.distributable} />
+                </section>
+
+                <section style={PANEL}>
+                    <div className="cgo-eyebrow" style={{ marginBottom: 6 }}>Inputs · {currency}</div>
+                    <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
+                        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                            Bank balance ({p.symbol})
+                            <span className="cgo-input"><input type="number" step="0.01" min="0" value={form.data.bank_balance} onChange={(e) => form.setData('bank_balance', e.target.value)} /></span>
+                            {form.errors.bank_balance && <span style={{ color: 'var(--cg-neg)' }}>{form.errors.bank_balance}</span>}
+                        </label>
+                        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                            Bank balance as of
+                            <span className="cgo-input"><input type="date" value={form.data.bank_balance_as_of} onChange={(e) => form.setData('bank_balance_as_of', e.target.value)} /></span>
+                        </label>
+                        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                            Variance reserve ({p.symbol})
+                            <span className="cgo-input"><input type="number" step="0.01" min="0" value={form.data.variance_reserve} onChange={(e) => form.setData('variance_reserve', e.target.value)} /></span>
+                            {form.errors.variance_reserve && <span style={{ color: 'var(--cg-neg)' }}>{form.errors.variance_reserve}</span>}
+                        </label>
+                        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
+                            Gaming tax (% of GGR)
+                            <span className="cgo-input"><input type="number" step="0.01" min="0" max="100" value={form.data.tax_pct} onChange={(e) => form.setData('tax_pct', e.target.value)} /></span>
+                            {form.errors.tax_pct && <span style={{ color: 'var(--cg-neg)' }}>{form.errors.tax_pct}</span>}
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <button type="submit" className="cg-btn cg-btn--primary cg-btn--sm" disabled={form.processing}>Save {currency}</button>
+                            {settings.updated_at && <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>last saved {DATETIME_FMT.format(new Date(settings.updated_at))}</span>}
+                            {form.recentlySuccessful && <span style={{ fontSize: 11, color: 'var(--cg-pos)' }}>Saved</span>}
+                        </div>
+                    </form>
+                    <div style={{ marginTop: 14, fontSize: 12, color: 'var(--cg-fg-3)', lineHeight: 1.5 }}>
+                        Size the reserve from the worst swing you expect: at least two or three times the max win per round, or three days of your worst observed daily loss scaled to the number of active players. Take profit once a month from the closed month's GGR, and never more than this figure.
+                    </div>
+                </section>
+            </div>
+        </section>
+    );
+}
+
+export default function Treasury({ positions = [], tenants = [], as_of, month, dormant_days }: Props) {
+    const lookup = useCurrencies();
+    // A code always resolves (unknown codes show themselves); the fallback only satisfies the type.
+    const profileOf = (code: string): CurrencyProfile => lookup(code) ?? { code, symbol: code, decimals: 2, symbol_position: 'before', space: true, thousands: ',', decimal: '.' };
     const monthLabel = MONTH_FMT.format(new Date(month));
-    const distributableNeg = num(summary.distributable) < 0;
 
     return (
         <UserLayout title="Treasury">
@@ -127,74 +213,14 @@ export default function Treasury({ settings, summary, tenants = [], totals, as_o
                         <div className="cgo-eyebrow">Admin</div>
                         <h1 className="cgo-title">Treasury</h1>
                         <div className="cgo-subtitle">
-                            What is owed to players, what the bank holds, and what the business may take out. Ledger as of {DATETIME_FMT.format(new Date(as_of))}.
+                            What is owed to players, what the bank holds, and what the business may take out, per currency: each currency is backed by its own account and never offset against another. Ledger as of {DATETIME_FMT.format(new Date(as_of))}.
                         </div>
                     </div>
                 </div>
 
-                {!summary.covered && (
-                    <div data-testid="uncovered" style={{ background: 'var(--cg-ink-card)', border: '1px solid var(--cg-neg)', borderRadius: 6, padding: 14, marginBottom: 18, fontSize: 13, color: 'var(--cg-fg-1)' }}>
-                        <strong style={{ color: 'var(--cg-neg)' }}>Player funds are not fully backed.</strong>{' '}
-                        The bank balance is N${nad(summary.bank_balance)} against N${nad(summary.liability)} owed. Nothing is distributable until the shortfall of N${nad(Math.abs(num(summary.surplus)))} is covered.
-                    </div>
-                )}
-
-                <div className="cgo-kpis cgo-kpis--5">
-                    <KpiCard
-                        label="Bank balance"
-                        value={formatCurrencyCompact(num(summary.bank_balance))}
-                        meta={settings.bank_balance_as_of ? `entered as of ${settings.bank_balance_as_of}` : 'not entered yet'}
-                    />
-                    <KpiCard label="Owed to players" value={formatCurrencyCompact(num(summary.liability))} meta={`${formatCount(totals.funded)} funded wallets · ${formatCount(totals.held_count)} withdrawals on hold`} />
-                    <KpiCard label="Coverage" value={summary.coverage_pct === null ? '—' : `${summary.coverage_pct}%`} meta={summary.covered ? 'bank ÷ owed' : 'below 100%'} />
-                    <KpiCard label="Reserve + tax" value={formatCurrencyCompact(num(summary.reserve) + num(summary.tax_provision))} meta={`reserve ${nad(summary.reserve)} · tax ${nad(summary.tax_provision)}`} />
-                    <KpiCard label="Distributable" value={formatCurrencyCompact(num(summary.distributable))} brass={!distributableNeg} meta={distributableNeg ? 'nothing to transfer' : 'safe to transfer out'} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 16, marginBottom: 18 }}>
-                    <section style={PANEL} data-testid="calculation">
-                        <div className="cgo-eyebrow" style={{ marginBottom: 6 }}>Calculation</div>
-                        <Line label="Bank balance" value={summary.bank_balance} sub="entered below, from the business account" />
-                        <Line minus label="Wallet balances" value={summary.owed} sub="every open wallet, including dormant ones" />
-                        <Line minus label="Withdrawals on hold" value={summary.held} sub="requested or approved, already off the wallet, not yet paid" />
-                        <Line minus label="Variance reserve" value={summary.reserve} sub="entered below; a bad streak is paid from here" />
-                        <Line minus label="Tax provision" value={summary.tax_provision} sub={`${settings.tax_pct}% of ${monthLabel} GGR (${nad(summary.month_ggr)}), floored at zero`} />
-                        <Line total label="Distributable" value={summary.distributable} />
-                    </section>
-
-                    <section style={PANEL}>
-                        <div className="cgo-eyebrow" style={{ marginBottom: 6 }}>Inputs</div>
-                        <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
-                            <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
-                                Bank balance (N$)
-                                <span className="cgo-input"><input type="number" step="0.01" min="0" value={form.data.bank_balance} onChange={(e) => form.setData('bank_balance', e.target.value)} /></span>
-                                {form.errors.bank_balance && <span style={{ color: 'var(--cg-neg)' }}>{form.errors.bank_balance}</span>}
-                            </label>
-                            <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
-                                Bank balance as of
-                                <span className="cgo-input"><input type="date" value={form.data.bank_balance_as_of} onChange={(e) => form.setData('bank_balance_as_of', e.target.value)} /></span>
-                            </label>
-                            <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
-                                Variance reserve (N$)
-                                <span className="cgo-input"><input type="number" step="0.01" min="0" value={form.data.variance_reserve} onChange={(e) => form.setData('variance_reserve', e.target.value)} /></span>
-                                {form.errors.variance_reserve && <span style={{ color: 'var(--cg-neg)' }}>{form.errors.variance_reserve}</span>}
-                            </label>
-                            <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--cg-fg-2)' }}>
-                                Gaming tax (% of GGR)
-                                <span className="cgo-input"><input type="number" step="0.01" min="0" max="100" value={form.data.tax_pct} onChange={(e) => form.setData('tax_pct', e.target.value)} /></span>
-                                {form.errors.tax_pct && <span style={{ color: 'var(--cg-neg)' }}>{form.errors.tax_pct}</span>}
-                            </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                                <button type="submit" className="cg-btn cg-btn--primary cg-btn--sm" disabled={form.processing}>Save</button>
-                                {settings.updated_at && <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>last saved {DATETIME_FMT.format(new Date(settings.updated_at))}</span>}
-                                {form.recentlySuccessful && <span style={{ fontSize: 11, color: 'var(--cg-pos)' }}>Saved</span>}
-                            </div>
-                        </form>
-                        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--cg-fg-3)', lineHeight: 1.5 }}>
-                            Size the reserve from the worst swing you expect: at least two or three times the max win per round, or three days of your worst observed daily loss scaled to the number of active players. Take profit once a month from the closed month's GGR, and never more than this figure.
-                        </div>
-                    </section>
-                </div>
+                {positions.map((pos) => (
+                    <PositionPanel key={pos.currency} position={pos} p={profileOf(pos.currency)} monthLabel={monthLabel} />
+                ))}
 
                 <div className="cgo-table-wrap cgo-table-wrap--scroll">
                     <table className="cgo-wagers">
@@ -216,44 +242,51 @@ export default function Treasury({ settings, summary, tenants = [], totals, as_o
                         <tbody>
                             {tenants.length === 0 ? (
                                 <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--cg-fg-3)', padding: '32px 0' }}>No wallets yet.</td></tr>
-                            ) : tenants.map((t) => (
+                            ) : tenants.map((t) => {
+                                const p = profileOf(t.currency);
+                                return (
                                 <tr key={t.tenant_uuid}>
                                     <td>
                                         <span className="cgo-name">{t.tenant_name}</span>
                                         <div className="cgo-uid">{t.business_model}</div>
                                     </td>
                                     <td className="cgo-r"><span className="cgo-odds">{formatCount(t.funded)} / {formatCount(t.wallets)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-stake"><span className="cgo-ccy">NAD</span>{nad(t.owed)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(t.dormant)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(t.held)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(t.staff_deposits)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(t.player_deposits)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(t.paid_out)}</span></td>
-                                    <td className="cgo-r"><Signed v={t.ledger_cash} /></td>
-                                    <td className="cgo-r"><Signed v={t.month_ggr} /></td>
-                                    <td className="cgo-r"><Signed v={t.lifetime_ggr} /></td>
+                                    <td className="cgo-r"><span className="cgo-stake"><span className="cgo-ccy">{t.currency}</span>{formatFigure(t.owed, p)}</span></td>
+                                    <td className="cgo-r"><span className="cgo-payout">{formatFigure(t.dormant, p)}</span></td>
+                                    <td className="cgo-r"><span className="cgo-payout">{formatFigure(t.held, p)}</span></td>
+                                    <td className="cgo-r"><span className="cgo-payout">{formatFigure(t.staff_deposits, p)}</span></td>
+                                    <td className="cgo-r"><span className="cgo-payout">{formatFigure(t.player_deposits, p)}</span></td>
+                                    <td className="cgo-r"><span className="cgo-payout">{formatFigure(t.paid_out, p)}</span></td>
+                                    <td className="cgo-r"><Signed v={t.ledger_cash} p={p} /></td>
+                                    <td className="cgo-r"><Signed v={t.month_ggr} p={p} /></td>
+                                    <td className="cgo-r"><Signed v={t.lifetime_ggr} p={p} /></td>
                                 </tr>
-                            ))}
-                            {tenants.length > 0 && (
-                                <tr style={{ background: 'var(--cg-ink-elevated)' }}>
-                                    <td><span className="cgo-name">All tenants</span></td>
-                                    <td className="cgo-r"><span className="cgo-odds">{formatCount(totals.funded)} / {formatCount(totals.wallets)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-stake"><span className="cgo-ccy">NAD</span>{nad(totals.owed)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(totals.dormant)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(totals.held)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(totals.staff_deposits)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(totals.player_deposits)}</span></td>
-                                    <td className="cgo-r"><span className="cgo-payout">{nad(totals.paid_out)}</span></td>
-                                    <td className="cgo-r"><Signed v={totals.ledger_cash} bold /></td>
-                                    <td className="cgo-r"><Signed v={totals.month_ggr} bold /></td>
-                                    <td className="cgo-r"><Signed v={totals.lifetime_ggr} bold /></td>
-                                </tr>
-                            )}
+                                );
+                            })}
+                            {/* One totals row per currency: different currencies are never added together. */}
+                            {tenants.length > 0 && positions.filter((pos) => pos.tenant_count > 0).map(({ currency, totals }) => {
+                                const p = profileOf(currency);
+                                return (
+                                    <tr key={`total-${currency}`} style={{ background: 'var(--cg-ink-elevated)' }}>
+                                        <td><span className="cgo-name">All {currency} tenants</span></td>
+                                        <td className="cgo-r"><span className="cgo-odds">{formatCount(totals.funded)} / {formatCount(totals.wallets)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-stake"><span className="cgo-ccy">{currency}</span>{formatFigure(totals.owed, p)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout">{formatFigure(totals.dormant, p)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout">{formatFigure(totals.held, p)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout">{formatFigure(totals.staff_deposits, p)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout">{formatFigure(totals.player_deposits, p)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout">{formatFigure(totals.paid_out, p)}</span></td>
+                                        <td className="cgo-r"><Signed v={totals.ledger_cash} p={p} bold /></td>
+                                        <td className="cgo-r"><Signed v={totals.month_ggr} p={p} bold /></td>
+                                        <td className="cgo-r"><Signed v={totals.lifetime_ggr} p={p} bold /></td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                     <div className="cgo-table-foot">
                         <span>
-                            Dormant is balance in wallets untouched for {dormant_days} days; it is still owed. Staff deposits were credited in the admin; check they were cash-backed before treating ledger cash as money in the bank. Ledger cash is deposits less paid withdrawals; if it differs from the bank balance, the difference is what left the business account.
+                            Each row is in its tenant's currency. Dormant is balance in wallets untouched for {dormant_days} days; it is still owed. Staff deposits were credited in the admin; check they were cash-backed before treating ledger cash as money in the bank. Ledger cash is deposits less paid withdrawals; if it differs from the bank balance, the difference is what left the business account.
                         </span>
                     </div>
                 </div>

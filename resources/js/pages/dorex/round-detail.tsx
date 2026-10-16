@@ -3,17 +3,17 @@
 // One Dorex round (X4): its figures, the path the engine redrew from the persisted seed with
 // every close marked on it, the audit that re-settled every position on that path, and the
 // positions. The seed and the path are only present once the round has ended; the engine
-// withholds them before that, and so does this page.
+// withholds them before that, and so does this page. Money is in the round's tenant's currency.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { Head, Link } from '@inertiajs/react';
 
 import {
-    ERROR_BOX, PANEL, TAP, formatDateTime, formatNAD, formatRatioPct, num, shortUuid, statePill, tenantLabel,
+    ERROR_BOX, type HasCurrency, PANEL, TAP, formatDateTime, formatRatioPct, moneyDiff, num, shortUuid, statePill, tenantLabel, useRowMoney,
 } from '../vrrr-pha/format';
 
-interface Round {
+interface Round extends HasCurrency {
     id: number;
     sequence: number;
     tenant_uuid: string;
@@ -144,6 +144,7 @@ function PathChart({ prices, start, maxTicks, closes }: { prices: number[]; star
 }
 
 export default function DorexRoundDetail({ game = { name: 'Dorex', base: '/dorex' }, round, positions = [], verify, tenantNames = {}, error, backHref = `${game.base}/rounds` }: Props) {
+    const money = useRowMoney();
     const back = (
         <Link href={backHref} className={`cg-btn cg-btn--text cg-btn--sm max-sm:leading-10! ${TAP}`} style={{ marginBottom: 12, display: 'inline-block' }}>
             ‹ Back to rounds
@@ -166,8 +167,7 @@ export default function DorexRoundDetail({ game = { name: 'Dorex', base: '/dorex
 
     const state = statePill(round.state);
     const revealed = round.server_seed != null;
-    const wagered = num(round.total_wagered);
-    const paidOut = num(round.total_paid_out);
+    const ccy = round.currency;
     const title = `Round #${round.sequence}`;
     const prices = (round.prices ?? []).map(num);
     const closes = positions
@@ -202,9 +202,9 @@ export default function DorexRoundDetail({ game = { name: 'Dorex', base: '/dorex
                         meta={revealed ? `tick ${round.end_tick ?? '—'} · peak ${num(round.peak_price).toFixed(4)}` : 'hidden until the round ends'}
                     />
                     <KpiCard label="Stakes" value={formatCount(round.bet_count)} meta="one per player" />
-                    <KpiCard label="Wagered" value={formatCurrencyCompact(wagered)} meta="staked" />
-                    <KpiCard label="Paid out" value={formatCurrencyCompact(paidOut)} meta="to closed stakes" />
-                    <KpiCard label="GGR" value={formatCurrencyCompact(wagered - paidOut)} meta="wagered − paid out" />
+                    <KpiCard label="Wagered" value={money.compact(round.total_wagered, ccy)} meta="staked" />
+                    <KpiCard label="Paid out" value={money.compact(round.total_paid_out, ccy)} meta="to closed stakes" />
+                    <KpiCard label="GGR" value={money.compact(moneyDiff(round.total_wagered, round.total_paid_out), ccy)} meta="wagered − paid out" />
                 </div>
 
                 {prices.length > 0 && (
@@ -275,7 +275,7 @@ export default function DorexRoundDetail({ game = { name: 'Dorex', base: '/dorex
                         <Field label="vol per tick" value={round.vol} mono />
                         <Field label="Ticks" value={`${round.max_ticks} × ${round.tick_ms} ms`} mono />
                         <Field label="Price ceiling" value={round.max_price} mono />
-                        <Field label="Max win" value={`NAD ${formatNAD(round.max_win_per_position)}`} mono />
+                        <Field label="Max win" value={money.full(round.max_win_per_position, ccy)} mono />
                         <Field label="Settled" value={formatDateTime(round.settled_at)} />
                     </section>
                 </div>
@@ -309,13 +309,13 @@ export default function DorexRoundDetail({ game = { name: 'Dorex', base: '/dorex
                                         <td><span className="cgo-name" style={{ fontFamily: 'var(--cg-mono)' }}>#{p.id}</span></td>
                                         <td><span className="cgo-uid" title={p.user_uuid}>{shortUuid(p.user_uuid)}</span></td>
                                         <td className="cgo-r">
-                                            <span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(p.stake)}</span>
+                                            <span className="cgo-stake"><span className="cgo-ccy">{money.code(ccy)}</span>{money.figure(p.stake, ccy)}</span>
                                         </td>
                                         <td className="cgo-r"><span className="cgo-odds">{num(p.effective_ceiling).toFixed(2)}</span></td>
                                         <td className="cgo-r"><span className="cgo-odds">{p.close_tick ?? '—'}</span></td>
                                         <td className="cgo-r"><span className="cgo-odds">{p.close_price === null ? '—' : num(p.close_price).toFixed(4)}</span></td>
                                         <td><span className="cgo-uid">{p.close_reason ? REASON[p.close_reason] : 'open'}</span></td>
-                                        <td className="cgo-r"><span className="cgo-payout">{p.payout === null ? '—' : formatNAD(p.payout)}</span></td>
+                                        <td className="cgo-r"><span className="cgo-payout">{p.payout === null ? '—' : money.figure(p.payout, ccy)}</span></td>
                                         <td className="cgo-r"><span className="cgo-odds">{p.latency_ms === null ? '—' : `${p.latency_ms} ms`}</span></td>
                                         <td>
                                             <span className="cgo-uid" style={{ color: p.credit_status === 'failed' || p.credit_status === 'held' ? 'var(--cg-neg)' : undefined }}>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Games;
 use App\Contracts\ProvablyFairAdminClient;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
+use App\Support\TenantCurrencyMap;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,10 @@ use Inertia\Response;
  * figure comes from the engine's admin API; nothing here is computed
  * from wallet rows. Tenants are filtered by uuid only — the engine
  * refuses a slug, and we never turn one into the other here.
+ *
+ * Money is shown in each tenant's own currency: every engine row is tagged
+ * with `currency` from its tenant, and a figure the engine sums across
+ * tenants is only shown when the tenants in scope share one currency.
  */
 abstract class ProvablyFairConsoleController extends Controller
 {
@@ -92,7 +97,7 @@ abstract class ProvablyFairConsoleController extends Controller
         }
 
         return Inertia::render('vrrr-pha/rounds', $this->gameProps() + [
-            'rounds' => $rounds,
+            'rounds' => $this->currencies()->tag($rounds),
             'tenants' => $this->tenants(),
             'tenantNames' => $this->tenantNames(),
             'filters' => [
@@ -130,9 +135,11 @@ abstract class ProvablyFairConsoleController extends Controller
             }
         }
 
+        $currencies = $this->currencies();
+
         return Inertia::render('vrrr-pha/round-detail', $this->gameProps() + [
-            'round' => $round,
-            'bets' => $bets,
+            'round' => $round === null ? null : $currencies->tagOne($round),
+            'bets' => $currencies->tag($bets),
             'verify' => $verify,
             'tenantNames' => $this->tenantNames(),
             'error' => $error,
@@ -154,7 +161,7 @@ abstract class ProvablyFairConsoleController extends Controller
         }
 
         return Inertia::render('vrrr-pha/exposure', $this->gameProps() + [
-            'rows' => $rows,
+            'rows' => $this->currencies()->tag($rows),
             'tenants' => $this->tenants(),
             'tenantNames' => $this->tenantNames(),
             'filters' => ['tenant_uuid' => $tenantUuid],
@@ -179,9 +186,39 @@ abstract class ProvablyFairConsoleController extends Controller
             $error = sprintf('Could not load RTP. Is the %s engine reachable?', $this->gameName());
         }
 
+        // The engine sums wagered and paid out across tenants. Per tenant it
+        // can say (stats/by-tenant), so an unfiltered window is totalled per
+        // currency from that; the day rows have no breakdown and carry a
+        // currency only when the scope has one.
+        $currencies = $this->currencies();
+        $byTenant = null;
+        if ($tenantUuid === null && $error === null) {
+            try {
+                $byTenant = $this->client->statsByTenant($from->toIso8601String(), $to->toIso8601String())['tenants'] ?? [];
+            } catch (\Throwable $e) {
+                Log::warning($this->gameName().' stats by tenant failed', ['error' => $e->getMessage()]);
+            }
+        }
+        $currency = $byTenant !== null && $byTenant !== []
+            ? $currencies->single(array_column($byTenant, 'tenant_uuid'))
+            : $this->scopeCurrency($tenantUuid);
+        $totals = match (true) {
+            $byTenant !== null && $byTenant !== [] => $currencies->totals($byTenant, ['total_wagered', 'total_paid_out', 'ggr']),
+            $currency !== null && $rtp !== null => [[
+                'currency' => $currency,
+                'total_wagered' => (string) ($rtp['total_wagered'] ?? '0.00'),
+                'total_paid_out' => (string) ($rtp['total_paid_out'] ?? '0.00'),
+                'ggr' => bcsub((string) ($rtp['total_wagered'] ?? '0'), (string) ($rtp['total_paid_out'] ?? '0'), 2),
+            ]],
+            default => [],
+        };
+
         return Inertia::render('vrrr-pha/rtp', $this->gameProps() + [
             'rtp' => $rtp,
             'days' => $days,
+            // The scope's one currency (null when its tenants span several), and wagered / paid out per currency.
+            'currency' => $currency,
+            'totals' => $totals,
             'tenants' => $this->tenants(),
             'filters' => [
                 'tenant_uuid' => $tenantUuid,
@@ -233,6 +270,25 @@ abstract class ProvablyFairConsoleController extends Controller
     protected function tenants(): array
     {
         return Tenant::query()->where('status', 'active')->orderBy('name')->get(['uuid', 'name', 'slug'])->all();
+    }
+
+    protected function currencies(): TenantCurrencyMap
+    {
+        return TenantCurrencyMap::load();
+    }
+
+    /**
+     * The one currency an engine figure summed over the scope is in: the
+     * filtered tenant's, or the active tenants' when they share one; null
+     * when they do not, and the page then withholds the mixed figure.
+     */
+    protected function scopeCurrency(?string $tenantUuid): ?string
+    {
+        $currencies = $this->currencies();
+
+        return $tenantUuid !== null
+            ? $currencies->of($tenantUuid)
+            : $currencies->single(array_map(fn (Tenant $t) => $t->uuid, $this->tenants()));
     }
 
     /** @return array<string, string> uuid → name, for labelling engine rows that only carry the uuid */

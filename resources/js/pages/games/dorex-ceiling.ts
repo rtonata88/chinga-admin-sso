@@ -5,6 +5,8 @@
 // effectiveCeiling: prices in ten-thousandths, q in millionths, vol in ten-thousandths. The
 // largest C (a whole hundredth) with stake × ⌈(C − 1)(10,000 + V)·100 / (1,000,000 − Q)⌉ ≤
 // max_win × 10,000, capped by max_price. Display only; the engine does its own maths.
+// Stakes and max win are whole units of each tenant's own currency, so the most paid is
+// shown in the currency given (or as a bare figure when the game's tenants span several).
 //
 // Checked against the engine (q 0.0012, vol 0.04, max win 16000, max price 500):
 //   N$10 and N$20 reach the 500.00 price ceiling; N$33 gets 465.64; N$50 gets 307.32.
@@ -27,15 +29,27 @@ function scaled(v: unknown, places: number, fallback: number): number | null {
     return Math.abs(f - r) < 1e-6 ? r : null;
 }
 
-function nad(cents: bigint): string {
-    const whole = (cents / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    return `N$${whole}.${(cents % 100n).toString().padStart(2, '0')}`;
+/**
+ * Turns a 2dp decimal string into what the page shows (formatMoney in the
+ * caller's currency). Taken as a function so this module stays free of
+ * imports: the settings tests can run it under plain node.
+ */
+export type MoneyFormat = (amount: string) => string;
+
+/** No currency (the game's tenants span several): the grouped figure alone. */
+const bare: MoneyFormat = (amount) => {
+    const [whole, cents] = amount.split('.');
+    return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${cents}`;
+};
+
+function money(cents: bigint, format: MoneyFormat): string {
+    return format(`${cents / 100n}.${(cents % 100n).toString().padStart(2, '0')}`);
 }
 
 /** More stake tiers than this and the preview is not drawn. */
 export const MAX_TIERS = 200;
 
-export function ceilingRows(settings: Record<string, unknown>): CeilingRow[] {
+export function ceilingRows(settings: Record<string, unknown>, format: MoneyFormat = bare): CeilingRow[] {
     const q = scaled(settings.q, 6, 0.0012);
     const vol = scaled(settings.vol, 4, 0.04);
     const maxPrice = scaled(settings.max_price, 2, 500);
@@ -64,7 +78,7 @@ export function ceilingRows(settings: Record<string, unknown>): CeilingRow[] {
             return {
                 stake,
                 ceiling: `${hundredths / 100n}.${(hundredths % 100n).toString().padStart(2, '0')}`,
-                mostPaid: nad(paid),
+                mostPaid: money(paid, format),
             };
         });
 }

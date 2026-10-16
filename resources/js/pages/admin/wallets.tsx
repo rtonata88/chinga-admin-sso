@@ -5,7 +5,8 @@
 // PrimeReact Dialog (functional modals with form state); the Toast
 // is also kept.
 
-import { KpiCard, formatCount, formatCurrencyCompact, formatNAD } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
+import { type Amount, type CurrencyTotal, formatFigure, formatTotals, useCurrencies } from '@/lib/money';
 import UserLayout from '@/layouts/user-layout';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
@@ -54,7 +55,8 @@ interface Stats {
     active_wallets: number;
     frozen_wallets: number;
     closed_wallets: number;
-    total_balance: number;
+    /** Active balance, one entry per currency: wallets of different tenants are never added together. */
+    balances: CurrencyTotal<'total_balance'>[];
 }
 
 const STATUS_FILTERS = [
@@ -75,6 +77,12 @@ function statusPill(status: string): string {
 
 export default function Wallets() {
     const toast = useRef<Toast>(null);
+    const profileOf = useCurrencies();
+    // Each wallet's figures in its own currency.
+    const fig = (v: Amount, code: string) => {
+        const p = profileOf(code);
+        return p ? formatFigure(v, p) : String(v ?? '');
+    };
     const [wallets, setWallets] = useState<Wallet[]>([]);
     const [meta, setMeta] = useState<Meta | null>(null);
     const [stats, setStats] = useState<Stats | null>(null);
@@ -143,7 +151,7 @@ export default function Wallets() {
             const response = await fetch(`/api/v1/admin/wallets/${depositWallet.uuid}/deposit`, {
                 method: 'POST',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-                body: JSON.stringify({ amount: parseFloat(depositAmount), reference: depositReference || undefined }),
+                body: JSON.stringify({ amount: depositAmount.trim(), reference: depositReference || undefined }),
             });
             const data = await response.json();
             if (data.success) {
@@ -166,7 +174,7 @@ export default function Wallets() {
             const response = await fetch(`/api/v1/admin/wallets/${withdrawWallet.uuid}/withdraw`, {
                 method: 'POST',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-                body: JSON.stringify({ amount: parseFloat(withdrawAmount), reference: withdrawReference || undefined }),
+                body: JSON.stringify({ amount: withdrawAmount.trim(), reference: withdrawReference || undefined }),
             });
             const data = await response.json();
             if (data.success) {
@@ -252,7 +260,7 @@ export default function Wallets() {
                     />
                     <KpiCard
                         label="Total balance"
-                        value={stats ? formatCurrencyCompact(stats.total_balance) : '—'}
+                        value={stats ? formatTotals(stats.balances, 'total_balance', profileOf, true) : '—'}
                         brass
                         meta="across all wallets"
                     />
@@ -354,7 +362,7 @@ export default function Wallets() {
                                         <td className="cgo-r">
                                             <span className="cgo-stake" style={{ color: 'var(--cg-brass-hi)' }}>
                                                 <span className="cgo-ccy">{w.currency}</span>
-                                                {formatNAD(parseFloat(w.balance))}
+                                                {fig(w.balance, w.currency)}
                                             </span>
                                         </td>
                                         <td className="hidden md:table-cell">
@@ -367,12 +375,12 @@ export default function Wallets() {
                                         </td>
                                         <td className="cgo-r hidden md:table-cell">
                                             <span className="cgo-payout">
-                                                {formatNAD(parseFloat(w.total_deposited))}
+                                                {fig(w.total_deposited, w.currency)}
                                             </span>
                                         </td>
                                         <td className="cgo-r hidden md:table-cell">
                                             <span className="cgo-payout">
-                                                {formatNAD(parseFloat(w.total_withdrawn))}
+                                                {fig(w.total_withdrawn, w.currency)}
                                             </span>
                                         </td>
                                         <td>
@@ -493,13 +501,13 @@ export default function Wallets() {
                         <p style={{ fontSize: 13 }}>
                             Current balance:{' '}
                             <strong style={{ color: 'var(--cg-brass-hi)', fontFamily: 'var(--cg-mono)' }}>
-                                {depositWallet.currency} {formatNAD(parseFloat(depositWallet.balance))}
+                                {depositWallet.currency} {fig(depositWallet.balance, depositWallet.currency)}
                             </strong>
                         </p>
                     )}
                     <div className="flex flex-col gap-1">
                         <label style={{ fontSize: 12, fontWeight: 500 }}>
-                            Amount ({depositWallet?.currency || 'NAD'})
+                            Amount ({depositWallet?.currency})
                         </label>
                         <InputText
                             type="number"
@@ -549,13 +557,13 @@ export default function Wallets() {
                         <p style={{ fontSize: 13 }}>
                             Current balance:{' '}
                             <strong style={{ color: 'var(--cg-brass-hi)', fontFamily: 'var(--cg-mono)' }}>
-                                {withdrawWallet.currency} {formatNAD(parseFloat(withdrawWallet.balance))}
+                                {withdrawWallet.currency} {fig(withdrawWallet.balance, withdrawWallet.currency)}
                             </strong>
                         </p>
                     )}
                     <div className="flex flex-col gap-1">
                         <label style={{ fontSize: 12, fontWeight: 500 }}>
-                            Amount ({withdrawWallet?.currency || 'NAD'})
+                            Amount ({withdrawWallet?.currency})
                         </label>
                         <InputText
                             type="number"

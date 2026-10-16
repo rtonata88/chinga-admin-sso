@@ -14,7 +14,10 @@ use App\Models\Venue;
 use App\Models\VoucherCode;
 use App\Models\VoucherTransaction;
 use App\Services\LiveGameStats;
+use App\Support\Currencies;
 use App\Support\GameCatalogue;
+use App\Support\RevenueSplit;
+use App\Support\ScopedTotals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -47,7 +50,8 @@ class ReportController extends Controller
                 ],
                 'vouchers' => [
                     'active_codes' => VoucherCode::whereIn('status', ['active', 'in_use'])->count(),
-                    'total_balance' => VoucherCode::whereIn('status', ['active', 'in_use'])->sum('balance'),
+                    // One figure per currency: codes of different tenants are never added together.
+                    'balances' => $this->activeVoucherBalances('total_balance'),
                 ],
                 'security' => [
                     'failed_logins_today' => LoginAttempt::whereDate('created_at', $today)
@@ -200,13 +204,18 @@ class ReportController extends Controller
         }], 'amount')
             ->orderByDesc('transaction_volume')
             ->limit(10)
-            ->get(['uuid', 'name', 'city']);
+            ->get(['uuid', 'name', 'city', 'currency']);
 
-        // Transaction totals
-        $transactions = VoucherTransaction::selectRaw('type, SUM(ABS(amount)) as total')
-            ->whereBetween('created_at', [$startDate, $endDate])
+        // Transaction totals per type, one figure per currency each:
+        // { load: [{currency: 'NAD', total: '120.00'}, ...], ... }.
+        $transactions = VoucherTransaction::query()
+            ->join('voucher_codes', 'voucher_transactions.voucher_code_id', '=', 'voucher_codes.id')
+            ->selectRaw('voucher_transactions.type as type, voucher_codes.currency as currency, SUM(ABS(voucher_transactions.amount)) as total')
+            ->whereBetween('voucher_transactions.created_at', [$startDate, $endDate])
+            ->groupBy('voucher_transactions.type', 'voucher_codes.currency')
+            ->get()
             ->groupBy('type')
-            ->pluck('total', 'type');
+            ->map(fn ($rows) => Currencies::totalsByCurrency($rows->map(fn ($r) => ['currency' => $r->currency, 'total' => $r->total]), ['total']));
 
         return response()->json([
             'success' => true,
@@ -216,14 +225,15 @@ class ReportController extends Controller
                     'active_venues' => Venue::where('status', 'active')->count(),
                     'codes_created' => VoucherCode::whereBetween('created_at', [$startDate, $endDate])->count(),
                     'active_codes' => VoucherCode::whereIn('status', ['active', 'in_use'])->count(),
-                    'total_active_balance' => VoucherCode::whereIn('status', ['active', 'in_use'])->sum('balance'),
+                    'active_balances' => $this->activeVoucherBalances('total_active_balance'),
                 ],
                 'transactions' => $transactions,
                 'top_venues' => $topVenues->map(fn ($v) => [
                     'uuid' => $v->uuid,
                     'name' => $v->name,
                     'city' => $v->city,
-                    'transaction_volume' => $v->transaction_volume ?? 0,
+                    'currency' => $v->currency,
+                    'transaction_volume' => (string) ($v->transaction_volume ?? '0.00'),
                 ]),
             ],
         ]);
@@ -245,7 +255,7 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'No tenant context.'], 403);
         }
 
-        $query = TenantRevenueRecord::with('game:id,uuid,name', 'tenant:id,slug,name');
+        $query = TenantRevenueRecord::with('game:id,uuid,name', 'tenant:id,slug,name,currency,settings');
         if (! empty($tenantIds)) {
             $query->whereIn('tenant_id', $tenantIds);
         }
@@ -267,7 +277,11 @@ class ReportController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $records->items(),
+            // A record's figures are in its tenant's currency.
+            'data' => collect($records->items())->map(fn (TenantRevenueRecord $r) => [
+                ...$r->toArray(),
+                'currency' => ScopedTotals::currencyOf($r->tenant),
+            ])->all(),
             'meta' => [
                 'current_page' => $records->currentPage(),
                 'last_page' => $records->lastPage(),
@@ -310,7 +324,7 @@ class ReportController extends Controller
 
     /**
      * Revenue summary for the current tenant — live, computed on
-     * demand from chinga-fantasy bet data.
+     * demand from every game backend.
      *
      * Records (the table on this page) stay snapshot-driven: they're
      * the closed-period billing artifact. The summary KPIs, on the
@@ -318,14 +332,11 @@ class ReportController extends Controller
      * right now — otherwise the page reads as empty until the daily
      * `revenue:calculate` job runs.
      *
-     * Math mirrors DashboardController::fetchTenantBreakdown:
-     *   GGR  = total_wagered - total_paid_out
-     *   tax  = max(GGR, 0) * tax_pct / 100
-     *   NGR  = GGR - tax
-     *   reseller: tenant_share  = max(NGR, 0) * revenue_share_pct/100
-     *             chinga_share  = NGR - tenant_share
-     *   direct:   tenant_share  = 0
-     *             chinga_share  = NGR
+     * The split is RevenueSplit (as DashboardController), applied per
+     * tenant. Money is never added across currencies: `totals` is one
+     * entry per currency, and `per_game` one row per (game, currency).
+     * A tenant's summary is one currency, with zeros when nothing was
+     * played.
      */
     public function revenueSummary(Request $request, LiveGameStats $stats): JsonResponse
     {
@@ -342,156 +353,132 @@ class ReportController extends Controller
         $toIso = \Carbon\Carbon::parse($to)->endOfDay()->toIso8601String();
 
         // One call per game in the caller's catalogue (PRD §4 P6).
-        // Platform admin viewing the whole platform: aggregate across
-        // all tenants via statsByTenant, applying each tenant's
-        // commercial split (matches DashboardController). Tenant admin:
-        // straight statsSummary call for one tenant.
+        // Platform admin viewing the whole platform: per-tenant rows via
+        // statsByTenant, each run through its own tenant's split.
+        // Tenant admin (or ?tenant=): straight statsSummary for one tenant.
         $games = GameCatalogue::withBackendForUser($user);
-        if (empty($tenantIds)) {
-            [$totals, $perGame] = $this->aggregateAllTenants($stats, $games, $fromIso, $toIso);
-        } else {
-            $tenant = Tenant::find($tenantIds[0]);
-            [$totals, $perGame] = $this->aggregateOneTenant($stats, $games, $tenant, $fromIso, $toIso);
+        $tenant = empty($tenantIds) ? null : Tenant::find($tenantIds[0]);
+        $rows = $tenant
+            ? $this->rowsForOneTenant($stats, $games, $tenant, $fromIso, $toIso)
+            : $this->rowsForAllTenants($stats, $games, $fromIso, $toIso);
+
+        $priced = array_values(array_filter($rows, fn ($r) => $r['currency'] !== null));
+        $totals = ScopedTotals::of($priced, self::SUMMARY_MONEY, $tenant);
+
+        // Per (game, currency); a game that is down keeps one row carrying its error.
+        $perGame = [];
+        foreach ($rows as $r) {
+            if ($r['error'] !== null) {
+                $perGame[$r['game']->uuid.'|error'] = self::perGameRow($r['game'], $tenant ? $r['currency'] : null, $r['error']);
+
+                continue;
+            }
+            if ($r['currency'] === null || bccomp($r['total_bets'], '0', 2) <= 0) {
+                continue;
+            }
+            $key = $r['game']->uuid.'|'.$r['currency'];
+            $perGame[$key] ??= self::perGameRow($r['game'], $r['currency'], null);
+            foreach (self::SUMMARY_MONEY as $f) {
+                if ($f !== 'chinga_share') {
+                    $perGame[$key][$f] = bcadd($perGame[$key][$f], $r[$f], 2);
+                }
+            }
         }
 
         return response()->json([
             'success' => true,
             'data' => [
                 'totals' => $totals,
-                'per_game' => $perGame,
+                'per_game' => array_values($perGame),
                 'live' => true,
             ],
         ]);
     }
 
-    /**
-     * Live summary for a single tenant, one backend call per game, each
-     * game's figures run through the tenant's commercial split and summed.
-     */
-    private function aggregateOneTenant(LiveGameStats $stats, Collection $games, Tenant $tenant, string $fromIso, string $toIso): array
+    private const SUMMARY_MONEY = ['total_bets', 'total_wins', 'gross_gaming_revenue', 'chinga_share', 'tenant_share'];
+
+    /** One priced row per game for a single tenant, all in that tenant's currency. */
+    private function rowsForOneTenant(LiveGameStats $stats, Collection $games, Tenant $tenant, string $fromIso, string $toIso): array
     {
-        $totals = self::emptyTotals();
-        $perGame = [];
-
+        $rows = [];
         foreach ($stats->summaryForTenant($games, $tenant, $fromIso, $toIso) as $entry) {
-            $wagered = (float) ($entry['stats']['total_wagered'] ?? 0);
-            $paidOut = (float) ($entry['stats']['total_paid_out'] ?? 0);
-            [$ggr, $tenantShare, $chingaShare] = $this->computeShares($tenant, $wagered, $paidOut);
-
-            $totals['total_bets'] += $wagered;
-            $totals['total_wins'] += $paidOut;
-            $totals['gross_gaming_revenue'] += $ggr;
-            $totals['chinga_share'] += $chingaShare;
-            $totals['tenant_share'] += $tenantShare;
-
-            if ($wagered > 0 || $entry['error'] !== null) {
-                $perGame[] = self::perGameRow($entry['game'], $wagered, $paidOut, $ggr, $tenantShare, $entry['error']);
-            }
+            $rows[] = $this->pricedRow($entry['game'], $tenant, $entry['stats'], $entry['error']);
         }
 
-        return [$totals, $perGame];
+        return $rows;
     }
 
     /**
-     * Cross-tenant live aggregate for platform admins. Calls statsByTenant
-     * once per game and applies each row's tenant-specific commercial
-     * split, then sums, keeping a per-game subtotal.
+     * Cross-tenant rows for platform admins: statsByTenant once per game,
+     * each row priced with its own tenant's split and tagged with that
+     * tenant's currency. A game that is down contributes one error row.
      */
-    private function aggregateAllTenants(LiveGameStats $stats, Collection $games, string $fromIso, string $toIso): array
+    private function rowsForAllTenants(LiveGameStats $stats, Collection $games, string $fromIso, string $toIso): array
     {
-        $totals = self::emptyTotals();
-        $perGame = [];
-
         $byGame = $stats->byTenant($games, $fromIso, $toIso);
         $resolve = $stats->tenantResolver(collect($byGame)->flatMap(fn ($e) => collect($e['rows'])->pluck('tenant_uuid'))->all());
 
+        $rows = [];
         foreach ($byGame as $entry) {
-            $gameBets = 0.0;
-            $gameWins = 0.0;
-            $gameGgr = 0.0;
-            $gameTenantShare = 0.0;
+            if ($entry['error'] !== null) {
+                $rows[] = $this->pricedRow($entry['game'], null, [], $entry['error']);
 
-            foreach ($entry['rows'] as $r) {
-                $tenant = $resolve($r['tenant_uuid'] ?? null);
-                $wagered = (float) ($r['total_wagered'] ?? 0);
-                $paidOut = (float) ($r['total_paid_out'] ?? 0);
-                [$ggr, $tenantShare, $chingaShare] = $this->computeShares($tenant, $wagered, $paidOut);
-
-                $totals['total_bets'] += $wagered;
-                $totals['total_wins'] += $paidOut;
-                $totals['gross_gaming_revenue'] += $ggr;
-                $totals['chinga_share'] += $chingaShare;
-                $totals['tenant_share'] += $tenantShare;
-
-                $gameBets += $wagered;
-                $gameWins += $paidOut;
-                $gameGgr += $ggr;
-                $gameTenantShare += $tenantShare;
+                continue;
             }
-
-            if ($gameBets > 0 || $entry['error'] !== null) {
-                $perGame[] = self::perGameRow($entry['game'], $gameBets, $gameWins, $gameGgr, $gameTenantShare, $entry['error']);
+            foreach ($entry['rows'] as $r) {
+                $rows[] = $this->pricedRow($entry['game'], $resolve($r['tenant_uuid'] ?? null), $r, null);
             }
         }
 
-        return [$totals, $perGame];
+        return $rows;
     }
 
-    private static function emptyTotals(): array
+    private function pricedRow(Game $game, ?Tenant $tenant, array $s, ?string $error): array
     {
+        $wagered = bcadd(RevenueSplit::decimal($s['total_wagered'] ?? 0), '0', 2);
+        $paidOut = bcadd(RevenueSplit::decimal($s['total_paid_out'] ?? 0), '0', 2);
+        $split = RevenueSplit::compute($tenant, $wagered, $paidOut);
+
         return [
-            'total_bets' => 0.0,
-            'total_wins' => 0.0,
-            'gross_gaming_revenue' => 0.0,
-            'chinga_share' => 0.0,
-            'tenant_share' => 0.0,
+            'game' => $game,
+            'currency' => ScopedTotals::currencyOf($tenant),
+            'error' => $error,
+            'total_bets' => $wagered,
+            'total_wins' => $paidOut,
+            'gross_gaming_revenue' => $split['ggr'],
+            'chinga_share' => $split['platform_profit'],
+            'tenant_share' => $split['tenant_profit'],
         ];
     }
 
-    private static function perGameRow(Game $game, float $wagered, float $paidOut, float $ggr, float $tenantShare, ?string $error): array
+    private static function perGameRow(Game $game, ?string $currency, ?string $error): array
     {
         return [
             'game_id' => $game->id,
             'game' => ['uuid' => $game->uuid, 'name' => $game->name],
-            'total_bets' => $wagered,
-            'total_wins' => $paidOut,
-            'gross_gaming_revenue' => $ggr,
-            'tenant_share' => $tenantShare,
+            'currency' => $currency,
+            'total_bets' => '0.00',
+            'total_wins' => '0.00',
+            'gross_gaming_revenue' => '0.00',
+            'tenant_share' => '0.00',
             'error' => $error,
         ];
     }
 
     /**
-     * Same revenue split DashboardController uses:
-     *   GGR  = wagered - paid_out
-     *   tax  = max(GGR, 0) * tax_pct/100
-     *   NGR  = GGR - tax
-     *   reseller: tenant_share = max(NGR, 0) * share_pct/100
-     *             chinga_share = NGR - tenant_share
-     *   direct:   tenant_share = 0
-     *             chinga_share = NGR
-     *
-     * Returns [ggr, tenant_share, chinga_share].
+     * Active voucher balances, one entry per currency ({currency, $field}).
+     * VoucherCode is tenant-scoped, so a tenant admin gets their own
+     * currency (zero when they hold none).
      */
-    private function computeShares(?Tenant $tenant, float $wagered, float $paidOut): array
+    private function activeVoucherBalances(string $field): array
     {
-        $ggr = $wagered - $paidOut;
-        $taxPct = $tenant ? (float) ($tenant->tax_pct ?? 0) : 0.0;
-        $tax = $ggr > 0 ? $ggr * ($taxPct / 100) : 0.0;
-        $ngr = $ggr - $tax;
+        $rows = VoucherCode::whereIn('status', ['active', 'in_use'])
+            ->selectRaw('currency, SUM(balance) as total')
+            ->groupBy('currency')
+            ->get()
+            ->map(fn ($r) => ['currency' => $r->currency, $field => $r->total]);
 
-        $businessModel = $tenant->business_model ?? 'reseller';
-        $sharePct = $tenant ? (float) ($tenant->revenue_share_pct ?? 0) : 0.0;
-
-        if ($businessModel === 'direct') {
-            $tenantShare = 0.0;
-            $chingaShare = $ngr;
-        } else {
-            $tenantShare = $ngr > 0 ? $ngr * ($sharePct / 100) : 0.0;
-            $chingaShare = $ngr - $tenantShare;
-        }
-
-        return [$ggr, $tenantShare, $chingaShare];
+        return ScopedTotals::of($rows, [$field], ScopedTotals::scopeTenant());
     }
 
     /**

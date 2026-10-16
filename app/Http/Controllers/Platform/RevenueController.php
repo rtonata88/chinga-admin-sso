@@ -4,14 +4,22 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\TenantRevenueRecord;
+use App\Support\Currencies;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Platform revenue. A revenue record is in its tenant's currency (tenants.currency,
+ * immutable once wallets exist), so every figure here carries a currency and money
+ * in different currencies is never added together: no exchange rate is applied.
+ */
 class RevenueController extends Controller
 {
+    private const MONEY = ['total_bets', 'total_wins', 'gross_gaming_revenue', 'tax_amount', 'net_gaming_revenue', 'chinga_share', 'tenant_share'];
+
     public function index(Request $request): JsonResponse
     {
-        $query = TenantRevenueRecord::with(['tenant:id,uuid,name,slug', 'game:id,uuid,name']);
+        $query = TenantRevenueRecord::with(['tenant:id,uuid,name,slug,currency', 'game:id,uuid,name']);
 
         if ($tenantUuid = $request->input('tenant_uuid')) {
             $query->whereHas('tenant', fn ($q) => $q->where('uuid', $tenantUuid));
@@ -30,7 +38,8 @@ class RevenueController extends Controller
         }
 
         $records = $query->orderByDesc('period_start')
-            ->paginate($request->input('per_page', 25));
+            ->paginate($request->input('per_page', 25))
+            ->through(fn (TenantRevenueRecord $r) => $r->setAttribute('currency', $r->tenant?->currency));
 
         return response()->json($records);
     }
@@ -40,53 +49,35 @@ class RevenueController extends Controller
         $from = $request->input('from', now()->startOfMonth()->toDateString());
         $to = $request->input('to', now()->toDateString());
 
-        $totals = TenantRevenueRecord::where('period_start', '>=', $from)
-            ->where('period_end', '<=', $to)
-            ->selectRaw('
-                SUM(total_bets) as total_bets,
-                SUM(total_wins) as total_wins,
-                SUM(gross_gaming_revenue) as gross_gaming_revenue,
-                SUM(tax_amount) as tax_amount,
-                SUM(net_gaming_revenue) as net_gaming_revenue,
-                SUM(chinga_share) as chinga_share,
-                SUM(tenant_share) as tenant_share
-            ')
-            ->first();
+        $sums = collect(self::MONEY)
+            ->map(fn (string $f) => "SUM(tenant_revenue_records.{$f}) as {$f}")
+            ->implode(', ');
 
-        $perTenant = TenantRevenueRecord::with('tenant:id,uuid,name,business_model')
-            ->where('period_start', '>=', $from)
-            ->where('period_end', '<=', $to)
-            ->selectRaw('
-                tenant_id,
-                MAX(business_model) as business_model,
-                SUM(total_bets) as total_bets,
-                SUM(gross_gaming_revenue) as gross_gaming_revenue,
-                SUM(tax_amount) as tax_amount,
-                SUM(net_gaming_revenue) as net_gaming_revenue,
-                SUM(chinga_share) as chinga_share,
-                SUM(tenant_share) as tenant_share
-            ')
-            ->groupBy('tenant_id')
+        $inPeriod = fn () => TenantRevenueRecord::query()
+            ->join('tenants', 'tenants.id', '=', 'tenant_revenue_records.tenant_id')
+            ->where('tenant_revenue_records.period_start', '>=', $from)
+            ->where('tenant_revenue_records.period_end', '<=', $to);
+
+        // One row per tenant, in that tenant's currency.
+        $perTenant = $inPeriod()
+            ->with('tenant:id,uuid,name,business_model,currency')
+            ->selectRaw("tenant_revenue_records.tenant_id, tenants.currency as currency,
+                MAX(tenant_revenue_records.business_model) as business_model, {$sums}")
+            ->groupBy('tenant_revenue_records.tenant_id', 'tenants.currency')
             ->get();
 
-        $perGame = TenantRevenueRecord::with('game:id,uuid,name')
-            ->where('period_start', '>=', $from)
-            ->where('period_end', '<=', $to)
-            ->selectRaw('
-                game_id,
-                SUM(total_bets) as total_bets,
-                SUM(total_wins) as total_wins,
-                SUM(gross_gaming_revenue) as gross_gaming_revenue,
-                SUM(tax_amount) as tax_amount,
-                SUM(net_gaming_revenue) as net_gaming_revenue,
-                SUM(chinga_share) as chinga_share,
-                SUM(tenant_share) as tenant_share
-            ')
-            ->groupBy('game_id')
+        // One row per (game, currency): a game played on a NAD and a BWP tenant has two rows.
+        $perGame = $inPeriod()
+            ->with('game:id,uuid,name')
+            ->selectRaw("tenant_revenue_records.game_id, tenants.currency as currency, {$sums}")
+            ->groupBy('tenant_revenue_records.game_id', 'tenants.currency')
+            ->orderBy('tenant_revenue_records.game_id')
+            ->orderBy('tenants.currency')
             ->get();
 
         return response()->json([
-            'totals' => $totals,
+            // [{currency, total_bets, ..., tenant_share}], one entry per currency; empty with no records.
+            'totals' => Currencies::totalsByCurrency($perTenant->map(fn ($r) => $r->only(['currency', ...self::MONEY])), self::MONEY),
             'per_tenant' => $perTenant,
             'by_game' => $perGame,
         ]);

@@ -7,6 +7,7 @@ use App\Models\Wallet;
 use App\Support\Currencies;
 use App\Support\KulipiKunaConfigRules;
 use App\Support\KulipiKunaSettingsSchema;
+use Illuminate\Support\Facades\Http;
 
 /**
  * USSD design U-D15 and U-D16: every tenant has a currency profile, served with
@@ -135,4 +136,30 @@ it('serves the name players see on each tenant, set and cleared from the setting
     $this->actingAs($this->admin)
         ->put("/platform/games/{$this->game->uuid}/settings/tenant/{$this->bw->uuid}", ['enabled' => true, 'display_name' => str_repeat('x', 61)])
         ->assertSessionHasErrors(['display_name']);
+});
+
+it('totals money per currency and never across currencies', function () {
+    $totals = Currencies::totalsByCurrency([
+        ['currency' => 'NAD', 'staked' => '10.10', 'paid' => 5],
+        ['currency' => 'BWP', 'staked' => '0.20', 'paid' => '0.00'],
+        ['currency' => 'NAD', 'staked' => 0.1, 'paid' => '2.45'],
+    ], ['staked', 'paid']);
+
+    expect($totals)->toBe([
+        ['currency' => 'BWP', 'staked' => '0.20', 'paid' => '0.00'],
+        ['currency' => 'NAD', 'staked' => '10.20', 'paid' => '7.45'],
+    ]);
+    expect(fn () => Currencies::totalsByCurrency([['staked' => '1.00']], ['staked']))->toThrow(InvalidArgumentException::class);
+});
+
+it("shares the signed-in tenant user's currency with every page", function () {
+    $admin = User::factory()->create(['tenant_id' => $this->bw->id]);
+    $admin->assignRole('tenant_admin', $this->bw->id);
+    Http::fake();
+
+    $this->actingAs($admin)->get('/tenant-overview')
+        ->assertInertia(fn ($page) => $page
+            ->where('tenant.currency.code', 'BWP')
+            ->where('tenant.currency.symbol', 'P')
+            ->where('currencies.NAD.symbol', 'N$'));
 });

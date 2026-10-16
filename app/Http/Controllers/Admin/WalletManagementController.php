@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\Wallet;
 use App\Services\WalletService;
+use App\Support\ScopedTotals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -58,7 +59,16 @@ class WalletManagementController extends Controller
             'active_wallets' => (clone $statsQuery)->where('status', 'active')->count(),
             'frozen_wallets' => (clone $statsQuery)->where('status', 'frozen')->count(),
             'closed_wallets' => (clone $statsQuery)->where('status', 'closed')->count(),
-            'total_balance' => (clone $statsQuery)->where('status', 'active')->sum('balance'),
+            // One figure per currency: wallets of different tenants are never added together.
+            'balances' => ScopedTotals::of(
+                (clone $statsQuery)->where('status', 'active')
+                    ->selectRaw('currency, SUM(balance) as total_balance')
+                    ->groupBy('currency')
+                    ->get()
+                    ->map(fn ($r) => ['currency' => $r->currency, 'total_balance' => $r->total_balance]),
+                ['total_balance'],
+                ScopedTotals::scopeTenant(),
+            ),
         ];
 
         return response()->json([

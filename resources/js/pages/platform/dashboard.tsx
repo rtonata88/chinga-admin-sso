@@ -1,4 +1,5 @@
 import UserLayout from '@/layouts/user-layout';
+import { formatTotals, useCurrencies, type CurrencyTotal } from '@/lib/money';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
@@ -7,8 +8,8 @@ interface DashboardData {
     active_tenants: number;
     total_players: number;
     total_venues: number;
-    revenue_this_month: number;
-    chinga_share_this_month: number;
+    /** One entry per currency; tenants in different currencies are never added together. */
+    revenue_this_month_by_currency: CurrencyTotal<'gross_gaming_revenue' | 'chinga_share'>[];
     recent_tenants: Array<{
         uuid: string;
         name: string;
@@ -21,6 +22,7 @@ interface DashboardData {
 export default function PlatformDashboard() {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    const profileOf = useCurrencies();
 
     useEffect(() => {
         fetch('/api/v1/platform/dashboard')
@@ -83,10 +85,10 @@ export default function PlatformDashboard() {
                                 </div>
                                 <div className="acu-fieldset-body">
                                     <div className="text-3xl font-bold break-words">
-                                        NAD {Number(data.revenue_this_month).toLocaleString()}
+                                        {formatTotals(data.revenue_this_month_by_currency, 'gross_gaming_revenue', profileOf)}
                                     </div>
                                     <div className="text-sm text-muted-foreground">
-                                        Chinga share: NAD {Number(data.chinga_share_this_month).toLocaleString()}
+                                        Chinga share: {formatTotals(data.revenue_this_month_by_currency, 'chinga_share', profileOf)}
                                     </div>
                                 </div>
                             </div>

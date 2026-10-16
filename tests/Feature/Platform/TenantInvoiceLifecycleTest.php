@@ -108,7 +108,8 @@ test('payments move the invoice from issued to part paid to paid, and overpaymen
     expect($invoice->status)->toBe('paid')->and($invoice->paid_at)->not->toBeNull()->and($invoice->payments()->count())->toBe(2);
 
     $this->actingAs($this->platformAdmin)->get('/invoices')->assertOk()->assertInertia(fn (Assert $page) => $page
-        ->where('can_manage', true)->where('totals.paid', fn ($v) => (float) $v === 270.0)->where('totals.outstanding', fn ($v) => (float) $v === 0.0)->where('rows.0.status', 'paid'));
+        ->where('can_manage', true)->has('totals.by_currency', 1)->where('totals.by_currency.0.currency', 'NAD')
+        ->where('totals.by_currency.0.paid', '270.00')->where('totals.by_currency.0.outstanding', '0.00')->where('rows.0.status', 'paid'));
     $html = $this->actingAs($this->platformAdmin)->get('/invoices/'.$invoice->number)->assertOk()->getContent();
     expect($html)->toContain('Paid · 2 Oct 2026')->toContain('EFT-1')->not->toContain('Record payment');
 

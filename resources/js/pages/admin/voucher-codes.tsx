@@ -12,12 +12,15 @@ import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
+import { type Amount, type CurrencyProfile, formatFigure, formatMoney, useCurrencies } from '@/lib/money';
 import { useEffect, useMemo, useState } from 'react';
 
 interface Venue {
     uuid: string;
     name: string;
     city?: string | null;
+    /** Codes are issued in the venue's currency. */
+    currency?: string;
     tenant_name?: string | null;
 }
 
@@ -29,11 +32,11 @@ interface VoucherCode {
     code: string;
     venue: { uuid: string; name: string };
     tenant_name: string | null;
-    balance: number;
+    balance: Amount;
     currency: string;
     status: string;
-    total_loaded: number;
-    total_cashed_out: number;
+    total_loaded: Amount;
+    total_cashed_out: Amount;
     last_activity_at: string | null;
     expires_at: string | null;
     kind?: string;
@@ -64,9 +67,6 @@ function statusPill(status: string): string {
     }
 }
 
-function formatNAD(amount: number): string {
-    return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 const DATE_FMT = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -76,8 +76,10 @@ function formatDate(iso: string): string {
 
 interface PrintableVoucher {
     code: string;
-    balance: number;
+    balance: Amount;
     currency: string;
+    /** The code's currency profile, so the slip prints "P100.00", never another currency. */
+    profile: CurrencyProfile | null;
     tenantName: string | null;
     venueName: string;
     pin?: string;
@@ -126,7 +128,7 @@ function printVoucherReceipts(vouchers: PrintableVoucher[]) {
         const receipt = doc.createElement('div');
         receipt.className = 'receipt';
 
-        const formatBalance = `${v.currency} ${v.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const formatBalance = v.profile ? formatMoney(v.balance, v.profile) : `${v.currency} ${v.balance ?? ''}`;
 
         receipt.appendChild(createTextDiv('divider', '================================'));
         if (v.tenantName) {
@@ -159,6 +161,12 @@ export default function VoucherCodes() {
         return '';
     }, []);
 
+    const profileOf = useCurrencies();
+    // Each code's figures in its own currency.
+    const fig = (v: Amount, code: string) => {
+        const p = profileOf(code);
+        return p ? formatFigure(v, p) : String(v ?? '');
+    };
     const [codes, setCodes] = useState<VoucherCode[]>([]);
     const [venues, setVenues] = useState<Venue[]>([]);
     const [meta, setMeta] = useState<Meta | null>(null);
@@ -170,13 +178,15 @@ export default function VoucherCodes() {
 
     const [generateOpen, setGenerateOpen] = useState(false);
     const [selectedVenue, setSelectedVenue] = useState('');
+    // The amount being loaded is in the chosen venue's currency.
+    const selectedCurrency = profileOf(venues.find((x) => x.uuid === selectedVenue)?.currency);
     const [initialBalance, setInitialBalance] = useState('100');
     const [pin, setPin] = useState('');
     // A counter float: the venue's account for over-the-counter ticket sales (many tickets a round, slips paid out at the counter).
     const [counterFloat, setCounterFloat] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [generatedCode, setGeneratedCode] = useState<
-        { code: string; balance: number; currency: string } | null
+        { code: string; balance: Amount; currency: string } | null
     >(null);
 
     const getCsrfToken = () =>
@@ -241,7 +251,7 @@ export default function VoucherCodes() {
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    initial_balance: parseFloat(initialBalance),
+                    initial_balance: initialBalance.trim(),
                     pin: pin || undefined,
                     kind: counterFloat ? 'counter' : 'player',
                 }),
@@ -255,7 +265,8 @@ export default function VoucherCodes() {
                 printVoucherReceipts([{
                     code: data.data.code,
                     balance: data.data.balance,
-                    currency: data.data.currency || 'NAD',
+                    currency: data.data.currency,
+                    profile: profileOf(data.data.currency),
                     tenantName: null,
                     venueName,
                     pin: pin || undefined,
@@ -460,7 +471,7 @@ export default function VoucherCodes() {
                                         <td className="cgo-r">
                                             <span className="cgo-stake">
                                                 <span className="cgo-ccy">{c.currency}</span>
-                                                {formatNAD(c.balance)}
+                                                {fig(c.balance, c.currency)}
                                             </span>
                                         </td>
                                         <td>
@@ -470,7 +481,7 @@ export default function VoucherCodes() {
                                         </td>
                                         <td className="cgo-r hidden md:table-cell">
                                             <span className="cgo-uid" style={{ fontFamily: 'var(--cg-mono)' }}>
-                                                {formatNAD(c.total_loaded)} / {formatNAD(c.total_cashed_out)}
+                                                {fig(c.total_loaded, c.currency)} / {fig(c.total_cashed_out, c.currency)}
                                             </span>
                                         </td>
                                         <td className="hidden md:table-cell">
@@ -488,6 +499,7 @@ export default function VoucherCodes() {
                                                             code: c.code,
                                                             balance: c.balance,
                                                             currency: c.currency,
+                                                            profile: profileOf(c.currency),
                                                             tenantName: c.tenant_name,
                                                             venueName: c.venue.name,
                                                             expiresAt: c.expires_at,
@@ -612,7 +624,7 @@ export default function VoucherCodes() {
                                 </code>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ fontFamily: 'var(--cg-mono)', fontSize: '1.1rem' }}>
-                                        {generatedCode.currency || 'NAD'} {formatNAD(generatedCode.balance)}
+                                        {generatedCode.currency} {fig(generatedCode.balance, generatedCode.currency)}
                                     </div>
                                     <div style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>{pin ? `PIN ${pin}` : 'no PIN'}</div>
                                 </div>
@@ -642,7 +654,8 @@ export default function VoucherCodes() {
                                 printVoucherReceipts([{
                                     code: generatedCode.code,
                                     balance: generatedCode.balance,
-                                    currency: generatedCode.currency || 'NAD',
+                                    currency: generatedCode.currency,
+                                    profile: profileOf(generatedCode.currency),
                                     tenantName: null,
                                     venueName,
                                     createdAt: new Date().toISOString(),
@@ -716,7 +729,7 @@ export default function VoucherCodes() {
                             <div className="cgo-eyebrow" style={{ marginBottom: 8 }}>3 · {counterFloat ? 'Opening float' : 'Amount'} and PIN</div>
                             <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 10 }}>
                                 <div className="flex flex-col gap-1">
-                                    <label style={{ fontSize: 12, fontWeight: 500 }}>{counterFloat ? 'Opening float (NAD)' : 'Amount (NAD)'}</label>
+                                    <label style={{ fontSize: 12, fontWeight: 500 }}>{counterFloat ? 'Opening float' : 'Amount'}{selectedCurrency ? ` (${selectedCurrency.code})` : ''}</label>
                                     <InputText
                                         type="number"
                                         min={0.01}
@@ -759,7 +772,7 @@ export default function VoucherCodes() {
                                 <>
                                     Creating a <b style={{ color: 'var(--cg-fg-1)' }}>{counterFloat ? 'counter float' : 'player voucher'}</b> for{' '}
                                     <b style={{ color: 'var(--cg-fg-1)' }}>{(() => { const v = venues.find((x) => x.uuid === selectedVenue); return v ? venueLabel(v) : '…'; })()}</b>
-                                    {' '}with <b style={{ color: 'var(--cg-brass-hi)', fontFamily: 'var(--cg-mono)' }}>N$ {formatNAD(Number(initialBalance) || 0)}</b>
+                                    {' '}with <b style={{ color: 'var(--cg-brass-hi)', fontFamily: 'var(--cg-mono)' }}>{selectedCurrency ? formatMoney(initialBalance || '0', selectedCurrency) : initialBalance}</b>
                                     {pin.length === 4 ? ', PIN set' : counterFloat ? ', PIN still needed' : ', no PIN'}.
                                 </>
                             ) : (

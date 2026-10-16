@@ -4,13 +4,20 @@
 // against the theoretical RTP the rounds were drawn with (1 − house
 // edge). Day rows below show how the figure moved. The engine does the
 // arithmetic; this page only presents it.
+//
+// Money never adds across currencies. Wagered and paid out come per
+// currency (the controller totals the engine's per-tenant figures); the day
+// rows are summed across tenants by the engine, so their money shows only
+// when the scope has one currency, and asks for a tenant otherwise. RTP is a
+// ratio and stays.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
+import type { CurrencyTotal } from '@/lib/money';
 import UserLayout from '@/layouts/user-layout';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
-import { ERROR_BOX, PANEL, SELECT_RESET, TAP, formatNAD, formatRatioPct, num } from './format';
+import { ERROR_BOX, PANEL, SELECT_RESET, TAP, formatRatioPct, num, useRowMoney } from './format';
 
 interface Rtp {
     period: { from: string; to: string; tenant_uuid: string | null };
@@ -62,6 +69,10 @@ interface Props {
     game?: GameProps;
     rtp: Rtp | null;
     days: Day[];
+    /** The scope's one currency; null when its tenants span several, and the day money is withheld. */
+    currency?: string | null;
+    /** Wagered, paid out and GGR per currency over the window. */
+    totals?: CurrencyTotal<'total_wagered' | 'total_paid_out' | 'ggr'>[];
     tenants: TenantOption[];
     filters: { tenant_uuid: string | null; from: string; to: string };
     error: string | null;
@@ -93,7 +104,9 @@ function deviation(realised: number | null, theoretical: number | null, bets: nu
     return { text, color: 'var(--cg-pos)' };
 }
 
-export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, rtp, days = [], tenants = [], filters, error }: Props) {
+export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', terms: BET_TERMS }, rtp, days = [], currency = null, totals = [], tenants = [], filters, error }: Props) {
+    const money = useRowMoney();
+    const mixed = !currency && totals.length > 1;
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
     const [from, setFrom] = useState(filters?.from ?? '');
     const [to, setTo] = useState(filters?.to ?? '');
@@ -141,8 +154,8 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                         value={formatRatioPct(theoretical)}
                         meta={rtp?.house_edge ? `house edge ${formatRatioPct(rtp.house_edge)}` : 'from the latest round in scope'}
                     />
-                    <KpiCard label="Wagered" value={formatCurrencyCompact(num(rtp?.total_wagered))} meta="staked in window" />
-                    <KpiCard label="Paid out" value={formatCurrencyCompact(num(rtp?.total_paid_out))} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
+                    <KpiCard label="Wagered" value={money.totals(totals, 'total_wagered')} meta={mixed ? 'staked in window, per currency' : 'staked in window'} />
+                    <KpiCard label="Paid out" value={money.totals(totals, 'total_paid_out')} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
                     <KpiCard
                         label="Sample"
                         value={formatCount(rtp?.bets_placed ?? 0)}
@@ -208,21 +221,31 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                                     const wagered = num(d.total_wagered);
                                     const paidOut = num(d.total_paid_out);
                                     const dayRtp = wagered > 0 ? paidOut / wagered : null;
-                                    const ggr = num(d.ggr);
                                     return (
                                         <tr key={d.day}>
                                             <td><span className="cgo-uid">{formatDay(d.day)}</span></td>
                                             <td className="cgo-r"><span className="cgo-odds">{formatCount(d.rounds ?? 0)}</span></td>
                                             <td className="cgo-r"><span className="cgo-odds">{formatCount(d.bets_placed ?? 0)}</span></td>
                                             <td className="cgo-r"><span className="cgo-odds">{formatCount(d.active_players ?? 0)}</span></td>
-                                            <td className="cgo-r">
-                                                <span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(wagered)}</span>
-                                            </td>
-                                            <td className="cgo-r"><span className="cgo-payout">{formatNAD(paidOut)}</span></td>
-                                            <td className="cgo-r">
-                                                <span className="cgo-payout" style={{ color: ggr < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}>{formatNAD(ggr)}</span>
-                                            </td>
-                                            <td className="cgo-r"><span className="cgo-payout">{formatNAD(num(d.real_ggr))}</span></td>
+                                            {currency ? (
+                                                <>
+                                                    <td className="cgo-r">
+                                                        <span className="cgo-stake"><span className="cgo-ccy">{currency}</span>{money.figure(d.total_wagered, currency)}</span>
+                                                    </td>
+                                                    <td className="cgo-r"><span className="cgo-payout">{money.figure(d.total_paid_out, currency)}</span></td>
+                                                    <td className="cgo-r">
+                                                        <span className="cgo-payout" style={{ color: num(d.ggr) < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}>{money.figure(d.ggr, currency)}</span>
+                                                    </td>
+                                                    <td className="cgo-r"><span className="cgo-payout">{money.figure(d.real_ggr, currency)}</span></td>
+                                                </>
+                                            ) : (
+                                                // Summed across currencies by the engine: no figure to show.
+                                                [0, 1, 2, 3].map((i) => (
+                                                    <td key={i} className="cgo-r" title="Tenants in more than one currency: pick a tenant">
+                                                        <span className="cgo-payout" style={{ color: 'var(--cg-fg-3)' }}>—</span>
+                                                    </td>
+                                                ))
+                                            )}
                                             <td className="cgo-r"><span className="cgo-odds">{formatRatioPct(dayRtp)}</span></td>
                                         </tr>
                                     );
@@ -233,6 +256,7 @@ export default function RtpPage({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', 
                     <div className="cgo-table-foot">
                         <span>
                             Real GGR counts only the deposit-funded part of each stake; GGR counts every stake including re-staked winnings.
+                            {!currency && days.length > 0 && ' The tenants here use more than one currency, so the daily money is not added up: pick a tenant to see it.'}
                         </span>
                     </div>
                 </div>

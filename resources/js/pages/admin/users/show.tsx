@@ -6,7 +6,9 @@
 // bets table. The Reset Password flow stays on PrimeReact Dialog —
 // it's a functional modal, not chrome.
 
-import { KpiCard, formatCount, formatNAD } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
+import { MoneyFigure } from '@/components/operator/money-figure';
+import { formatMoney, toCents, useCurrencies, useTenantCurrency } from '@/lib/money';
 import UserLayout from '@/layouts/user-layout';
 import { Head, router } from '@inertiajs/react';
 import { Button } from 'primereact/button';
@@ -28,6 +30,8 @@ interface UserDetail {
     language: string;
     status: string;
     user_type?: string;
+    /** The user's tenant's currency: their bets are in it. Null for a platform account. */
+    currency?: string | null;
     roles: string[];
     email_verified_at: string | null;
     last_login_at: string | null;
@@ -168,6 +172,10 @@ export default function UserShow({ uuid }: { uuid: string }) {
     const [tempPassword, setTempPassword] = useState<string | null>(null);
     const [resetting, setResetting] = useState(false);
     const toast = useRef<Toast>(null);
+    const profileOf = useCurrencies();
+    const tenantCurrency = useTenantCurrency();
+    // The player's money is in their own tenant's currency.
+    const ccy = profileOf(user?.currency) ?? tenantCurrency;
 
     const fetchUser = async () => {
         try {
@@ -218,12 +226,13 @@ export default function UserShow({ uuid }: { uuid: string }) {
 
     const kpis = useMemo(() => {
         const total = bets.length;
+        // Integer cents, so the column sums exactly.
         let wagered = 0;
         let won = 0;
         for (const b of bets) {
-            wagered += parseFloat(b.bet_amount) || 0;
+            wagered += toCents(b.bet_amount);
             if (b.outcome === 'win') {
-                won += parseFloat(b.winning_amount) || 0;
+                won += toCents(b.winning_amount);
             }
         }
         return { total, wagered, won, net: won - wagered };
@@ -452,17 +461,17 @@ export default function UserShow({ uuid }: { uuid: string }) {
                     />
                     <KpiCard
                         label="Total wagered"
-                        value={betsLoading ? '—' : `N$${formatNAD(kpis.wagered)}`}
+                        value={betsLoading || !ccy ? '—' : formatMoney(kpis.wagered / 100, ccy)}
                         meta="lifetime"
                     />
                     <KpiCard
                         label="Total wins"
-                        value={betsLoading ? '—' : `N$${formatNAD(kpis.won)}`}
+                        value={betsLoading || !ccy ? '—' : formatMoney(kpis.won / 100, ccy)}
                         meta="winning bets only"
                     />
                     <KpiCard
                         label="Net P/L"
-                        value={betsLoading ? '—' : `${kpis.net >= 0 ? '+' : '−'}N$${formatNAD(Math.abs(kpis.net))}`}
+                        value={betsLoading || !ccy ? '—' : `${kpis.net >= 0 ? '+' : '−'}${formatMoney(Math.abs(kpis.net) / 100, ccy)}`}
                         brass={kpis.net >= 0}
                         meta={kpis.net >= 0 ? 'player up' : 'player down'}
                     />
@@ -547,14 +556,13 @@ export default function UserShow({ uuid }: { uuid: string }) {
                                         </td>
                                         <td className="cgo-r">
                                             <span className="cgo-stake">
-                                                <span className="cgo-ccy">NAD</span>
-                                                {formatNAD(parseFloat(b.bet_amount))}
+                                                <MoneyFigure value={b.bet_amount} profile={ccy} />
                                             </span>
                                         </td>
                                         <td className="cgo-r">
                                             {b.outcome === 'win' ? (
                                                 <span className="cgo-payout" style={{ color: 'var(--cg-pos)' }}>
-                                                    {formatNAD(parseFloat(b.winning_amount))}
+                                                    <MoneyFigure value={b.winning_amount} profile={ccy} code={false} />
                                                 </span>
                                             ) : (
                                                 <span className="cgo-payout" style={{ color: 'var(--cg-fg-4)' }}>

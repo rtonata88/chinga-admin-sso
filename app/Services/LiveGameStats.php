@@ -61,7 +61,9 @@ class LiveGameStats
 
     /**
      * Resolver from a backend row's tenant_uuid to a local Tenant. Every
-     * backend files tenants under the SSO uuid (PRD §4.3).
+     * backend files tenants under the SSO uuid (PRD §4.3). A row's money is
+     * in the resolved tenant's currency (ScopedTotals::currencyOf); a key no
+     * tenant owns has no known currency and never joins a currency's total.
      *
      * @param  list<string>  $keys
      * @return \Closure(?string): ?Tenant

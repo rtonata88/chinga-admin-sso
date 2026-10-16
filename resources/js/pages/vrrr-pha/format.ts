@@ -3,6 +3,12 @@
 // Shared formatting for the Vrrr Pha consoles. The engine sends money
 // as 2dp strings, multipliers as 2dp strings, ratios as 4dp strings and
 // tenants as uuids; these turn them into what the brass shell shows.
+//
+// Money is in each row's tenant's currency: the console controllers tag every
+// engine row with `currency`, and a cross-tenant total is one figure per
+// currency (lib/money.ts), never a sum across currencies.
+
+import { type Amount, type CurrencyProfile, type CurrencyTotal, formatFigure, formatMoney, formatMoneyCompact, formatTotals, toCents, useCurrencies } from '@/lib/money';
 
 const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -20,9 +26,53 @@ export function num(v: string | number | null | undefined): number {
     return Number.isFinite(n) ? n : 0;
 }
 
-export function formatNAD(v: string | number | null | undefined): string {
-    return num(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** What a tagged engine row carries: its tenant's currency code, null when the SSO does not know the tenant. */
+export interface HasCurrency {
+    currency?: string | null;
 }
+
+/** Rows of a tenant the SSO does not know total under this code rather than vanish (TenantCurrencyMap::UNKNOWN). */
+export const UNKNOWN_CURRENCY = '?';
+
+const UNKNOWN_PROFILE: CurrencyProfile = { code: UNKNOWN_CURRENCY, symbol: UNKNOWN_CURRENCY, decimals: 2, symbol_position: 'before', space: true, thousands: ',', decimal: '.' };
+
+export interface RowMoney {
+    /** The profile for a code; an unknown or missing code shows as "?", never as another currency. */
+    profile: (code: string | null | undefined) => CurrencyProfile;
+    /** The code chip a money cell shows beside its figure. */
+    code: (code: string | null | undefined) => string;
+    /** The figure alone, in that currency's decimals and separators. */
+    figure: (v: Amount, code: string | null | undefined) => string;
+    /** A KPI value from per-currency totals: "N$12.4K · P3.1K", or "—" with nothing to show. */
+    totals: (totals: readonly CurrencyTotal[], field: string) => string;
+    /** A KPI value in one currency: "N$12.4K". */
+    compact: (v: Amount, code: string | null | undefined) => string;
+    /** The full figure with its symbol: "P1,184.60". */
+    full: (v: Amount, code: string | null | undefined) => string;
+}
+
+export function useRowMoney(): RowMoney {
+    const lookup = useCurrencies();
+    const profile = (code: string | null | undefined): CurrencyProfile => lookup(code || UNKNOWN_CURRENCY) ?? UNKNOWN_PROFILE;
+    return {
+        profile,
+        code: (code) => code || UNKNOWN_CURRENCY,
+        figure: (v, code) => formatFigure(v, profile(code)),
+        totals: (totals, field) => formatTotals(totals, field, (c) => profile(c), true),
+        compact: (v, code) => formatMoneyCompact(v, profile(code)),
+        full: (v, code) => formatMoney(v, profile(code)),
+    };
+}
+
+/** a − b in whole cents, as a 2dp decimal string (GGR = wagered − paid out). */
+export function moneyDiff(a: Amount, b: Amount): string {
+    const cents = toCents(a) - toCents(b);
+    const abs = Math.abs(cents);
+    return `${cents < 0 ? '-' : ''}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+}
+
+/** A tagged row's currency, for sumByCurrency: unknown tenants total under "?". */
+export const rowCurrency = (r: HasCurrency): string => r.currency || UNKNOWN_CURRENCY;
 
 export function formatMultiplier(v: string | number | null | undefined): string {
     if (v === null || v === undefined || v === '') return '—';

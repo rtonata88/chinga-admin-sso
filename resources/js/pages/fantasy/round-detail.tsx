@@ -7,6 +7,8 @@ import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 
+import { type HasCurrency, moneyDiff, useRowMoney } from '../vrrr-pha/format';
+
 interface Pick {
     team_id: number;
     team_name: string | null;
@@ -14,7 +16,7 @@ interface Pick {
     won: boolean;
 }
 
-interface Bet {
+interface Bet extends HasCurrency {
     id: number;
     user_uuid: string;
     tenant_uuid: string | null;
@@ -26,7 +28,7 @@ interface Bet {
     picks: Pick[];
 }
 
-interface Round {
+interface Round extends HasCurrency {
     id: number;
     round_number: number;
     tenant_uuid: string | null;
@@ -47,11 +49,6 @@ interface Props {
     backHref?: string;
 }
 
-function formatCurrency(amount: string | number): string {
-    const n = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `NAD ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function outcomeVariant(outcome: Bet['outcome']): StatusVariant {
     if (outcome === 'win') return 'active';
     if (outcome === 'lost') return 'error';
@@ -59,6 +56,8 @@ function outcomeVariant(outcome: Bet['outcome']): StatusVariant {
 }
 
 export default function RoundDetail({ round, bets = [], error, backHref = '/fantasy/rounds' }: Props) {
+    // Money is in the round's tenant's currency (tagged server-side).
+    const money = useRowMoney();
     if (error || !round) {
         return (
             <UserLayout title="Round Detail">
@@ -83,7 +82,8 @@ export default function RoundDetail({ round, bets = [], error, backHref = '/fant
         );
     }
 
-    const ggr = parseFloat(round.total_wagered) - parseFloat(round.total_paid_out);
+    const ccy = round.currency;
+    const ggr = moneyDiff(round.total_wagered, round.total_paid_out);
     const bonusTeamIds = new Set(round.bonus_teams.map((t) => t.id));
 
     return (
@@ -107,9 +107,9 @@ export default function RoundDetail({ round, bets = [], error, backHref = '/fant
                 {/* Aggregate */}
                 <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
                     <Stat label="Bets" value={round.bet_count.toLocaleString()} />
-                    <Stat label="Wagered" value={formatCurrency(round.total_wagered)} />
-                    <Stat label="Paid Out" value={formatCurrency(round.total_paid_out)} />
-                    <Stat label="GGR" value={formatCurrency(ggr)} />
+                    <Stat label="Wagered" value={money.full(round.total_wagered, ccy)} />
+                    <Stat label="Paid Out" value={money.full(round.total_paid_out, ccy)} />
+                    <Stat label="GGR" value={money.full(ggr, ccy)} />
                 </div>
 
                 {/* Winning teams */}
@@ -214,7 +214,7 @@ export default function RoundDetail({ round, bets = [], error, backHref = '/fant
                                 header="Wager"
                                 body={(row: Bet) => (
                                     <span className="text-sm" style={{ color: 'var(--acu-text)' }}>
-                                        {formatCurrency(row.bet_amount)}
+                                        {money.full(row.bet_amount, row.currency ?? ccy)}
                                     </span>
                                 )}
                             />
@@ -230,7 +230,7 @@ export default function RoundDetail({ round, bets = [], error, backHref = '/fant
                                         className="text-sm font-medium"
                                         style={{ color: row.outcome === 'win' ? '#3FB950' : 'var(--acu-text-light)' }}
                                     >
-                                        {row.outcome === 'win' ? formatCurrency(row.winning_amount) : '—'}
+                                        {row.outcome === 'win' ? money.full(row.winning_amount, row.currency ?? ccy) : '—'}
                                     </span>
                                 )}
                             />

@@ -52,6 +52,64 @@ final class Currencies
         return ['code' => $code] + $p;
     }
 
+    /**
+     * Every supported profile by code, for consoles that show several tenants'
+     * money side by side (each row in its own tenant's currency).
+     *
+     * @return array<string, array{code: string, name: string, symbol: string, decimals: int, symbol_position: string, space: bool, thousands: string, decimal: string}>
+     */
+    public static function all(): array
+    {
+        $all = [];
+        foreach (array_keys(self::PROFILES) as $code) {
+            $all[$code] = self::profile($code);
+        }
+
+        return $all;
+    }
+
+    /**
+     * Sums money fields per currency, never across currencies: money in
+     * different currencies is never added together, and no exchange rate is
+     * ever applied. Sums are exact decimal strings (bcmath), ordered by
+     * currency code so the output is stable.
+     *
+     * @param  iterable<array<string, mixed>|object>  $rows
+     * @param  list<string>  $fields
+     * @return list<array<string, string>> one entry per currency: ['currency' => 'NAD', $field => '123.45', ...]
+     */
+    public static function totalsByCurrency(iterable $rows, array $fields, string $currencyKey = 'currency'): array
+    {
+        $totals = [];
+        foreach ($rows as $row) {
+            $row = (array) $row;
+            $code = $row[$currencyKey] ?? null;
+            if (! is_string($code) || $code === '') {
+                throw new \InvalidArgumentException('A money row without a currency cannot be totalled');
+            }
+            $totals[$code] ??= ['currency' => $code] + array_fill_keys($fields, '0.00');
+            foreach ($fields as $field) {
+                $totals[$code][$field] = bcadd($totals[$code][$field], self::decimal($row[$field] ?? 0), 2);
+            }
+        }
+        ksort($totals);
+
+        return array_values($totals);
+    }
+
+    /** A DB/JSON amount as a decimal string bcmath accepts. Floats are printed exactly to 2dp of what they hold, not trusted further. */
+    private static function decimal(mixed $v): string
+    {
+        if ($v === null || $v === '') {
+            return '0';
+        }
+        if (is_float($v)) {
+            return number_format($v, 2, '.', '');
+        }
+
+        return (string) $v;
+    }
+
     /** The tenant's profile; a tenant on an unsupported code is an error, never silently NAD. */
     public static function forTenant(Tenant $tenant): array
     {

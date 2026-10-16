@@ -8,6 +8,7 @@ use App\Models\VenueStaff;
 use App\Models\VenueTerminal;
 use App\Models\VoucherCode;
 use App\Services\Auth\SecurityAuditService;
+use App\Support\ScopedTotals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -85,13 +86,15 @@ class VenueManagementController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],
             'timezone' => ['nullable', 'string', 'max:50'],
-            'currency' => ['nullable', 'string', 'size:3'],
+            // A venue's vouchers fund wallets on the tenant, so it can only be in the tenant's currency.
+            'currency' => ['nullable', 'string', Rule::in([$this->tenantCurrency()])],
             'settings' => ['nullable', 'array'],
         ]);
 
         $venue = Venue::create([
             'uuid' => Str::uuid(),
             ...$validated,
+            'currency' => $this->tenantCurrency(),
             'status' => 'active',
         ]);
 
@@ -134,7 +137,9 @@ class VenueManagementController extends Controller
             'success' => true,
             'data' => [
                 ...$venue->toArray(),
+                // A venue's codes are issued in the venue's currency (VoucherCodeService), so its figures are too.
                 'stats' => [
+                    'currency' => $venue->currency,
                     'active_codes_balance' => $activeCodesBalance,
                     'total_loaded' => $totalLoaded,
                     'total_cashed_out' => $totalCashedOut,
@@ -166,7 +171,8 @@ class VenueManagementController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],
             'timezone' => ['nullable', 'string', 'max:50'],
-            'currency' => ['nullable', 'string', 'size:3'],
+            // Fixed to the tenant's currency: its codes and wallets are in it.
+            'currency' => ['nullable', 'string', Rule::in([$venue->tenant?->currency ?: 'NAD'])],
             'settings' => ['nullable', 'array'],
         ]);
 
@@ -587,7 +593,7 @@ class VenueManagementController extends Controller
             ->where('venue_id', $venue->id)
             ->firstOrFail();
 
-        if (!in_array($code->status, ['active', 'in_use'])) {
+        if (! in_array($code->status, ['active', 'in_use'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Can only add balance to active codes.',
@@ -600,8 +606,8 @@ class VenueManagementController extends Controller
 
         $oldBalance = $code->balance;
         $code->update([
-            'balance' => $code->balance + $validated['amount'],
-            'total_loaded' => $code->total_loaded + $validated['amount'],
+            'balance' => bcadd((string) $code->balance, (string) $validated['amount'], 2),
+            'total_loaded' => bcadd((string) $code->total_loaded, (string) $validated['amount'], 2),
             'last_activity_at' => now(),
         ]);
 
@@ -706,7 +712,16 @@ class VenueManagementController extends Controller
             'voucher_codes' => [
                 'total' => VoucherCode::count(),
                 'active' => VoucherCode::whereIn('status', ['active', 'in_use'])->count(),
-                'total_balance' => VoucherCode::whereIn('status', ['active', 'in_use'])->sum('balance'),
+                // One figure per currency: codes of different tenants are never added together.
+                'balances' => ScopedTotals::of(
+                    VoucherCode::whereIn('status', ['active', 'in_use'])
+                        ->selectRaw('currency, SUM(balance) as total_balance')
+                        ->groupBy('currency')
+                        ->get()
+                        ->map(fn ($r) => ['currency' => $r->currency, 'total_balance' => $r->total_balance]),
+                    ['total_balance'],
+                    ScopedTotals::scopeTenant(),
+                ),
             ],
         ];
 
@@ -738,5 +753,16 @@ class VenueManagementController extends Controller
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /** The current tenant's currency code; a venue is always in it. */
+    private function tenantCurrency(): string
+    {
+        $tenant = app('current_tenant');
+        if (! $tenant instanceof \App\Models\Tenant) {
+            abort(422, 'A venue is created on a tenant.');
+        }
+
+        return $tenant->currency ?: 'NAD';
     }
 }

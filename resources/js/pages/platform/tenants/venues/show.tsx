@@ -5,8 +5,9 @@
 // Terminals tabs (each with their own table). Add-staff and
 // add-terminal dialogs stay on PrimeReact.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { formatMoneyCompact, useCurrencies } from '@/lib/money';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -36,6 +37,8 @@ interface VenueDetails {
     terminals_count: number;
     voucher_codes_count: number;
     stats: {
+        /** The venue's currency (its tenant's); every stat is in it. */
+        currency?: string | null;
         active_codes_balance: number;
         total_loaded: number;
         total_cashed_out: number;
@@ -165,6 +168,9 @@ export default function VenueShow() {
     const { tenantUuid, uuid } = usePage<{ tenantUuid: string; uuid: string }>().props;
 
     const [venue, setVenue] = useState<VenueDetails | null>(null);
+    const profileOf = useCurrencies();
+    // Venue money is in the venue's currency (its tenant's), never assumed NAD.
+    const venueCurrency = profileOf(venue?.stats?.currency ?? venue?.currency);
     const [staff, setStaff] = useState<Staff[]>([]);
     const [terminals, setTerminals] = useState<Terminal[]>([]);
     const [loading, setLoading] = useState(true);
@@ -462,9 +468,9 @@ export default function VenueShow() {
                     <KpiCard label="Voucher codes" value={formatCount(venue.voucher_codes_count)} meta="lifetime issued" />
                     <KpiCard
                         label="Active balance"
-                        value={formatCurrencyCompact(venue.stats?.active_codes_balance ?? 0)}
+                        value={venueCurrency ? formatMoneyCompact(venue.stats?.active_codes_balance ?? 0, venueCurrency) : '—'}
                         brass
-                        meta={venue.currency || 'NAD'}
+                        meta={venueCurrency?.code ?? '—'}
                     />
                 </div>
 

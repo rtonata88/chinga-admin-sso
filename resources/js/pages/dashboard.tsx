@@ -7,15 +7,27 @@
 //
 // For non-admin users the page falls back to a trimmed account view
 // so it doesn't go blank for player accounts that happen to land here.
+//
+// Money is never added across currencies. A tenant's view is in its
+// tenant's currency; a platform view whose tenants hold several
+// currencies shows one figure per currency, a per-game row per currency,
+// and every bet in its own tenant's currency. A player's wallet shows in
+// the wallet's currency.
 
 import UserLayout from '@/layouts/user-layout';
+import { KpiCard, type KpiDelta, deltaPct, formatCount } from '@/components/operator/kpi-card';
+import { MoneyFigure, isNegative } from '@/components/operator/money-figure';
 import {
-    KpiCard,
-    deltaPct,
-    formatCount,
-    formatCurrencyCompact,
-    formatNAD,
-} from '@/components/operator/kpi-card';
+    type Amount,
+    type CurrencyProfile,
+    type CurrencyTotal,
+    formatMoney,
+    formatMoneyCompact,
+    formatTotals,
+    toCents,
+    useCurrencies,
+    useTenantCurrency,
+} from '@/lib/money';
 import { Head, Link, router } from '@inertiajs/react';
 import { useEffect } from 'react';
 
@@ -76,44 +88,43 @@ interface Account {
 
 interface WalletTransaction {
     type: string;
-    amount: number;
-    balance_after: number;
+    amount: string;
+    balance_after: string;
     description: string | null;
     game_name: string | null;
     created_at: string;
 }
 
 interface WalletData {
-    balance: number;
+    balance: string;
     currency: string;
     status: string;
-    total_deposited: number;
-    total_withdrawn: number;
-    total_won: number;
-    total_lost: number;
+    total_deposited: string;
+    total_withdrawn: string;
+    total_won: string;
+    total_lost: string;
+    /** Lifetime handle (won + lost), exact. */
+    total_wagered: string;
     recent_transactions: WalletTransaction[];
 }
 
+/** Counts only: money is per currency in WagerStats.money_*. */
 interface StatsBucket {
     bets_placed: number;
     active_players: number;
-    total_wagered: string | number;
-    total_paid_out: string | number;
-    // GGR fields. `ggr` is the legacy gross figure (wagered - paid_out).
-    // `real_ggr` is deposit-aware: only counts the deposit-funded slice
-    // of activity, so re-staked winnings don't inflate house revenue.
-    ggr?: string | number;
-    deposit_wagered?: string | number;
-    deposit_paid_out?: string | number;
-    real_ggr?: string | number;
     wins: number;
     losses: number;
     pending: number;
 }
 
+type MoneyField = 'total_wagered' | 'total_paid_out' | 'ggr';
+
 interface WagerStats {
     today: StatsBucket;
     yesterday: StatsBucket;
+    /** One entry per currency (exactly one for a tenant). GGR = wagered − paid out. */
+    money_today: CurrencyTotal<MoneyField>[];
+    money_yesterday: CurrencyTotal<MoneyField>[];
 }
 
 type WagerOutcome = 'win' | 'lost' | 'pending';
@@ -128,23 +139,27 @@ interface RecentBet {
     player: { name: string; uuid_short: string | null; initials: string };
     tenant_uuid: string | null;
     tenant_name: string | null;
+    /** The bet's tenant's currency; null for a tenant key the SSO does not know. */
+    currency: string | null;
     round_number: number | null;
     team_names: string[];
-    bet_amount: number;
+    bet_amount: string;
     combined_odds: number;
-    potential_payout: number;
+    potential_payout: string;
     outcome: WagerOutcome | string;
-    winning_amount: number;
+    winning_amount: string;
 }
 
+/** One row per (game, currency). */
 interface PerGame {
     game_uuid: string;
     game_name: string;
+    currency: string;
     bets_placed: number;
     active_players: number;
-    total_wagered: number;
-    total_paid_out: number;
-    ggr: number;
+    total_wagered: string;
+    total_paid_out: string;
+    ggr: string;
 }
 
 interface DashboardProps {
@@ -165,6 +180,26 @@ function num(value: string | number | null | undefined): number {
     return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * A money card's value and day-over-day delta. One currency: the compact
+ * figure and its delta. Several (a platform spanning currencies): one
+ * figure per currency and no delta, since a percentage across currencies
+ * would weigh one against another.
+ */
+function moneyCard(
+    today: CurrencyTotal<MoneyField>[],
+    yesterday: CurrencyTotal<MoneyField>[],
+    field: MoneyField,
+    profileOf: (code: string) => CurrencyProfile | null,
+): { value: string; delta?: KpiDelta } {
+    if (today.length === 1 && yesterday.length <= 1 && (yesterday.length === 0 || yesterday[0].currency === today[0].currency)) {
+        const p = profileOf(today[0].currency);
+        const d = deltaPct(toCents(today[0][field] as Amount), toCents(yesterday[0]?.[field] as Amount));
+        return { value: p ? formatMoneyCompact(today[0][field] as Amount, p) : '—', delta: d.sign === 'flat' ? undefined : d };
+    }
+    return { value: formatTotals(today, field, profileOf, true) };
+}
+
 // Map a numeric series to 0..100 bar heights for the sparkline.
 function sparkBars(series: number[] | null | undefined): number[] {
     if (!series || series.length === 0) return [];
@@ -175,6 +210,7 @@ function sparkBars(series: number[] | null | undefined): number[] {
 export default function Dashboard(props: DashboardProps) {
     const isAdmin = !!props.is_admin;
     useDashboardPoll(isAdmin);
+    const profileOf = useCurrencies();
 
     if (!isAdmin) {
         return <NonAdminDashboard {...props} />;
@@ -182,6 +218,8 @@ export default function Dashboard(props: DashboardProps) {
 
     const today = props.wager_stats?.today;
     const yesterday = props.wager_stats?.yesterday;
+    const moneyToday = props.wager_stats?.money_today ?? [];
+    const moneyYesterday = props.wager_stats?.money_yesterday ?? [];
 
     // Card 1 — Active players
     const playersToday = num(today?.active_players);
@@ -193,24 +231,16 @@ export default function Dashboard(props: DashboardProps) {
     const betsYesterday = num(yesterday?.bets_placed);
     const betsDelta = deltaPct(betsToday, betsYesterday);
 
-    // Card 3 — Total wagered (raw activity; includes re-stakes)
-    const wageredToday = num(today?.total_wagered);
-    const wageredYesterday = num(yesterday?.total_wagered);
-
-    // Card 4 — Total wins (paid out to winners)
-    const winsToday = num(today?.total_paid_out);
-    const winsYesterday = num(yesterday?.total_paid_out);
-    const winsDelta = deltaPct(winsToday, winsYesterday);
-
-    // Card 5 — gross GGR (wagered − paid out), the figure invoices, revenue
-    // share and tax are computed on. The deposit-aware `real_ggr` is not
-    // shown: on production the deposit/winnings split is unreliable (staff
-    // top-ups land in winnings), so it reads as a loss on a day the house
-    // kept money.
-    const ggrToday = today?.ggr !== undefined ? num(today.ggr) : wageredToday - winsToday;
-    const ggrYesterday =
-        yesterday?.ggr !== undefined ? num(yesterday.ggr) : wageredYesterday - winsYesterday;
-    const ggrDelta = deltaPct(ggrToday, ggrYesterday);
+    // Cards 3–5 are money, per currency. Card 3 — total wagered (raw
+    // activity; includes re-stakes); card 4 — total wins (paid out to
+    // winners); card 5 — gross GGR (wagered − paid out), the figure
+    // invoices, revenue share and tax are computed on. The deposit-aware
+    // `real_ggr` is not shown: on production the deposit/winnings split is
+    // unreliable (staff top-ups land in winnings), so it reads as a loss on
+    // a day the house kept money.
+    const wagered = moneyCard(moneyToday, moneyYesterday, 'total_wagered', profileOf);
+    const wins = moneyCard(moneyToday, moneyYesterday, 'total_paid_out', profileOf);
+    const ggr = moneyCard(moneyToday, moneyYesterday, 'ggr', profileOf);
 
     const sparkHeights = sparkBars(props.wager_spark);
     const recentBets = props.recent_bets ?? [];
@@ -252,21 +282,21 @@ export default function Dashboard(props: DashboardProps) {
                     />
                     <KpiCard
                         label="Total wagered · today"
-                        value={formatCurrencyCompact(wageredToday)}
+                        value={wagered.value}
                         meta="gross"
                         spark={sparkHeights}
                     />
                     <KpiCard
                         label="Total wins · today"
-                        value={formatCurrencyCompact(winsToday)}
-                        delta={winsDelta.sign === 'flat' ? undefined : winsDelta}
+                        value={wins.value}
+                        delta={wins.delta}
                         meta="paid to players"
                     />
                     <KpiCard
                         label="GGR · today"
-                        value={formatCurrencyCompact(ggrToday)}
+                        value={ggr.value}
                         brass
-                        delta={ggrDelta.sign === 'flat' ? undefined : ggrDelta}
+                        delta={ggr.delta}
                         meta="wagered − paid out"
                     />
                 </div>
@@ -295,16 +325,19 @@ export default function Dashboard(props: DashboardProps) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {perGame.map((g) => (
-                                    <tr key={g.game_uuid}>
-                                        <td><span className="cgo-name">{g.game_name}</span></td>
-                                        <td className="cgo-r"><span className="cgo-odds">{formatCount(g.active_players)}</span></td>
-                                        <td className="cgo-r"><span className="cgo-odds">{formatCount(g.bets_placed)}</span></td>
-                                        <td className="cgo-r"><span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(g.total_wagered)}</span></td>
-                                        <td className="cgo-r"><span className="cgo-payout">{formatNAD(g.total_paid_out)}</span></td>
-                                        <td className="cgo-r"><span className="cgo-payout" style={{ color: g.ggr < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}>{formatNAD(g.ggr)}</span></td>
-                                    </tr>
-                                ))}
+                                {perGame.map((g) => {
+                                    const p = profileOf(g.currency);
+                                    return (
+                                        <tr key={`${g.game_uuid}:${g.currency}`}>
+                                            <td><span className="cgo-name">{g.game_name}</span></td>
+                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(g.active_players)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-odds">{formatCount(g.bets_placed)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-stake"><MoneyFigure value={g.total_wagered} profile={p} /></span></td>
+                                            <td className="cgo-r"><span className="cgo-payout"><MoneyFigure value={g.total_paid_out} profile={p} code={false} /></span></td>
+                                            <td className="cgo-r"><span className="cgo-payout" style={{ color: isNegative(g.ggr) ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}><MoneyFigure value={g.ggr} profile={p} code={false} /></span></td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -342,6 +375,7 @@ export default function Dashboard(props: DashboardProps) {
                             ) : (
                                 recentBets.map((b, i) => {
                                     const pill = outcomePill(b.outcome);
+                                    const p = profileOf(b.currency);
                                     return (
                                         <tr key={b.id ?? i}>
                                             <td style={{ maxWidth: 220 }}>
@@ -383,8 +417,7 @@ export default function Dashboard(props: DashboardProps) {
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-stake">
-                                                    <span className="cgo-ccy">NAD</span>
-                                                    {formatNAD(b.bet_amount)}
+                                                    <MoneyFigure value={b.bet_amount} profile={p} />
                                                 </span>
                                             </td>
                                             <td className="cgo-r hidden md:table-cell">
@@ -393,7 +426,7 @@ export default function Dashboard(props: DashboardProps) {
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
-                                                <span className="cgo-payout">{formatNAD(b.potential_payout)}</span>
+                                                <span className="cgo-payout"><MoneyFigure value={b.potential_payout} profile={p} code={false} /></span>
                                             </td>
                                             <td>
                                                 <span className={pill.className}>{pill.label}</span>
@@ -428,6 +461,11 @@ function outcomePill(outcome: string): { className: string; label: string } {
 // Non-admin fallback. Trimmed-down account view in the brass idiom so
 // the page doesn't go blank for player accounts.
 function NonAdminDashboard({ account, wallet }: DashboardProps) {
+    const profileOf = useCurrencies();
+    // The wallet's own currency; it is the player's tenant's, which is the fallback.
+    const tenantCurrency = useTenantCurrency();
+    const p = (wallet ? profileOf(wallet.currency) : null) ?? tenantCurrency;
+    const money = (v: Amount) => (p ? formatMoney(v, p) : '—');
     return (
         <UserLayout title="Dashboard">
             <Head title="Dashboard" />
@@ -445,20 +483,20 @@ function NonAdminDashboard({ account, wallet }: DashboardProps) {
                 {wallet ? (
                     <div className="cgo-kpis">
                         <KpiCard
-                            label={`Balance · ${wallet.currency}`}
-                            value={formatNAD(wallet.balance)}
+                            label={`Balance · ${p?.code ?? wallet.currency}`}
+                            value={money(wallet.balance)}
                             brass
                             meta={wallet.status?.toUpperCase()}
                         />
-                        <KpiCard label="Total won" value={formatNAD(wallet.total_won)} meta="lifetime" />
+                        <KpiCard label="Total won" value={money(wallet.total_won)} meta="lifetime" />
                         <KpiCard
                             label="Total wagered"
-                            value={formatNAD(wallet.total_lost + wallet.total_won)}
+                            value={money(wallet.total_wagered)}
                             meta="lifetime"
                         />
                         <KpiCard
                             label="Total deposited"
-                            value={formatNAD(wallet.total_deposited)}
+                            value={money(wallet.total_deposited)}
                             meta="lifetime"
                         />
                     </div>

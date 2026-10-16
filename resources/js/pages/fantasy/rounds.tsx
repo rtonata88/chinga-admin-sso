@@ -4,13 +4,17 @@
 // KPI strip (page totals) → tenant filter → rounds table → pager.
 // Each row links to the round detail page; the page totals are
 // derived from the visible rows so they reflect the active filter.
+// Each row is in its tenant's currency; totals are one figure per currency.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { sumByCurrency } from '@/lib/money';
 import { Head, router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 
-interface Round {
+import { type HasCurrency, moneyDiff, num, rowCurrency, useRowMoney } from '../vrrr-pha/format';
+
+interface Round extends HasCurrency {
     id: number;
     round_number: number;
     tenant_uuid: string | null;
@@ -60,11 +64,6 @@ function formatDateTime(iso: string): string {
     return DATETIME_FMT.format(new Date(iso));
 }
 
-function formatNAD(amount: string | number): string {
-    const n = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function roundStatus(round: Round): { label: string; pill: string } {
     if (round.end_time && round.winning_team_ids && round.winning_team_ids.length > 0) {
         return { label: 'completed', pill: 'settled' };
@@ -103,17 +102,17 @@ export default function Rounds({
     // Page-level totals derived from the visible rounds. They reflect
     // the active filter (tenant scope, current page) — not platform-
     // wide history. Cheap and matches what the user is looking at.
-    const totals = useMemo(() => {
-        let bets = 0;
-        let wagered = 0;
-        let paidOut = 0;
-        for (const r of rounds) {
-            bets += r.bet_count || 0;
-            wagered += parseFloat(r.total_wagered) || 0;
-            paidOut += parseFloat(r.total_paid_out) || 0;
-        }
-        return { bets, wagered, paidOut, ggr: wagered - paidOut };
-    }, [rounds]);
+    // Money is one figure per currency: tenants in different currencies are never added together.
+    const money = useRowMoney();
+    const totals = useMemo(
+        () => ({
+            bets: rounds.reduce((s, r) => s + (r.bet_count || 0), 0),
+            byCurrency: sumByCurrency(rounds, rowCurrency, ['wagered', 'paid_out', 'ggr'] as const, (r, f) =>
+                f === 'wagered' ? r.total_wagered : f === 'paid_out' ? r.total_paid_out : moneyDiff(r.total_wagered, r.total_paid_out),
+            ),
+        }),
+        [rounds],
+    );
 
     return (
         <UserLayout title="Fantasy rounds">
@@ -162,17 +161,17 @@ export default function Rounds({
                     />
                     <KpiCard
                         label="Total wagered"
-                        value={formatCurrencyCompact(totals.wagered)}
+                        value={money.totals(totals.byCurrency, 'wagered')}
                         meta="staked"
                     />
                     <KpiCard
                         label="Total paid out"
-                        value={formatCurrencyCompact(totals.paidOut)}
+                        value={money.totals(totals.byCurrency, 'paid_out')}
                         meta="to winners"
                     />
                     <KpiCard
                         label="GGR"
-                        value={formatCurrencyCompact(totals.ggr)}
+                        value={money.totals(totals.byCurrency, 'ggr')}
                         brass
                         meta="wagered − paid out"
                     />
@@ -243,9 +242,7 @@ export default function Rounds({
                             ) : (
                                 rounds.map((r) => {
                                     const status = roundStatus(r);
-                                    const wagered = parseFloat(r.total_wagered) || 0;
-                                    const paidOut = parseFloat(r.total_paid_out) || 0;
-                                    const ggr = wagered - paidOut;
+                                    const ggr = moneyDiff(r.total_wagered, r.total_paid_out);
                                     return (
                                         <tr
                                             key={r.id}
@@ -265,21 +262,21 @@ export default function Rounds({
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-stake">
-                                                    <span className="cgo-ccy">NAD</span>
-                                                    {formatNAD(wagered)}
+                                                    <span className="cgo-ccy">{money.code(r.currency)}</span>
+                                                    {money.figure(r.total_wagered, r.currency)}
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-payout">
-                                                    {formatNAD(paidOut)}
+                                                    {money.figure(r.total_paid_out, r.currency)}
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
                                                 <span
                                                     className="cgo-payout"
-                                                    style={{ color: ggr < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}
+                                                    style={{ color: num(ggr) < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}
                                                 >
-                                                    {formatNAD(ggr)}
+                                                    {money.figure(ggr, r.currency)}
                                                 </span>
                                             </td>
                                             <td>

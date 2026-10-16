@@ -24,6 +24,11 @@ use Illuminate\Support\Facades\DB;
  * The bank balance, reserve and tax rate are entered by hand
  * (TreasurySetting); everything else is read from the ledger. All
  * arithmetic is bcmath on 2dp strings — never floats.
+ *
+ * The position is computed PER CURRENCY: a tenant's wallets are in its
+ * own currency (tenants.currency), each currency is backed by its own
+ * bank account, and money in different currencies is never added
+ * together or set against each other. No exchange rate is ever applied.
  */
 class TreasuryService
 {
@@ -31,12 +36,11 @@ class TreasuryService
 
     public function position(): array
     {
-        $settings = TreasurySetting::current();
         $now = CarbonImmutable::now();
         $dormantBefore = $now->subDays(self::DORMANT_DAYS);
         $monthStart = $now->startOfMonth();
 
-        $tenants = Tenant::query()->orderBy('name')->get(['id', 'uuid', 'name', 'slug', 'business_model']);
+        $tenants = Tenant::query()->orderBy('name')->get(['id', 'uuid', 'name', 'slug', 'business_model', 'currency']);
 
         $wallets = DB::table('wallets')
             ->selectRaw('tenant_id, COUNT(*) AS wallets, SUM(balance > 0) AS funded, COALESCE(SUM(balance), 0) AS owed')
@@ -74,11 +78,6 @@ class TreasuryService
             ->keyBy('tenant_id');
 
         $rows = [];
-        $totals = [
-            'wallets' => 0, 'funded' => 0, 'owed' => '0.00', 'dormant' => '0.00', 'held' => '0.00', 'held_count' => 0,
-            'staff_deposits' => '0.00', 'player_deposits' => '0.00', 'paid_out' => '0.00', 'ledger_cash' => '0.00',
-            'lifetime_ggr' => '0.00', 'month_ggr' => '0.00',
-        ];
         foreach ($tenants as $tenant) {
             $w = $wallets->get($tenant->id);
             $h = $held->get($tenant->id);
@@ -91,6 +90,8 @@ class TreasuryService
                 'tenant_uuid' => $tenant->uuid,
                 'tenant_name' => $tenant->name,
                 'business_model' => $tenant->business_model ?? 'reseller',
+                // Every figure on the row is in the tenant's own currency.
+                'currency' => $tenant->currency ?: 'NAD',
                 'wallets' => (int) ($w->wallets ?? 0),
                 'funded' => (int) ($w->funded ?? 0),
                 'owed' => $this->money($w->owed ?? 0),
@@ -109,6 +110,43 @@ class TreasuryService
                 continue; // a tenant with no wallets and no cash has nothing to show
             }
             $rows[] = $row;
+        }
+
+        // A position for every currency a tenant is in or inputs were entered for.
+        $currencies = $tenants->map(fn (Tenant $t) => $t->currency ?: 'NAD')
+            ->merge(TreasurySetting::query()->pluck('currency'))
+            ->unique()->sort()->values();
+
+        $positions = $currencies->map(fn (string $currency) => $this->positionFor(
+            $currency,
+            array_values(array_filter($rows, fn (array $r) => $r['currency'] === $currency)),
+        ))->all();
+
+        return [
+            'positions' => $positions,
+            'tenants' => $rows,
+            'as_of' => $now->toIso8601String(),
+            'month' => $monthStart->toDateString(),
+            'dormant_days' => self::DORMANT_DAYS,
+        ];
+    }
+
+    /**
+     * The treasury position of one currency: its own bank balance, reserve and
+     * tax rate against the wallets of the tenants in that currency only.
+     *
+     * @param  list<array<string, mixed>>  $rows  tenant rows, all in $currency
+     */
+    private function positionFor(string $currency, array $rows): array
+    {
+        $settings = TreasurySetting::current($currency);
+
+        $totals = [
+            'wallets' => 0, 'funded' => 0, 'owed' => '0.00', 'dormant' => '0.00', 'held' => '0.00', 'held_count' => 0,
+            'staff_deposits' => '0.00', 'player_deposits' => '0.00', 'paid_out' => '0.00', 'ledger_cash' => '0.00',
+            'lifetime_ggr' => '0.00', 'month_ggr' => '0.00',
+        ];
+        foreach ($rows as $row) {
             foreach (['wallets', 'funded', 'held_count'] as $k) {
                 $totals[$k] += $row[$k];
             }
@@ -127,6 +165,8 @@ class TreasuryService
         $surplus = bcsub($bank, $liability, 2);
 
         return [
+            'currency' => $currency,
+            'tenant_count' => count($rows),
             'settings' => [
                 'bank_balance' => $bank,
                 'bank_balance_as_of' => $settings->bank_balance_as_of?->toDateString(),
@@ -150,11 +190,7 @@ class TreasuryService
                 'month_ggr' => $totals['month_ggr'],
                 'dormant' => $totals['dormant'],
             ],
-            'tenants' => $rows,
             'totals' => $totals,
-            'as_of' => $now->toIso8601String(),
-            'month' => $monthStart->toDateString(),
-            'dormant_days' => self::DORMANT_DAYS,
         ];
     }
 

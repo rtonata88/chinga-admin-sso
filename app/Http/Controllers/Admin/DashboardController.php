@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Services\LiveGameStats;
+use App\Support\Currencies;
 use App\Support\GameCatalogue;
+use App\Support\RevenueSplit;
+use App\Support\ScopedTotals;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -46,26 +49,38 @@ class DashboardController extends Controller
         // KPI scope follows the visible rows: a platform admin sees
         // every row so the totals are cross-tenant; a tenant admin's
         // visibleRows is just their own, so the totals are
-        // tenant-scoped — no leak.
+        // tenant-scoped — no leak. Money is totalled per currency and
+        // never across currencies (no exchange rate): a cross-tenant
+        // total is one figure per currency.
         if ($isPlatformAdmin) {
             $scope = 'platform';
             $kpis = [
                 'total_tenants' => Tenant::count(),
-                'total_wagered' => array_sum(array_column($visibleRows, 'total_wagered')),
-                'total_wins' => array_sum(array_column($visibleRows, 'total_paid_out')),
-                'platform_profit' => array_sum(array_column($visibleRows, 'platform_profit')),
+                'totals' => array_map(fn ($t) => [
+                    'currency' => $t['currency'],
+                    'total_wagered' => $t['total_wagered'],
+                    'total_wins' => $t['total_paid_out'],
+                    'platform_profit' => $t['platform_profit'],
+                ], Currencies::totalsByCurrency(
+                    // A row whose key no SSO tenant owns has no known currency, so it
+                    // is listed but cannot join any currency's total.
+                    array_filter($visibleRows, fn ($r) => $r['currency'] !== null),
+                    ['total_wagered', 'total_paid_out', 'platform_profit'],
+                )),
             ];
         } else {
             // Tenant admin: replace the platform-wide cards with
             // their-tenant-specific ones. "Total tenants" and
-            // "Platform profit" don't apply.
+            // "Platform profit" don't apply. One tenant, one currency:
+            // zeros in that currency when there is no play yet.
             $row = $visibleRows[0] ?? null;
             $scope = 'tenant';
             $kpis = [
+                'currency' => ScopedTotals::currencyOf($user?->tenant),
                 'bets_placed' => (int) ($row['bets_placed'] ?? 0),
-                'total_wagered' => (float) ($row['total_wagered'] ?? 0),
-                'total_wins' => (float) ($row['total_paid_out'] ?? 0),
-                'tenant_profit' => (float) ($row['tenant_profit'] ?? 0),
+                'total_wagered' => $row['total_wagered'] ?? '0.00',
+                'total_wins' => $row['total_paid_out'] ?? '0.00',
+                'tenant_profit' => $row['tenant_profit'] ?? '0.00',
             ];
         }
 
@@ -84,14 +99,8 @@ class DashboardController extends Controller
      * with each row's tenant_uuid resolved back to a local Tenant
      * model so we can show a real name and apply the commercial
      * split. Headline figures throughout — see the index() docblock.
-     *
-     *   GGR  = total_wagered - total_paid_out
-     *   tax  = max(GGR, 0) * tax_pct / 100        (no tax on losses)
-     *   NGR  = GGR - tax
-     *   reseller: tenant_profit  = max(NGR, 0) * revenue_share_pct / 100
-     *             platform_profit = NGR - tenant_profit
-     *   direct:   tenant_profit  = 0
-     *             platform_profit = NGR
+     * The split is RevenueSplit (exact decimals), applied per row, and
+     * every row carries its tenant's currency.
      *
      * The reseller share is floored at zero — losing periods don't
      * carry to the tenant. This matches standard rev-share contracts:
@@ -125,24 +134,9 @@ class DashboardController extends Controller
                 $key = $r['tenant_uuid'] ?? null;
                 $tenant = $resolve($key);
 
-                $wagered = (float) ($r['total_wagered'] ?? 0);
-                $paidOut = (float) ($r['total_paid_out'] ?? 0);
-                $ggr = $wagered - $paidOut;
-
-                $taxPct = $tenant ? (float) ($tenant->tax_pct ?? 0) : 0.0;
-                $tax = $ggr > 0 ? $ggr * ($taxPct / 100) : 0;
-                $ngr = $ggr - $tax;
-
-                $businessModel = $tenant->business_model ?? 'reseller';
-                $sharePct = $tenant ? (float) ($tenant->revenue_share_pct ?? 0) : 0.0;
-
-                if ($businessModel === 'direct') {
-                    $tenantProfit = 0.0;
-                    $platformProfit = $ngr;
-                } else {
-                    $tenantProfit = $ngr > 0 ? $ngr * ($sharePct / 100) : 0.0;
-                    $platformProfit = $ngr - $tenantProfit;
-                }
+                $wagered = bcadd(RevenueSplit::decimal($r['total_wagered'] ?? 0), '0', 2);
+                $paidOut = bcadd(RevenueSplit::decimal($r['total_paid_out'] ?? 0), '0', 2);
+                $split = RevenueSplit::compute($tenant, $wagered, $paidOut);
 
                 return [
                     'game_uuid' => $game->uuid,
@@ -150,25 +144,29 @@ class DashboardController extends Controller
                     'tenant_id' => $tenant?->id,
                     'tenant_uuid' => $tenant?->uuid ?? $key,
                     'tenant_name' => $tenant?->name ?? $key ?? '—',
-                    'business_model' => $businessModel,
-                    'revenue_share_pct' => $sharePct,
+                    // The row's money is in its tenant's currency; null only for a key no SSO tenant owns.
+                    'currency' => ScopedTotals::currencyOf($tenant),
+                    'business_model' => $tenant->business_model ?? 'reseller',
+                    'revenue_share_pct' => $tenant ? (float) ($tenant->revenue_share_pct ?? 0) : 0.0,
                     'bets_placed' => (int) ($r['bets_placed'] ?? 0),
                     'active_players' => (int) ($r['active_players'] ?? 0),
                     'total_wagered' => $wagered,
                     'total_paid_out' => $paidOut,
-                    'ggr' => $ggr,
-                    'ngr' => $ngr,
-                    'tenant_profit' => $tenantProfit,
-                    'platform_profit' => $platformProfit,
+                    'ggr' => $split['ggr'],
+                    'ngr' => $split['ngr'],
+                    'tenant_profit' => $split['tenant_profit'],
+                    'platform_profit' => $split['platform_profit'],
                 ];
             })
             ->values()
             ->all();
     }
 
-    private const SUMMED = ['bets_placed', 'active_players', 'total_wagered', 'total_paid_out', 'ggr', 'ngr', 'tenant_profit', 'platform_profit'];
+    private const COUNTS = ['bets_placed', 'active_players'];
 
-    /** One row per tenant, numeric columns summed across games. */
+    private const MONEY = ['total_wagered', 'total_paid_out', 'ggr', 'ngr', 'tenant_profit', 'platform_profit'];
+
+    /** One row per tenant, columns summed across games (one tenant, one currency). */
     private function foldByTenant(array $flat): array
     {
         $out = [];
@@ -179,30 +177,43 @@ class DashboardController extends Controller
 
                 continue;
             }
-            foreach (self::SUMMED as $col) {
-                $out[$key][$col] += $r[$col];
-            }
+            $out[$key] = $this->addInto($out[$key], $r);
         }
 
         return array_values($out);
     }
 
-    /** One row per game, numeric columns summed across the visible tenants. */
+    /**
+     * One row per (game, currency), summed across the visible tenants.
+     * Tenants in different currencies never share a row: a game played
+     * in NAD and BWP shows twice, once per currency.
+     */
     private function foldByGame(array $flat): array
     {
         $out = [];
         foreach ($flat as $r) {
-            $key = $r['game_uuid'];
+            $key = $r['game_uuid'].'|'.($r['currency'] ?? '');
             if (! isset($out[$key])) {
-                $out[$key] = ['game_uuid' => $r['game_uuid'], 'game_name' => $r['game_name']]
-                    + array_fill_keys(self::SUMMED, 0);
+                $out[$key] = ['game_uuid' => $r['game_uuid'], 'game_name' => $r['game_name'], 'currency' => $r['currency']]
+                    + array_fill_keys(self::COUNTS, 0) + array_fill_keys(self::MONEY, '0.00');
             }
-            foreach (self::SUMMED as $col) {
-                $out[$key][$col] += $r[$col];
-            }
+            $out[$key] = $this->addInto($out[$key], $r);
         }
 
         return array_values($out);
+    }
+
+    /** Counts as ints, money exactly (bcmath). Callers only add rows of one currency. */
+    private function addInto(array $acc, array $r): array
+    {
+        foreach (self::COUNTS as $col) {
+            $acc[$col] += $r[$col];
+        }
+        foreach (self::MONEY as $col) {
+            $acc[$col] = bcadd($acc[$col], $r[$col], 2);
+        }
+
+        return $acc;
     }
 
     /**

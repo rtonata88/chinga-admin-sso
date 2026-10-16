@@ -3,16 +3,18 @@
 // Live exposure (PRD §8.5): every round the engine has not settled yet,
 // with the stake committed against the tenant's per-round cap and the
 // worst case against max win. Rows at 80% of the cap or more are
-// flagged. The page refreshes itself every ten seconds while open.
+// flagged. The page refreshes itself every ten seconds while open. Each
+// row is in its tenant's currency; the KPIs total per currency.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { Head, router } from '@inertiajs/react';
+import { sumByCurrency } from '@/lib/money';
 import { useEffect, useMemo, useState } from 'react';
 
-import { ERROR_BOX, SELECT_RESET, TAP, formatDateTime, formatNAD, formatRatioPct, num, statePill, tenantLabel } from './format';
+import { ERROR_BOX, type HasCurrency, SELECT_RESET, TAP, formatDateTime, formatRatioPct, num, rowCurrency, statePill, tenantLabel, useRowMoney } from './format';
 
-interface Row {
+interface Row extends HasCurrency {
     round_id: number;
     sequence: number;
     tenant_uuid: string;
@@ -77,19 +79,15 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha',
         router.get(`${game.base}/exposure`, v ? { tenant_uuid: v } : {}, { preserveState: true, preserveScroll: true });
     };
 
-    const totals = useMemo(() => {
-        let staked = 0;
-        let open = 0;
-        let worst = 0;
-        let alerts = 0;
-        for (const r of rows) {
-            staked += num(r.staked);
-            open += num(r.open_stake);
-            worst += num(r.max_exposure);
-            if (r.alert) alerts += 1;
-        }
-        return { staked, open, worst, alerts };
-    }, [rows]);
+    const money = useRowMoney();
+    // One figure per currency: tenants in different currencies are never added together.
+    const totals = useMemo(
+        () => ({
+            byCurrency: sumByCurrency(rows, rowCurrency, ['staked', 'open_stake', 'max_exposure'] as const),
+            alerts: rows.filter((r) => r.alert).length,
+        }),
+        [rows],
+    );
 
     return (
         <UserLayout title={`${game.name} exposure`}>
@@ -125,9 +123,9 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha',
 
                 <div className="cgo-kpis cgo-kpis--5">
                     <KpiCard label="Open rounds" value={formatCount(rows.length)} meta="not yet settled" />
-                    <KpiCard label="Staked" value={formatCurrencyCompact(totals.staked)} meta={`all live ${(game.terms ?? BET_TERMS).many}`} />
-                    <KpiCard label="Still in play" value={formatCurrencyCompact(totals.open)} meta="not cashed out or busted" />
-                    <KpiCard label="Worst case" value={formatCurrencyCompact(totals.worst)} brass meta="max exposure, capped by max win" />
+                    <KpiCard label="Staked" value={money.totals(totals.byCurrency, 'staked')} meta={`all live ${(game.terms ?? BET_TERMS).many}`} />
+                    <KpiCard label="Still in play" value={money.totals(totals.byCurrency, 'open_stake')} meta="not cashed out or busted" />
+                    <KpiCard label="Worst case" value={money.totals(totals.byCurrency, 'max_exposure')} brass meta="max exposure, capped by max win" />
                     <KpiCard
                         label="Cap alerts"
                         value={formatCount(totals.alerts)}
@@ -191,17 +189,17 @@ export default function Exposure({ game = { name: 'Vrrr Pha', base: '/vrrr-pha',
                                             <td>{tenantLabel(r.tenant_uuid, tenantNames)}</td>
                                             <td><span className={`cgo-pill ${state.pill}`}>{state.label}</span></td>
                                             <td className="cgo-r">
-                                                <span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(r.staked)}</span>
+                                                <span className="cgo-stake"><span className="cgo-ccy">{money.code(r.currency)}</span>{money.figure(r.staked, r.currency)}</span>
                                             </td>
-                                            <td className="cgo-r"><span className="cgo-payout">{formatNAD(r.open_stake)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-payout">{money.figure(r.open_stake, r.currency)}</span></td>
                                             <td className="cgo-r"><span className="cgo-odds">{formatCount(r.open_bets)}</span></td>
-                                            <td className="cgo-r"><span className="cgo-payout">{num(r.stake_cap) > 0 ? formatNAD(r.stake_cap) : '—'}</span></td>
+                                            <td className="cgo-r"><span className="cgo-payout">{num(r.stake_cap) > 0 ? money.figure(r.stake_cap, r.currency) : '—'}</span></td>
                                             <td className="cgo-r">
                                                 <span className="cgo-odds" style={{ color: r.alert ? 'var(--cg-neg)' : undefined }}>
                                                     {formatRatioPct(r.stake_cap_used, 0)}
                                                 </span>
                                             </td>
-                                            <td className="cgo-r"><span className="cgo-payout">{formatNAD(r.max_exposure)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-payout">{money.figure(r.max_exposure, r.currency)}</span></td>
                                             <td>
                                                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                                     <span style={{ color: 'var(--cg-fg-3)' }}>›</span>

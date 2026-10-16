@@ -4,13 +4,15 @@
 // level by level, against the tenant's max_total_riding_per_round. The
 // engine computes the 80% alert; this page only shows it. The cap is per
 // tenant, so with no tenant picked the page shows the total and asks for one.
+// The engine sums riding across tenants with no breakdown, so its money shows
+// only when the scope has one currency; across currencies it is withheld.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
-import { ERROR_BOX, SELECT_RESET, TAP, formatDateTime, formatNAD, formatRatioPct, num } from '../vrrr-pha/format';
+import { ERROR_BOX, SELECT_RESET, TAP, formatDateTime, formatRatioPct, useRowMoney } from '../vrrr-pha/format';
 
 interface Riding {
     tenant_uuid: string | null;
@@ -25,6 +27,8 @@ interface Riding {
 interface Props {
     game: { name: string; base: string };
     riding: Riding | null;
+    /** The scope's one currency; null when the tenants in scope span several. */
+    currency?: string | null;
     tenants: { uuid: string; name: string; slug: string }[];
     filters: { tenant_uuid: string | null };
     fetchedAt: string;
@@ -33,14 +37,17 @@ interface Props {
 
 const REFRESH_MS = 10_000;
 
-export default function RidingPage({ game, riding, tenants = [], filters, fetchedAt, error }: Props) {
+export default function RidingPage({ game, riding, currency = null, tenants = [], filters, fetchedAt, error }: Props) {
+    const money = useRowMoney();
+    // A figure summed across currencies has no currency to show it in.
+    const amount = (v: string | null | undefined) => (currency ? money.compact(v, currency) : '—');
     const [tenantUuid, setTenantUuid] = useState<string | null>(filters?.tenant_uuid ?? null);
     const [live, setLive] = useState(true);
 
     useEffect(() => {
         if (!live) return;
         const id = setInterval(() => {
-            if (document.visibilityState === 'visible') router.reload({ only: ['riding', 'fetchedAt', 'error'] });
+            if (document.visibilityState === 'visible') router.reload({ only: ['riding', 'currency', 'fetchedAt', 'error'] });
         }, REFRESH_MS);
         return () => clearInterval(id);
     }, [live]);
@@ -80,9 +87,14 @@ export default function RidingPage({ game, riding, tenants = [], filters, fetche
                 )}
 
                 <div className="cgo-kpis">
-                    <KpiCard label="Riding" value={formatCurrencyCompact(num(riding?.total_riding))} brass meta="value of every live ladder" />
+                    <KpiCard
+                        label="Riding"
+                        value={amount(riding?.total_riding)}
+                        brass
+                        meta={currency ? 'value of every live ladder' : 'tenants in more than one currency: pick a tenant'}
+                    />
                     <KpiCard label="Live ladders" value={formatCount(ladders)} meta="across all levels" />
-                    <KpiCard label="Cap" value={riding?.cap ? formatCurrencyCompact(num(riding.cap)) : '—'} meta={riding?.cap ? 'max total riding per round' : filters?.tenant_uuid ? 'No round yet for this tenant, so no cap to compare against.' : 'pick a tenant: the cap is per tenant'} />
+                    <KpiCard label="Cap" value={riding?.cap ? amount(riding.cap) : '—'} meta={riding?.cap ? 'max total riding per round' : filters?.tenant_uuid ? 'No round yet for this tenant, so no cap to compare against.' : 'pick a tenant: the cap is per tenant'} />
                     <KpiCard
                         label="Cap used"
                         value={riding?.used ? formatRatioPct(riding.used, 0) : '—'}
@@ -137,7 +149,13 @@ export default function RidingPage({ game, riding, tenants = [], filters, fetche
                                     <tr key={l.level}>
                                         <td><span className="cgo-name" style={{ fontFamily: 'var(--cg-mono)' }}>{l.level}</span></td>
                                         <td className="cgo-r"><span className="cgo-odds">{formatCount(l.ladders)}</span></td>
-                                        <td className="cgo-r"><span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(l.riding)}</span></td>
+                                        <td className="cgo-r">
+                                            {currency ? (
+                                                <span className="cgo-stake"><span className="cgo-ccy">{currency}</span>{money.figure(l.riding, currency)}</span>
+                                            ) : (
+                                                <span className="cgo-stake" style={{ color: 'var(--cg-fg-3)' }} title="Tenants in more than one currency: pick a tenant">—</span>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))
                             )}

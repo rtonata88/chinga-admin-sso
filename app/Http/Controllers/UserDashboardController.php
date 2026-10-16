@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\UserSession;
 use App\Services\LiveActivity;
 use App\Support\GameCatalogue;
+use App\Support\ScopedTotals;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -67,7 +68,13 @@ class UserDashboardController extends Controller
         if ($isAdmin) {
             $tenant = $user->isPlatformAdmin() ? null : $user->tenant;
             $feed = $activity->feed(GameCatalogue::withBackendForUser($user, $tenant), $tenant, Carbon::now());
-            $wagerStats = ['today' => $feed['today'], 'yesterday' => $feed['yesterday']];
+            // Counts in today/yesterday; money one entry per currency (a tenant's feed has exactly one).
+            $wagerStats = [
+                'today' => $feed['today'],
+                'yesterday' => $feed['yesterday'],
+                'money_today' => $feed['money_today'],
+                'money_yesterday' => $feed['money_yesterday'],
+            ];
             $wagerSpark = $feed['spark'];
             $recentBets = $feed['recent_bets'];
             $perGame = $feed['per_game'];
@@ -103,21 +110,24 @@ class UserDashboardController extends Controller
             ->get()
             ->map(fn ($t) => [
                 'type' => $t->type,
-                'amount' => (float) $t->amount,
-                'balance_after' => (float) $t->balance_after,
+                'amount' => (string) $t->amount,
+                'balance_after' => (string) $t->balance_after,
                 'description' => $t->description,
                 'game_name' => $t->gameSession?->game?->name,
                 'created_at' => $t->created_at->toIso8601String(),
             ]);
 
+        // Exact decimal strings in the wallet's own currency (the player's tenant's), never a float.
         return [
-            'balance' => (float) $wallet->balance,
-            'currency' => $wallet->currency ?? 'NAD',
+            'balance' => (string) $wallet->balance,
+            'currency' => $wallet->currency ?: ScopedTotals::currencyOf($user->tenant),
             'status' => $wallet->status,
-            'total_deposited' => (float) $wallet->total_deposited,
-            'total_withdrawn' => (float) $wallet->total_withdrawn,
-            'total_won' => (float) $wallet->total_won,
-            'total_lost' => (float) $wallet->total_lost,
+            'total_deposited' => (string) $wallet->total_deposited,
+            'total_withdrawn' => (string) $wallet->total_withdrawn,
+            'total_won' => (string) $wallet->total_won,
+            'total_lost' => (string) $wallet->total_lost,
+            // Lifetime handle; wins plus losses, as the card always showed it.
+            'total_wagered' => bcadd((string) $wallet->total_won, (string) $wallet->total_lost, 2),
             'recent_transactions' => $recentTransactions,
         ];
     }

@@ -1,44 +1,47 @@
 import UserLayout from '@/layouts/user-layout';
+import { formatMoney, useCurrencies, type Amount, type CurrencyProfile, type CurrencyTotal } from '@/lib/money';
 import { Head } from '@inertiajs/react';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 import { useEffect, useState } from 'react';
 
-interface RevenueTotals {
-    total_bets: number;
-    total_wins: number;
-    gross_gaming_revenue: number;
-    tax_amount: number;
-    net_gaming_revenue: number;
-    chinga_share: number;
-    tenant_share: number;
-}
+type RevenueField =
+    | 'total_bets'
+    | 'total_wins'
+    | 'gross_gaming_revenue'
+    | 'tax_amount'
+    | 'net_gaming_revenue'
+    | 'chinga_share'
+    | 'tenant_share';
 
 interface PerTenantRow {
     tenant_id: number;
     tenant?: { uuid: string; name: string; business_model?: 'reseller' | 'direct' };
     business_model?: 'reseller' | 'direct';
-    total_bets: number;
-    gross_gaming_revenue: number;
-    tax_amount: number;
-    net_gaming_revenue: number;
-    chinga_share: number;
-    tenant_share: number;
+    /** The tenant's currency; every figure on the row is in it. */
+    currency: string;
+    total_bets: string;
+    gross_gaming_revenue: string;
+    tax_amount: string;
+    net_gaming_revenue: string;
+    chinga_share: string;
+    tenant_share: string;
 }
 
 interface RevenueSummary {
-    totals: RevenueTotals;
+    /** One entry per currency: different currencies are never added together. */
+    totals: CurrencyTotal<RevenueField>[];
     per_tenant: PerTenantRow[];
-}
-
-function fmt(value: number | string | null | undefined): string {
-    const n = typeof value === 'string' ? parseFloat(value) : (value ?? 0);
-    return `NAD ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function RevenueIndex() {
     const [summary, setSummary] = useState<RevenueSummary | null>(null);
     const [loading, setLoading] = useState(true);
+    const profileOf = useCurrencies();
+    const money = (v: Amount, code: string): string => {
+        const p: CurrencyProfile | null = profileOf(code);
+        return p ? formatMoney(v, p) : '—';
+    };
 
     useEffect(() => {
         fetch('/api/v1/platform/revenue/summary')
@@ -60,36 +63,55 @@ export default function RevenueIndex() {
                     <div className="text-center py-8">Loading…</div>
                 ) : summary ? (
                     <>
-                        {/* Waterfall: GGR → tax → NGR → splits */}
-                        <div
-                            className="rounded-xl p-5"
-                            style={{
-                                background: 'var(--acu-surface-card)',
-                                border: '1px solid var(--acu-border)',
-                            }}
-                        >
-                            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--acu-text)' }}>
-                                Revenue waterfall (this period)
+                        {/* Waterfall: GGR → tax → NGR → splits, one per currency (never added across currencies). */}
+                        {summary.totals.length === 0 ? (
+                            <div
+                                className="rounded-xl p-5 text-sm"
+                                style={{
+                                    background: 'var(--acu-surface-card)',
+                                    border: '1px solid var(--acu-border)',
+                                    color: 'var(--acu-text-light)',
+                                }}
+                            >
+                                No revenue recorded in this period.
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center text-sm">
-                                <WaterfallStep label="Bets" value={fmt(summary.totals.total_bets)} tone="neutral" />
-                                <WaterfallSign sign="−" />
-                                <WaterfallStep label="Wins" value={fmt(summary.totals.total_wins)} tone="neutral" />
-                                <WaterfallSign sign="=" />
-                                <WaterfallStep label="GGR" value={fmt(summary.totals.gross_gaming_revenue)} tone="primary" />
-                                <WaterfallSign sign="−" />
-                                <WaterfallStep label="Tax" value={fmt(summary.totals.tax_amount)} tone="warn" />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center text-sm mt-3">
-                                <WaterfallStep label="NGR" value={fmt(summary.totals.net_gaming_revenue)} tone="primary" />
-                                <WaterfallSign sign="=" />
-                                <WaterfallStep label="Tenant share" value={fmt(summary.totals.tenant_share)} tone="success" />
-                                <WaterfallSign sign="+" />
-                                <WaterfallStep label="Platform (Chinga)" value={fmt(summary.totals.chinga_share)} tone="success" />
-                                <div />
-                                <div />
-                            </div>
-                        </div>
+                        ) : (
+                            summary.totals.map((t) => {
+                                const f = (field: RevenueField) => money(t[field], t.currency);
+                                return (
+                                    <div
+                                        key={t.currency}
+                                        className="rounded-xl p-5"
+                                        style={{
+                                            background: 'var(--acu-surface-card)',
+                                            border: '1px solid var(--acu-border)',
+                                        }}
+                                    >
+                                        <div className="text-sm font-semibold mb-4" style={{ color: 'var(--acu-text)' }}>
+                                            Revenue waterfall (this period) · {t.currency}
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center text-sm">
+                                            <WaterfallStep label="Bets" value={f('total_bets')} tone="neutral" />
+                                            <WaterfallSign sign="−" />
+                                            <WaterfallStep label="Wins" value={f('total_wins')} tone="neutral" />
+                                            <WaterfallSign sign="=" />
+                                            <WaterfallStep label="GGR" value={f('gross_gaming_revenue')} tone="primary" />
+                                            <WaterfallSign sign="−" />
+                                            <WaterfallStep label="Tax" value={f('tax_amount')} tone="warn" />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center text-sm mt-3">
+                                            <WaterfallStep label="NGR" value={f('net_gaming_revenue')} tone="primary" />
+                                            <WaterfallSign sign="=" />
+                                            <WaterfallStep label="Tenant share" value={f('tenant_share')} tone="success" />
+                                            <WaterfallSign sign="+" />
+                                            <WaterfallStep label="Platform (Chinga)" value={f('chinga_share')} tone="success" />
+                                            <div />
+                                            <div />
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
 
                         <div className="acu-fieldset">
                             <div className="acu-fieldset-header">
@@ -120,12 +142,12 @@ export default function RevenueIndex() {
                                             );
                                         }}
                                     />
-                                    <Column header="Bets" body={(r: PerTenantRow) => fmt(r.total_bets)} />
-                                    <Column header="GGR" body={(r: PerTenantRow) => fmt(r.gross_gaming_revenue)} />
-                                    <Column header="Tax" body={(r: PerTenantRow) => fmt(r.tax_amount)} />
-                                    <Column header="NGR" body={(r: PerTenantRow) => fmt(r.net_gaming_revenue)} />
-                                    <Column header="Tenant share" body={(r: PerTenantRow) => fmt(r.tenant_share)} />
-                                    <Column header="Platform" body={(r: PerTenantRow) => fmt(r.chinga_share)} />
+                                    <Column header="Bets" body={(r: PerTenantRow) => money(r.total_bets, r.currency)} />
+                                    <Column header="GGR" body={(r: PerTenantRow) => money(r.gross_gaming_revenue, r.currency)} />
+                                    <Column header="Tax" body={(r: PerTenantRow) => money(r.tax_amount, r.currency)} />
+                                    <Column header="NGR" body={(r: PerTenantRow) => money(r.net_gaming_revenue, r.currency)} />
+                                    <Column header="Tenant share" body={(r: PerTenantRow) => money(r.tenant_share, r.currency)} />
+                                    <Column header="Platform" body={(r: PerTenantRow) => money(r.chinga_share, r.currency)} />
                                 </DataTable>
                             </div>
                         </div>

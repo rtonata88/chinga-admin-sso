@@ -3,18 +3,21 @@
 // Vrrr Pha round history (PRD §8.3), brass-on-ink like /fantasy/rounds.
 // KPI strip (page totals) → tenant filter → rounds table → pager. Each
 // row opens the round detail with its seed audit. The crash point is
-// blank while a round is in play: the engine does not send it.
+// blank while a round is in play: the engine does not send it. Each row
+// is in its tenant's currency; the page totals are one figure per currency.
 
-import { KpiCard, formatCount, formatCurrencyCompact } from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
 import { Head, router } from '@inertiajs/react';
+import { sumByCurrency } from '@/lib/money';
 import { useMemo, useState } from 'react';
 
 import {
-    ERROR_BOX, SELECT_RESET, TAP, TAP_SQUARE, formatDateTime, formatMultiplier, formatNAD, num, statePill, tenantLabel,
+    ERROR_BOX, type HasCurrency, SELECT_RESET, TAP, TAP_SQUARE, formatDateTime, formatMultiplier, moneyDiff, num, rowCurrency, statePill,
+    tenantLabel, useRowMoney,
 } from './format';
 
-interface Round {
+interface Round extends HasCurrency {
     id: number;
     sequence: number;
     tenant_uuid: string;
@@ -99,17 +102,17 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
     const hasNext = total === null ? rounds.length === perPage : page * perPage < total;
 
     // Page totals: what is on screen under the active filter, not platform history.
-    const totals = useMemo(() => {
-        let bets = 0;
-        let wagered = 0;
-        let paidOut = 0;
-        for (const r of rounds) {
-            bets += r.bet_count || 0;
-            wagered += num(r.total_wagered);
-            paidOut += num(r.total_paid_out);
-        }
-        return { bets, wagered, paidOut, ggr: wagered - paidOut };
-    }, [rounds]);
+    // Money is one figure per currency: tenants in different currencies are never added together.
+    const money = useRowMoney();
+    const totals = useMemo(
+        () => ({
+            bets: rounds.reduce((s, r) => s + (r.bet_count || 0), 0),
+            byCurrency: sumByCurrency(rounds, rowCurrency, ['wagered', 'paid_out', 'ggr'] as const, (r, f) =>
+                f === 'wagered' ? r.total_wagered : f === 'paid_out' ? r.total_paid_out : moneyDiff(r.total_wagered, r.total_paid_out),
+            ),
+        }),
+        [rounds],
+    );
 
     return (
         <UserLayout title={`${game.name} rounds`}>
@@ -142,9 +145,9 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                         meta={total !== null ? `of ${formatCount(total)} · page ${page}` : `page ${page}`}
                     />
                     <KpiCard label="Bets" value={formatCount(totals.bets)} meta="across visible rounds" />
-                    <KpiCard label="Wagered" value={formatCurrencyCompact(totals.wagered)} meta="staked" />
-                    <KpiCard label="Paid out" value={formatCurrencyCompact(totals.paidOut)} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
-                    <KpiCard label="GGR" value={formatCurrencyCompact(totals.ggr)} brass meta="wagered − paid out" />
+                    <KpiCard label="Wagered" value={money.totals(totals.byCurrency, 'wagered')} meta="staked" />
+                    <KpiCard label="Paid out" value={money.totals(totals.byCurrency, 'paid_out')} meta={(game.terms ?? BET_TERMS).paid_out_meta} />
+                    <KpiCard label="GGR" value={money.totals(totals.byCurrency, 'ggr')} brass meta="wagered − paid out" />
                 </div>
 
                 <div className="cgo-filterbar">
@@ -205,9 +208,7 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                             ) : (
                                 rounds.map((r) => {
                                     const state = statePill(r.state);
-                                    const wagered = num(r.total_wagered);
-                                    const paidOut = num(r.total_paid_out);
-                                    const ggr = wagered - paidOut;
+                                    const ggr = moneyDiff(r.total_wagered, r.total_paid_out);
                                     return (
                                         <tr
                                             key={r.id}
@@ -235,12 +236,12 @@ export default function Rounds({ game = { name: 'Vrrr Pha', base: '/vrrr-pha', t
                                             )}
                                             <td className="cgo-r"><span className="cgo-odds">{formatCount(r.bet_count)}</span></td>
                                             <td className="cgo-r">
-                                                <span className="cgo-stake"><span className="cgo-ccy">NAD</span>{formatNAD(wagered)}</span>
+                                                <span className="cgo-stake"><span className="cgo-ccy">{money.code(r.currency)}</span>{money.figure(r.total_wagered, r.currency)}</span>
                                             </td>
-                                            <td className="cgo-r"><span className="cgo-payout">{formatNAD(paidOut)}</span></td>
+                                            <td className="cgo-r"><span className="cgo-payout">{money.figure(r.total_paid_out, r.currency)}</span></td>
                                             <td className="cgo-r">
-                                                <span className="cgo-payout" style={{ color: ggr < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}>
-                                                    {formatNAD(ggr)}
+                                                <span className="cgo-payout" style={{ color: num(ggr) < 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)' }}>
+                                                    {money.figure(ggr, r.currency)}
                                                 </span>
                                             </td>
                                             <td><span className={`cgo-pill ${state.pill}`}>{state.label}</span></td>

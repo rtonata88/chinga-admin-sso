@@ -61,6 +61,9 @@ class KulipiKunaConsoleController extends ProvablyFairConsoleController
 
         return Inertia::render('kulipi-kuna/riding', $this->gameProps() + [
             'riding' => $riding,
+            // The engine sums riding across tenants and has no breakdown: the
+            // figures carry a currency only when the scope has exactly one.
+            'currency' => $this->scopeCurrency($tenantUuid),
             'tenants' => $this->tenants(),
             'filters' => ['tenant_uuid' => $tenantUuid],
             'fetchedAt' => now()->toIso8601String(),

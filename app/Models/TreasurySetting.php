@@ -4,10 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** The single row of hand-entered treasury inputs; see the migration. */
+/** The hand-entered treasury inputs, one row per currency (each its own bank account); see the migrations. */
 class TreasurySetting extends Model
 {
-    protected $fillable = ['bank_balance', 'bank_balance_as_of', 'variance_reserve', 'tax_pct', 'updated_by'];
+    protected $fillable = ['currency', 'bank_balance', 'bank_balance_as_of', 'variance_reserve', 'tax_pct', 'updated_by'];
 
     protected function casts(): array
     {
@@ -19,8 +19,8 @@ class TreasurySetting extends Model
         ];
     }
 
-    public static function current(): self
+    public static function current(string $currency): self
     {
-        return self::query()->orderBy('id')->firstOrCreate([]);
+        return self::query()->firstOrCreate(['currency' => $currency]);
     }
 }

@@ -6,28 +6,32 @@
 // tenant's slice (Bets Placed, Total Wagered, Total Wins, Your
 // share). Server decides scope so a tenant admin can never accidentally
 // be shown platform-wide numbers.
+//
+// Money is never added across currencies: platform KPIs are one figure per
+// currency ("N$12.4K · P3.1K"), every tenant row is in its tenant's
+// currency, and the by-game table has one row per (game, currency). A
+// tenant admin's figures are all in their tenant's currency.
 
-import {
-    KpiCard,
-    formatCount,
-    formatCurrencyCompact,
-    formatNAD,
-} from '@/components/operator/kpi-card';
+import { KpiCard, formatCount } from '@/components/operator/kpi-card';
+import { MoneyFigure, isNegative } from '@/components/operator/money-figure';
 import UserLayout from '@/layouts/user-layout';
+import { type CurrencyTotal, formatMoneyCompact, formatTotals, useCurrencies, useTenantCurrency } from '@/lib/money';
 import { Head } from '@inertiajs/react';
+
+type Money = string;
 
 interface PlatformKpis {
     total_tenants: number;
-    total_wagered: number;
-    total_wins: number;
-    platform_profit: number;
+    /** One entry per currency; empty when nothing was played. */
+    totals: CurrencyTotal<'total_wagered' | 'total_wins' | 'platform_profit'>[];
 }
 
 interface TenantKpis {
+    currency: string;
     bets_placed: number;
-    total_wagered: number;
-    total_wins: number;
-    tenant_profit: number;
+    total_wagered: Money;
+    total_wins: Money;
+    tenant_profit: Money;
 }
 
 interface Period {
@@ -39,29 +43,32 @@ interface TenantBreakdown {
     tenant_id: number | null;
     tenant_uuid: string | null;
     tenant_name: string;
+    /** The tenant's currency; null only for a backend key no SSO tenant owns. */
+    currency: string | null;
     business_model: string;
     revenue_share_pct: number;
     bets_placed: number;
     active_players: number;
-    total_wagered: number;
-    total_paid_out: number;
-    ggr: number;
-    ngr: number;
-    tenant_profit: number;
-    platform_profit: number;
+    total_wagered: Money;
+    total_paid_out: Money;
+    ggr: Money;
+    ngr: Money;
+    tenant_profit: Money;
+    platform_profit: Money;
 }
 
 interface GameBreakdown {
     game_uuid: string;
     game_name: string;
+    currency: string | null;
     bets_placed: number;
     active_players: number;
-    total_wagered: number;
-    total_paid_out: number;
-    ggr: number;
-    ngr: number;
-    tenant_profit: number;
-    platform_profit: number;
+    total_wagered: Money;
+    total_paid_out: Money;
+    ggr: Money;
+    ngr: Money;
+    tenant_profit: Money;
+    platform_profit: Money;
 }
 
 interface AdminDashboardProps {
@@ -82,6 +89,13 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
     // Narrow union per scope so TS lets us read scope-specific keys.
     const platformKpis = isTenantScope ? null : (kpis as PlatformKpis);
     const tenantKpis = isTenantScope ? (kpis as TenantKpis) : null;
+
+    const profileOf = useCurrencies();
+    // A tenant admin's money is in their tenant's currency (the shared profile carries any symbol override).
+    const tenantCurrency = useTenantCurrency() ?? profileOf(tenantKpis?.currency);
+    const tenantMoney = (v: Money) => (tenantCurrency ? formatMoneyCompact(v, tenantCurrency) : '—');
+    const platformMoney = (field: 'total_wagered' | 'total_wins' | 'platform_profit') =>
+        formatTotals(platformKpis?.totals ?? [], field, profileOf, true);
 
     return (
         <UserLayout title={isTenantScope ? 'Overview' : 'Admin'}>
@@ -113,17 +127,17 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                             />
                             <KpiCard
                                 label="Total wagered"
-                                value={formatCurrencyCompact(tenantKpis!.total_wagered)}
+                                value={tenantMoney(tenantKpis!.total_wagered)}
                                 meta="staked by your players"
                             />
                             <KpiCard
                                 label="Total wins"
-                                value={formatCurrencyCompact(tenantKpis!.total_wins)}
+                                value={tenantMoney(tenantKpis!.total_wins)}
                                 meta="paid out to winners"
                             />
                             <KpiCard
                                 label="Your share"
-                                value={formatCurrencyCompact(tenantKpis!.tenant_profit)}
+                                value={tenantMoney(tenantKpis!.tenant_profit)}
                                 brass
                                 meta="after tax + platform split"
                             />
@@ -137,17 +151,17 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                             />
                             <KpiCard
                                 label="Total wagered"
-                                value={formatCurrencyCompact(platformKpis!.total_wagered)}
+                                value={platformMoney('total_wagered')}
                                 meta={monthLabel}
                             />
                             <KpiCard
                                 label="Total wins"
-                                value={formatCurrencyCompact(platformKpis!.total_wins)}
+                                value={platformMoney('total_wins')}
                                 meta={monthLabel}
                             />
                             <KpiCard
                                 label="Platform profit"
-                                value={formatCurrencyCompact(platformKpis!.platform_profit)}
+                                value={platformMoney('platform_profit')}
                                 brass
                                 meta={monthLabel}
                             />
@@ -156,7 +170,8 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                 </div>
 
                 {/* By game · month-to-date. One row per game backend in the
-                    catalogue, summed over the tenants visible to this user. */}
+                    catalogue and currency, summed over the tenants visible to
+                    this user in that currency. */}
                 <div
                     className="cgo-table-bar"
                     style={{
@@ -197,8 +212,9 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                             ) : (
                                 by_game.map((g) => {
                                     const profit = isTenantScope ? g.tenant_profit : g.platform_profit;
+                                    const p = profileOf(g.currency);
                                     return (
-                                        <tr key={g.game_uuid}>
+                                        <tr key={`${g.game_uuid}:${g.currency ?? ''}`}>
                                             <td style={{ maxWidth: 240 }}>
                                                 <div className="cgo-name cgo-cell-clip" title={g.game_name}>
                                                     {g.game_name}
@@ -212,30 +228,28 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-stake">
-                                                    <span className="cgo-ccy">NAD</span>
-                                                    {formatNAD(g.total_wagered)}
+                                                    <MoneyFigure value={g.total_wagered} profile={p} />
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
                                                 <span className="cgo-stake">
-                                                    <span className="cgo-ccy">NAD</span>
-                                                    {formatNAD(g.total_paid_out)}
+                                                    <MoneyFigure value={g.total_paid_out} profile={p} />
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
                                                 <span
                                                     className="cgo-payout"
-                                                    style={{ color: g.ggr < 0 ? 'var(--cg-neg)' : undefined }}
+                                                    style={{ color: isNegative(g.ggr) ? 'var(--cg-neg)' : undefined }}
                                                 >
-                                                    {formatNAD(g.ggr)}
+                                                    <MoneyFigure value={g.ggr} profile={p} code={false} />
                                                 </span>
                                             </td>
                                             <td className="cgo-r">
                                                 <span
                                                     className="cgo-payout"
-                                                    style={{ color: profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                                    style={{ color: isNegative(profit) ? 'var(--cg-neg)' : undefined }}
                                                 >
-                                                    {formatNAD(profit)}
+                                                    <MoneyFigure value={profit} profile={p} code={false} />
                                                 </span>
                                             </td>
                                         </tr>
@@ -285,7 +299,9 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                                     </td>
                                 </tr>
                             ) : (
-                                tenants.map((t) => (
+                                tenants.map((t) => {
+                                    const p = profileOf(t.currency);
+                                    return (
                                     <tr key={t.tenant_uuid ?? t.tenant_name}>
                                         <td style={{ maxWidth: 240 }}>
                                             <div
@@ -306,30 +322,28 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                                         </td>
                                         <td className="cgo-r">
                                             <span className="cgo-stake">
-                                                <span className="cgo-ccy">NAD</span>
-                                                {formatNAD(t.total_wagered)}
+                                                <MoneyFigure value={t.total_wagered} profile={p} />
                                             </span>
                                         </td>
                                         <td className="cgo-r">
                                             <span className="cgo-stake">
-                                                <span className="cgo-ccy">NAD</span>
-                                                {formatNAD(t.total_paid_out)}
+                                                <MoneyFigure value={t.total_paid_out} profile={p} />
                                             </span>
                                         </td>
                                         <td className="cgo-r">
                                             <span
                                                 className="cgo-payout"
-                                                style={{ color: t.tenant_profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                                style={{ color: isNegative(t.tenant_profit) ? 'var(--cg-neg)' : undefined }}
                                             >
-                                                {formatNAD(t.tenant_profit)}
+                                                <MoneyFigure value={t.tenant_profit} profile={p} code={false} />
                                             </span>
                                         </td>
                                         <td className="cgo-r">
                                             <span
                                                 className="cgo-payout"
-                                                style={{ color: t.platform_profit < 0 ? 'var(--cg-neg)' : undefined }}
+                                                style={{ color: isNegative(t.platform_profit) ? 'var(--cg-neg)' : undefined }}
                                             >
-                                                {formatNAD(t.platform_profit)}
+                                                <MoneyFigure value={t.platform_profit} profile={p} code={false} />
                                             </span>
                                         </td>
                                         <td className="cgo-r">
@@ -345,7 +359,8 @@ export default function AdminDashboard({ period, kpis, scope, tenant_name, tenan
                                             ) : null}
                                         </td>
                                     </tr>
-                                ))
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

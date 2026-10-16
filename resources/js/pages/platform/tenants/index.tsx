@@ -6,9 +6,11 @@
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
-import { Head, router } from '@inertiajs/react';
+import type { CurrencyProfile } from '@/lib/money';
+import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
+import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -57,6 +59,9 @@ const generateSlug = (name: string) =>
 
 export default function TenantsIndex() {
     const toast = useRef<Toast>(null);
+    // The supported currencies (shared by the SSO); a tenant's currency is fixed once it has wallets.
+    const { currencies = {} } = usePage<{ currencies?: Record<string, CurrencyProfile> }>().props;
+    const currencyOptions = Object.values(currencies).map((c) => ({ label: `${c.code} · ${c.name ?? c.code}`, value: c.code }));
     const [tenants, setTenants] = useState<Tenant[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -393,11 +398,11 @@ export default function TenantsIndex() {
                             <label htmlFor="currency" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
                                 Currency
                             </label>
-                            <InputText
-                                id="currency"
+                            <Dropdown
+                                inputId="currency"
                                 value={formData.currency}
-                                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                                maxLength={3}
+                                options={currencyOptions}
+                                onChange={(e) => setFormData({ ...formData, currency: e.value })}
                                 className={`w-full ${errors.currency ? 'p-invalid' : ''}`}
                             />
                             {fieldError('currency')}

@@ -14,7 +14,9 @@ use Inertia\Response;
  * reference so the visual lands first. The real-data pass should pull
  * recent bets from chinga-fantasy via App\Services\FantasyAdminClient
  * (listRoundBets / a future cross-round listWagers endpoint) and shape
- * the response into the `wagers` array below.
+ * the response into the `wagers` array below. Each wager carries its
+ * tenant's currency (App\Support\TenantCurrencyMap); the handle and payout
+ * KPIs must then be one figure per currency, never a sum across them.
  */
 class LiveWagersController extends Controller
 {
@@ -23,7 +25,7 @@ class LiveWagersController extends Controller
         $status = (string) $request->query('status', 'all');
 
         return Inertia::render('operator/live-wagers', [
-            'lastUpdated' => now()->setTimezone('Africa/Windhoek')->format('H:i:s') . ' CAT',
+            'lastUpdated' => now()->setTimezone('Africa/Windhoek')->format('H:i:s').' CAT',
             'kpis' => $this->kpis(),
             'filters' => [
                 'active' => in_array($status, ['all', 'live', 'pending', 'flagged', 'settled'], true) ? $status : 'all',

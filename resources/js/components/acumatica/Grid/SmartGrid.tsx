@@ -7,6 +7,7 @@ import StatusBadge from '@/components/acumatica/Common/StatusBadge';
 import FilterPresets from './FilterPresets';
 import ColumnConfig from './ColumnConfig';
 import type { GridColumn, SavedFilter, StatusVariant } from '@/types/acumatica';
+import { formatMoney, useCurrencies } from '@/lib/money';
 
 interface Props {
     data: any[];
@@ -58,6 +59,8 @@ export default function SmartGrid({
     const [columnConfigVisible, setColumnConfigVisible] = useState(false);
     const [activeFilter, setActiveFilter] = useState<SavedFilter | null>(null);
 
+    const currencyOf = useCurrencies();
+
     const visibleColumns = useMemo(
         () => columns.filter((c) => c.visible !== false),
         [columns]
@@ -106,10 +109,13 @@ export default function SmartGrid({
                         style={{ width: col.width }}
                         frozen={col.frozen}
                         body={(rowData) => {
+                            // Each amount in its own currency: the column's, else the row's. A row
+                            // with neither shows the bare figure rather than borrow another currency.
                             const val = rowData[col.field];
-                            return val != null
-                                ? `NAD ${Number(val).toLocaleString()}`
-                                : '\u2014';
+                            if (val == null) return '\u2014';
+                            const code = col.currency ?? rowData[col.currencyField ?? 'currency'];
+                            const profile = typeof code === 'string' ? currencyOf(code) : null;
+                            return profile ? formatMoney(val, profile) : String(val);
                         }}
                     />
                 );
@@ -125,7 +131,7 @@ export default function SmartGrid({
                 />
             );
         },
-        []
+        [currencyOf]
     );
 
     const toolbarLeft = (

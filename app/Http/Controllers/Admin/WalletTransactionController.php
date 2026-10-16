@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tenant;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
-use App\Models\VoucherTransaction;
+use App\Support\ScopedTotals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +25,8 @@ class WalletTransactionController extends Controller
 
         // Multi-tenancy: scope queries to current tenant
         $tenantId = $request->user()?->tenant_id;
+        // A tenant's totals are in its currency (zeros when empty); a platform admin's are one per currency.
+        $scopeTenant = $tenantId ? Tenant::find($tenantId) : null;
 
         $walletQuery = null;
         $voucherQuery = null;
@@ -72,7 +74,7 @@ class WalletTransactionController extends Controller
                         'success' => true,
                         'data' => [],
                         'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => $perPage, 'total' => 0],
-                        'stats' => $this->emptyStats(),
+                        'stats' => $this->emptyStats($scopeTenant),
                     ]);
                 }
             }
@@ -81,7 +83,7 @@ class WalletTransactionController extends Controller
             if ($search) {
                 $walletQuery->where(function ($q) use ($search) {
                     $q->where('users.name', 'like', "%{$search}%")
-                      ->orWhere('users.email', 'like', "%{$search}%");
+                        ->orWhere('users.email', 'like', "%{$search}%");
                 });
             }
 
@@ -98,10 +100,10 @@ class WalletTransactionController extends Controller
 
             // Date range
             if ($dateFrom && $walletQuery) {
-                $walletQuery->where('wallet_transactions.created_at', '>=', $dateFrom . ' 00:00:00');
+                $walletQuery->where('wallet_transactions.created_at', '>=', $dateFrom.' 00:00:00');
             }
             if ($dateTo && $walletQuery) {
-                $walletQuery->where('wallet_transactions.created_at', '<=', $dateTo . ' 23:59:59');
+                $walletQuery->where('wallet_transactions.created_at', '<=', $dateTo.' 23:59:59');
             }
 
             if ($gameFilter && $walletQuery) {
@@ -110,7 +112,7 @@ class WalletTransactionController extends Controller
         }
 
         // Voucher transactions query
-        if ($source !== 'wallet' && !$walletUuid) {
+        if ($source !== 'wallet' && ! $walletUuid) {
             $voucherQuery = DB::table('voucher_transactions')
                 ->join('voucher_codes', 'voucher_transactions.voucher_code_id', '=', 'voucher_codes.id')
                 ->join('venues', 'voucher_codes.venue_id', '=', 'venues.id')
@@ -159,10 +161,10 @@ class WalletTransactionController extends Controller
 
             // Date range
             if ($dateFrom && $voucherQuery) {
-                $voucherQuery->where('voucher_transactions.created_at', '>=', $dateFrom . ' 00:00:00');
+                $voucherQuery->where('voucher_transactions.created_at', '>=', $dateFrom.' 00:00:00');
             }
             if ($dateTo && $voucherQuery) {
-                $voucherQuery->where('voucher_transactions.created_at', '<=', $dateTo . ' 23:59:59');
+                $voucherQuery->where('voucher_transactions.created_at', '<=', $dateTo.' 23:59:59');
             }
 
             if ($gameFilter && $voucherQuery) {
@@ -186,12 +188,12 @@ class WalletTransactionController extends Controller
                 'success' => true,
                 'data' => [],
                 'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => $perPage, 'total' => 0],
-                'stats' => $this->emptyStats(),
+                'stats' => $this->emptyStats($scopeTenant),
             ]);
         }
 
         // Compute stats from the same filters
-        $stats = $this->computeStats($source, $search, $type, $dateFrom, $dateTo, $walletUuid, $tenantId, $gameFilter);
+        $stats = $this->computeStats($source, $search, $type, $dateFrom, $dateTo, $walletUuid, $tenantId, $gameFilter, $scopeTenant);
 
         $games = DB::table('games')
             ->select('games.id', 'games.name')
@@ -220,9 +222,12 @@ class WalletTransactionController extends Controller
         ?string $dateTo,
         ?string $walletUuid,
         ?int $tenantId,
-        ?string $gameFilter = null
+        ?string $gameFilter = null,
+        ?Tenant $scopeTenant = null
     ): array {
-        $stats = $this->emptyStats();
+        // Sums are grouped by currency and never added across currencies.
+        $count = 0;
+        $byCurrency = [];
 
         if ($source !== 'voucher') {
             $q = DB::table('wallet_transactions')
@@ -231,7 +236,7 @@ class WalletTransactionController extends Controller
 
             if ($gameFilter) {
                 $q->join('game_sessions', 'wallet_transactions.game_session_id', '=', 'game_sessions.id')
-                  ->where('game_sessions.game_id', $gameFilter);
+                    ->where('game_sessions.game_id', $gameFilter);
             }
 
             if ($tenantId) {
@@ -248,38 +253,38 @@ class WalletTransactionController extends Controller
             if ($search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('users.name', 'like', "%{$search}%")
-                          ->orWhere('users.email', 'like', "%{$search}%");
+                        ->orWhere('users.email', 'like', "%{$search}%");
                 });
             }
             if ($dateFrom) {
-                $q->where('wallet_transactions.created_at', '>=', $dateFrom . ' 00:00:00');
+                $q->where('wallet_transactions.created_at', '>=', $dateFrom.' 00:00:00');
             }
             if ($dateTo) {
-                $q->where('wallet_transactions.created_at', '<=', $dateTo . ' 23:59:59');
+                $q->where('wallet_transactions.created_at', '<=', $dateTo.' 23:59:59');
             }
 
-            $walletStats = $q->selectRaw("
+            $walletStats = $q->groupBy('wallets.currency')->selectRaw("
+                wallets.currency as currency,
                 COUNT(*) as total,
                 COALESCE(SUM(CASE WHEN wallet_transactions.type = 'deposit' THEN wallet_transactions.amount ELSE 0 END), 0) as deposits,
                 COALESCE(SUM(CASE WHEN wallet_transactions.type = 'withdrawal' THEN wallet_transactions.amount ELSE 0 END), 0) as withdrawals,
                 COALESCE(SUM(CASE WHEN wallet_transactions.type = 'bet' THEN wallet_transactions.amount ELSE 0 END), 0) as bets,
                 COALESCE(SUM(CASE WHEN wallet_transactions.type = 'win' THEN wallet_transactions.amount ELSE 0 END), 0) as wins
-            ")->first();
+            ")->get();
 
-            $stats['total_transactions'] += $walletStats->total;
-            $stats['total_deposits'] = bcadd($stats['total_deposits'], (string) $walletStats->deposits, 2);
-            $stats['total_withdrawals'] = bcadd($stats['total_withdrawals'], (string) $walletStats->withdrawals, 2);
-            $stats['total_bets'] = bcadd($stats['total_bets'], (string) $walletStats->bets, 2);
-            $stats['total_wins'] = bcadd($stats['total_wins'], (string) $walletStats->wins, 2);
+            foreach ($walletStats as $row) {
+                $count += (int) $row->total;
+                $byCurrency[] = ['currency' => $row->currency, 'total_deposits' => $row->deposits, 'total_withdrawals' => $row->withdrawals, 'total_bets' => $row->bets, 'total_wins' => $row->wins];
+            }
         }
 
-        if ($source !== 'wallet' && !$walletUuid) {
+        if ($source !== 'wallet' && ! $walletUuid) {
             $q = DB::table('voucher_transactions')
                 ->join('voucher_codes', 'voucher_transactions.voucher_code_id', '=', 'voucher_codes.id');
 
             if ($gameFilter) {
                 $q->join('game_sessions', 'voucher_transactions.game_session_id', '=', 'game_sessions.id')
-                  ->where('game_sessions.game_id', $gameFilter);
+                    ->where('game_sessions.game_id', $gameFilter);
             }
 
             if ($tenantId) {
@@ -290,38 +295,41 @@ class WalletTransactionController extends Controller
                 $q->where('voucher_codes.code', 'like', "%{$search}%");
             }
             if ($dateFrom) {
-                $q->where('voucher_transactions.created_at', '>=', $dateFrom . ' 00:00:00');
+                $q->where('voucher_transactions.created_at', '>=', $dateFrom.' 00:00:00');
             }
             if ($dateTo) {
-                $q->where('voucher_transactions.created_at', '<=', $dateTo . ' 23:59:59');
+                $q->where('voucher_transactions.created_at', '<=', $dateTo.' 23:59:59');
             }
 
-            $voucherStats = $q->selectRaw("
+            $voucherStats = $q->groupBy('voucher_codes.currency')->selectRaw("
+                voucher_codes.currency as currency,
                 COUNT(*) as total,
                 COALESCE(SUM(CASE WHEN voucher_transactions.type = 'load' THEN voucher_transactions.amount ELSE 0 END), 0) as loads,
                 COALESCE(SUM(CASE WHEN voucher_transactions.type = 'cashout' THEN ABS(voucher_transactions.amount) ELSE 0 END), 0) as cashouts,
                 COALESCE(SUM(CASE WHEN voucher_transactions.type = 'loss' THEN ABS(voucher_transactions.amount) ELSE 0 END), 0) as losses,
                 COALESCE(SUM(CASE WHEN voucher_transactions.type = 'win' THEN voucher_transactions.amount ELSE 0 END), 0) as wins
-            ")->first();
+            ")->get();
 
-            $stats['total_transactions'] += $voucherStats->total;
-            $stats['total_deposits'] = bcadd($stats['total_deposits'], (string) $voucherStats->loads, 2);
-            $stats['total_withdrawals'] = bcadd($stats['total_withdrawals'], (string) $voucherStats->cashouts, 2);
-            $stats['total_bets'] = bcadd($stats['total_bets'], (string) $voucherStats->losses, 2);
-            $stats['total_wins'] = bcadd($stats['total_wins'], (string) $voucherStats->wins, 2);
+            foreach ($voucherStats as $row) {
+                $count += (int) $row->total;
+                $byCurrency[] = ['currency' => $row->currency, 'total_deposits' => $row->loads, 'total_withdrawals' => $row->cashouts, 'total_bets' => $row->losses, 'total_wins' => $row->wins];
+            }
         }
 
-        return $stats;
+        return [
+            'total_transactions' => $count,
+            'totals' => ScopedTotals::of($byCurrency, self::STAT_FIELDS, $scopeTenant),
+        ];
     }
 
-    private function emptyStats(): array
+    private const STAT_FIELDS = ['total_deposits', 'total_withdrawals', 'total_bets', 'total_wins'];
+
+    /** @return array{total_transactions: int, totals: list<array<string, string>>} */
+    private function emptyStats(?Tenant $scopeTenant): array
     {
         return [
             'total_transactions' => 0,
-            'total_deposits' => '0.00',
-            'total_withdrawals' => '0.00',
-            'total_bets' => '0.00',
-            'total_wins' => '0.00',
+            'totals' => ScopedTotals::of([], self::STAT_FIELDS, $scopeTenant),
         ];
     }
 }

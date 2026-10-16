@@ -6,6 +6,7 @@
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { type Amount, toCents, formatFigure, useCurrencies } from '@/lib/money';
 import { Head } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -62,10 +63,6 @@ function methodLabel(method: Withdrawal['payment_method']): string {
     }[method];
 }
 
-function fmt(value: string | number): string {
-    const n = typeof value === 'string' ? parseFloat(value) : value;
-    return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -80,6 +77,12 @@ function getCsrfToken(): string {
 }
 
 export default function Withdrawals() {
+    const profileOf = useCurrencies();
+    // Each request's figures in its own currency (the player's wallet's, i.e. their tenant's).
+    const fmt = (value: Amount, code: string) => {
+        const p = profileOf(code);
+        return p ? formatFigure(value, p) : String(value ?? '');
+    };
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
     const [counts, setCounts] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(true);
@@ -266,7 +269,7 @@ export default function Withdrawals() {
                                 </tr>
                             ) : (
                                 withdrawals.map((w) => {
-                                    const hasFee = parseFloat(w.fee_amount) > 0;
+                                    const hasFee = toCents(w.fee_amount) > 0;
                                     return (
                                         <tr key={w.uuid}>
                                             <td style={{ maxWidth: 280 }}>
@@ -283,11 +286,11 @@ export default function Withdrawals() {
                                             <td className="cgo-r">
                                                 <span className="cgo-stake">
                                                     <span className="cgo-ccy">{w.currency}</span>
-                                                    {fmt(w.amount)}
+                                                    {fmt(w.amount, w.currency)}
                                                 </span>
                                                 {hasFee && (
                                                     <div className="cgo-uid" style={{ marginTop: 2 }}>
-                                                        fee {fmt(w.fee_amount)} → net {fmt(w.net_amount)}
+                                                        fee {fmt(w.fee_amount, w.currency)} → net {fmt(w.net_amount, w.currency)}
                                                     </div>
                                                 )}
                                             </td>
@@ -401,11 +404,11 @@ export default function Withdrawals() {
                             <div>
                                 <strong>Amount:</strong>{' '}
                                 <span style={{ fontFamily: 'var(--cg-mono)', color: 'var(--cg-brass-hi)' }}>
-                                    {selected.currency} {fmt(selected.amount)}
+                                    {selected.currency} {fmt(selected.amount, selected.currency)}
                                 </span>
-                                {parseFloat(selected.fee_amount) > 0 && (
+                                {toCents(selected.fee_amount) > 0 && (
                                     <span style={{ color: 'var(--cg-fg-3)' }}>
-                                        {' '}— fee {fmt(selected.fee_amount)} → net {fmt(selected.net_amount)}
+                                        {' '}— fee {fmt(selected.fee_amount, selected.currency)} → net {fmt(selected.net_amount, selected.currency)}
                                     </span>
                                 )}
                             </div>

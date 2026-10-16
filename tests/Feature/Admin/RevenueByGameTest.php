@@ -69,9 +69,11 @@ test('platform admin revenue summary aggregates every game and lists one per_gam
         ->assertOk()
         ->json('data');
 
-    expect((float) $data['totals']['total_bets'])->toBe(1700.0)
-        ->and((float) $data['totals']['total_wins'])->toBe(1400.0)
-        ->and((float) $data['totals']['gross_gaming_revenue'])->toBe(300.0);
+    expect($data['totals'])->toHaveCount(1)
+        ->and($data['totals'][0]['currency'])->toBe('NAD')
+        ->and($data['totals'][0]['total_bets'])->toBe('1700.00')
+        ->and($data['totals'][0]['total_wins'])->toBe('1400.00')
+        ->and($data['totals'][0]['gross_gaming_revenue'])->toBe('300.00');
 
     $perGame = collect($data['per_game'])->keyBy('game.uuid');
     expect($perGame)->toHaveCount(2)
@@ -88,7 +90,7 @@ test('tenant admin revenue summary queries each game with the right tenant key',
         ->assertOk()
         ->json('data');
 
-    expect((float) $data['totals']['total_bets'])->toBe(1500.0)
+    expect($data['totals'][0]['total_bets'])->toBe('1500.00')
         ->and(collect($data['per_game'])->pluck('total_bets')->map(fn ($v) => (float) $v)->sort()->values()->all())->toBe([500.0, 1000.0]);
 
     // Every engine stores real UUIDs and is never asked by slug.
@@ -107,7 +109,7 @@ test('a backend that is down contributes zeros and an error flag instead of fail
         ->assertOk()
         ->json('data');
 
-    expect((float) $data['totals']['total_bets'])->toBe(1200.0);
+    expect($data['totals'][0]['total_bets'])->toBe('1200.00');
     $perGame = collect($data['per_game'])->keyBy('game.uuid');
     expect($perGame[$this->crash->uuid]['error'])->not->toBeNull()
         ->and((float) $perGame[$this->crash->uuid]['total_bets'])->toBe(0.0)
@@ -123,7 +125,9 @@ test('tenant overview sums games per tenant and adds a by_game breakdown', funct
         ->assertInertia(fn (Assert $page) => $page
             ->component('admin/dashboard')
             ->has('tenants', 2)
-            ->where('kpis.total_wagered', fn ($v) => (float) $v === 1700.0)
+            ->has('kpis.totals', 1)
+            ->where('kpis.totals.0.currency', 'NAD')
+            ->where('kpis.totals.0.total_wagered', '1700.00')
             ->has('by_game', 2)
             ->where('by_game.0.game_name', 'Chinga Fantasy')
             ->where('by_game.0.total_wagered', fn ($v) => (float) $v === 1200.0)
@@ -137,7 +141,8 @@ test('tenant overview sums games per tenant and adds a by_game breakdown', funct
         ->assertInertia(fn (Assert $page) => $page
             ->has('tenants', 1)
             ->where('tenants.0.total_wagered', fn ($v) => (float) $v === 1500.0)
-            ->where('kpis.total_wagered', fn ($v) => (float) $v === 1500.0)
+            ->where('kpis.currency', 'NAD')
+            ->where('kpis.total_wagered', '1500.00')
             ->has('by_game', 2)
             ->where('by_game.0.total_wagered', fn ($v) => (float) $v === 1000.0)
         );
