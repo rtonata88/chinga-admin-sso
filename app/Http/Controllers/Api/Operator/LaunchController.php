@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Operator;
 use App\Models\Game;
 use App\Models\OperatorLaunch;
 use App\Services\Operator\OperatorPlayerResolver;
+use App\Services\Operator\WalletModeConflict;
 use App\Support\Currencies;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,7 +48,11 @@ class LaunchController extends OperatorController
             return $this->error('game_unavailable', 'That game is not available for this operator.', 404);
         }
 
-        ['user' => $user, 'created' => $created] = $players->resolve($tenant, $data['player_id'], $data['display_name'] ?? null, $data['lang'] ?? null);
+        try {
+            ['user' => $user, 'created' => $created] = $players->resolve($tenant, $data['player_id'], $data['display_name'] ?? null, $data['lang'] ?? null, $this->integration($request)->isSeamless());
+        } catch (WalletModeConflict) {
+            return $this->error('wallet_mode_conflict', 'This player still has a balance held under the previous wallet mode. Contact Chinga.', 409);
+        }
         if ($user->status !== 'active') {
             return $this->error('player_blocked', 'This player cannot play.', 403);
         }

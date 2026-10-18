@@ -46,6 +46,8 @@ class TreasuryService
             ->selectRaw('tenant_id, COUNT(*) AS wallets, SUM(balance > 0) AS funded, COALESCE(SUM(balance), 0) AS owed')
             ->selectRaw('COALESCE(SUM(CASE WHEN balance > 0 AND updated_at < ? THEN balance ELSE 0 END), 0) AS dormant', [$dormantBefore])
             ->where('status', '<>', 'closed')
+            // A seamless wallet mirrors an operator's balance: that money is the operator's, never ours to cover.
+            ->where('mode', 'hosted')
             ->groupBy('tenant_id')
             ->get()
             ->keyBy('tenant_id');
@@ -66,6 +68,7 @@ class TreasuryService
 
         $ledger = WalletTransaction::query()
             ->join('wallets', 'wallets.id', '=', 'wallet_transactions.wallet_id')
+            ->where('wallets.mode', 'hosted')
             ->selectRaw('wallets.tenant_id')
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'deposit' AND performed_by IS NOT NULL THEN amount ELSE 0 END), 0) AS staff_deposits")
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'deposit' AND performed_by IS NULL THEN amount ELSE 0 END), 0) AS player_deposits")

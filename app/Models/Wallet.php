@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class Wallet extends Model
 {
-    use HasFactory, BelongsToTenant;
+    use BelongsToTenant, HasFactory;
 
     protected $fillable = [
         'uuid',
@@ -22,6 +22,8 @@ class Wallet extends Model
         'deposit_balance',
         'winnings_balance',
         'currency',
+        // hosted: money we hold; seamless: a mirror of an operator's wallet (SeamlessWallet).
+        'mode',
         'status',
         'total_deposited',
         'total_withdrawn',

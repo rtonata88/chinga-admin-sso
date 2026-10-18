@@ -18,7 +18,9 @@ class ReconcileWalletsCommand extends Command
 
     public function handle(): int
     {
-        $query = Wallet::query();
+        // A seamless wallet mirrors an operator's balance, which moves for reasons we never see;
+        // it is reconciled against the operator's daily statement instead.
+        $query = Wallet::query()->where('mode', 'hosted');
         if ($walletId = $this->option('wallet')) {
             $query->where('id', $walletId);
         }

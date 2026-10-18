@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\VenueTerminal;
 use App\Models\VoucherCode;
 use App\Models\Wallet;
+use App\Services\Operator\SeamlessWallet;
 use App\Services\Venue\VoucherCodeService;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +16,8 @@ class GameSessionService
 {
     public function __construct(
         protected WalletService $walletService,
-        protected VoucherCodeService $voucherCodeService
+        protected VoucherCodeService $voucherCodeService,
+        protected SeamlessWallet $seamless,
     ) {}
 
     /**
@@ -38,7 +40,7 @@ class GameSessionService
             $existingSession->end('forced', $wallet->balance);
         }
 
-        return GameSession::create([
+        $session = GameSession::create([
             'tenant_id' => $user->tenant_id,
             'game_id' => $game->id,
             'source_type' => Wallet::class,
@@ -46,6 +48,19 @@ class GameSessionService
             'ip_address' => $ipAddress,
             'balance_start' => $wallet->balance,
         ]);
+
+        // An operator's wallet: open the session there too, and start from its balance.
+        if ($integration = $this->seamless->integrationFor($session)) {
+            try {
+                $this->seamless->openSession($integration, $user, $game, $session);
+            } catch (\RuntimeException $e) {
+                $session->end('forced', (string) $wallet->fresh()->balance);
+                throw $e;
+            }
+            $session->update(['balance_start' => $wallet->fresh()->balance]);
+        }
+
+        return $session;
     }
 
     /**
@@ -60,16 +75,16 @@ class GameSessionService
     ): GameSession {
         $this->validateGameForTenant($game, $code->tenant_id);
 
-        if (!$code->canBeUsed()) {
+        if (! $code->canBeUsed()) {
             throw new \RuntimeException('Voucher code cannot be used.');
         }
 
         // Verify PIN if required
         if ($code->hasPin()) {
-            if (!$pin) {
+            if (! $pin) {
                 throw new \RuntimeException('PIN is required for this voucher code.');
             }
-            if (!$code->verifyPin($pin)) {
+            if (! $code->verifyPin($pin)) {
                 throw new \RuntimeException('Invalid PIN.');
             }
         }
@@ -110,15 +125,15 @@ class GameSessionService
     ): GameSession {
         $this->validateGameForTenant($game, $code->tenant_id);
 
-        if (!$code->canBeUsed()) {
+        if (! $code->canBeUsed()) {
             throw new \RuntimeException('Voucher code cannot be used.');
         }
 
         if ($code->hasPin()) {
-            if (!$pin) {
+            if (! $pin) {
                 throw new \RuntimeException('PIN is required for this voucher code.');
             }
-            if (!$code->verifyPin($pin)) {
+            if (! $code->verifyPin($pin)) {
                 throw new \RuntimeException('Invalid PIN.');
             }
         }
@@ -176,6 +191,9 @@ class GameSessionService
         $session = $this->findActiveSession($sessionToken);
         $session->touch();
 
+        if ($integration = $this->seamless->integrationFor($session)) {
+            return $this->seamless->debit($integration, $session, $amount, $reference);
+        }
         if ($session->source_type === Wallet::class) {
             return $this->walletService->debit($session->source, $amount, $session, $reference);
         }
@@ -191,6 +209,9 @@ class GameSessionService
         $session = $this->findActiveSession($sessionToken);
         $session->touch();
 
+        if ($integration = $this->seamless->integrationFor($session)) {
+            return $this->seamless->credit($integration, $session, $amount, $reference);
+        }
         if ($session->source_type === Wallet::class) {
             return $this->walletService->credit($session->source, $amount, $session, $reference);
         }
@@ -208,10 +229,13 @@ class GameSessionService
     {
         $session = GameSession::where('session_token', $sessionToken)->first();
 
-        if (!$session) {
+        if (! $session) {
             throw new \RuntimeException('Session not found.');
         }
 
+        if ($integration = $this->seamless->integrationFor($session)) {
+            return $this->seamless->credit($integration, $session, $amount, $reference);
+        }
         if ($session->source_type === Wallet::class) {
             return $this->walletService->credit($session->source, $amount, $session, $reference);
         }
@@ -225,6 +249,10 @@ class GameSessionService
     public function getBalance(string $sessionToken): array
     {
         $session = $this->findActiveSession($sessionToken);
+
+        if ($integration = $this->seamless->integrationFor($session)) {
+            return ['balance' => $this->seamless->balance($integration, $session), 'currency' => $this->getSourceCurrency($session)];
+        }
 
         return [
             'balance' => $this->getSourceBalance($session),
@@ -269,11 +297,11 @@ class GameSessionService
     {
         $session = GameSession::where('session_token', $sessionToken)->first();
 
-        if (!$session) {
+        if (! $session) {
             throw new \RuntimeException('Session not found.');
         }
 
-        if (!$session->isActive()) {
+        if (! $session->isActive()) {
             throw new \RuntimeException('Session is no longer active.');
         }
 
@@ -285,7 +313,7 @@ class GameSessionService
      */
     private function validateGameForTenant(Game $game, int $tenantId): void
     {
-        if (!$game->isActive()) {
+        if (! $game->isActive()) {
             throw new \RuntimeException('Game is not active.');
         }
 
@@ -294,7 +322,7 @@ class GameSessionService
             ->wherePivot('enabled', true)
             ->exists();
 
-        if (!$enabled) {
+        if (! $enabled) {
             throw new \RuntimeException('Game is not enabled for this tenant.');
         }
     }
@@ -304,7 +332,7 @@ class GameSessionService
      */
     private function ensureWalletActive(Wallet $wallet): void
     {
-        if (!$wallet->isActive()) {
+        if (! $wallet->isActive()) {
             throw new \RuntimeException('Wallet is not active.');
         }
     }

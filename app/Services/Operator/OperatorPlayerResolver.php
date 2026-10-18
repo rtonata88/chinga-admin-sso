@@ -19,14 +19,18 @@ use Illuminate\Support\Str;
  */
 class OperatorPlayerResolver
 {
-    /** @return array{user: User, created: bool} */
-    public function resolve(Tenant $tenant, string $playerId, ?string $displayName = null, ?string $lang = null): array
+    /**
+     * @param  bool  $seamless  the operator keeps the money: the wallet here is a mirror of its balance
+     * @return array{user: User, created: bool}
+     */
+    public function resolve(Tenant $tenant, string $playerId, ?string $displayName = null, ?string $lang = null, bool $seamless = false): array
     {
         $existing = $this->find($tenant, $playerId);
         if ($existing !== null) {
             if ($displayName !== null && $displayName !== '' && $existing->name !== $displayName) {
                 $existing->forceFill(['name' => $displayName])->save();
             }
+            $this->matchWalletMode($existing, $seamless);
 
             return ['user' => $existing, 'created' => false];
         }
@@ -36,7 +40,7 @@ class OperatorPlayerResolver
         $language = $lang !== null && in_array(strtolower(substr($lang, 0, 2)), $languages, true) ? strtolower(substr($lang, 0, 2)) : $languages[0];
 
         try {
-            $user = DB::transaction(function () use ($tenant, $playerId, $displayName, $language) {
+            $user = DB::transaction(function () use ($tenant, $playerId, $displayName, $language, $seamless) {
                 $user = User::forceCreate([
                     'uuid' => (string) Str::uuid(),
                     'tenant_id' => $tenant->id,
@@ -51,7 +55,7 @@ class OperatorPlayerResolver
                     'status' => 'active',
                 ]);
                 $user->assignRole('player', $tenant->id);
-                $user->getOrCreateWallet();
+                $user->getOrCreateWallet()->forceFill(['mode' => $seamless ? 'seamless' : 'hosted'])->save();
 
                 return $user;
             });
@@ -61,6 +65,26 @@ class OperatorPlayerResolver
         }
 
         return ['user' => $user, 'created' => true];
+    }
+
+    /**
+     * Keeps the player's wallet in the integration's mode. An empty wallet follows a mode
+     * change; a wallet holding money never does: a hosted balance must not become a mirror
+     * (the money would vanish from view), and a mirror must not become money we hold.
+     */
+    private function matchWalletMode(User $user, bool $seamless): void
+    {
+        $wallet = $user->getOrCreateWallet();
+        $mode = $seamless ? 'seamless' : 'hosted';
+        if ($wallet->mode === $mode) {
+            return;
+        }
+        if ($wallet->mode === 'hosted' && bccomp((string) $wallet->balance, '0', 2) === 0) {
+            $wallet->forceFill(['mode' => $mode])->save();
+
+            return;
+        }
+        throw new WalletModeConflict("Player wallet is {$wallet->mode}; the integration is {$mode}.");
     }
 
     public function find(Tenant $tenant, string $playerId): ?User
