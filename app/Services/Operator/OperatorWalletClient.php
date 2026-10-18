@@ -54,6 +54,45 @@ class OperatorWalletClient
         return $this->logged($integration, $endpoint, $fields, $body, $status, $answer, $started);
     }
 
+    /**
+     * The operator's statement for one day (spec, "Reconciliation and reporting"): a signed
+     * GET answering JSON lines. Null when it cannot be had; a line that is not JSON is skipped
+     * and counted, never guessed at.
+     *
+     * @return array{lines: list<array<string, mixed>>, unreadable: int}|null
+     */
+    public function statement(OperatorIntegration $integration, string $date): ?array
+    {
+        $url = rtrim((string) $integration->wallet_base_url, '/').'/wallet/statement?date='.$date;
+        $started = microtime(true);
+        try {
+            $response = Http::timeout(30)->withoutRedirecting()
+                ->withHeaders(OperatorSignature::headers($integration->operator_key, $integration->secret, '') + ['Accept' => 'application/x-ndjson, application/json'])
+                ->get($url);
+        } catch (\Throwable $e) {
+            $this->logged($integration, 'statement', ['reference' => $date], '', null, OperatorAnswer::unknown('unreachable: '.mb_substr($e->getMessage(), 0, 150)), $started);
+
+            return null;
+        }
+        if (! $response->successful()) {
+            $this->logged($integration, 'statement', ['reference' => $date], '', $response->status(), OperatorAnswer::unknown('HTTP '.$response->status()), $started);
+
+            return null;
+        }
+        $lines = [];
+        $unreadable = 0;
+        foreach (preg_split('/\r?\n/', trim($response->body())) ?: [] as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $row = json_decode($line, true);
+            is_array($row) && is_string($row['reference'] ?? null) ? $lines[] = $row : $unreadable++;
+        }
+        $this->logged($integration, 'statement', ['reference' => $date], '', $response->status(), OperatorAnswer::ok([]), $started);
+
+        return ['lines' => $lines, 'unreadable' => $unreadable];
+    }
+
     /** @param array<string, mixed> $fields */
     private function logged(OperatorIntegration $integration, string $endpoint, array $fields, string $body, ?int $status, OperatorAnswer $answer, float $started): OperatorAnswer
     {

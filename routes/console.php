@@ -13,5 +13,7 @@ Schedule::command('game-sessions:cleanup')->hourly();
 Schedule::command('wallets:reconcile')->dailyAt('03:00');
 // Seamless operator wallets: wins and returned stakes are re-sent until the operator confirms them.
 Schedule::command('operators:retry')->everyMinute()->withoutOverlapping();
+// Operators serve the previous day's statement by 06:00 (spec); match it after.
+Schedule::command('operators:reconcile')->dailyAt('06:30');
 // Realised vs theoretical RTP per game, the pricing-bug tripwire (Fantasy v2 PRD §11).
 Schedule::command('games:rtp-drift --days=7')->dailyAt('04:00');

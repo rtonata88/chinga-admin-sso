@@ -236,3 +236,30 @@ it('derives the debit a win, bonus or refund belongs to from the engine referenc
         ->and(SeamlessWallet::parseReference('vp_bet_1'))->toBeNull()
         ->and(SeamlessWallet::parseReference('voucher_transfer_x'))->toBeNull();
 });
+
+it('reconciles a day that matches, including a returned stake', function () {
+    $session = openSeamless();
+    $this->sessions->debit($session->session_token, '20.00', 'kk_bet_20');
+    $this->sessions->credit($session->session_token, '38.40', 'kk_win_20');
+    $this->sessions->debit($session->session_token, '10.00', 'kk_bet_21');
+    $this->sessions->credit($session->session_token, '10.00', 'kk_refund_21');
+
+    $r = app(\App\Services\Operator\OperatorReconciler::class)->reconcile($this->integration->fresh('tenant'), now('UTC')->toDateString());
+    expect($r->status)->toBe('matched')->and($r->equal)->toBe(3)->and($r->only_ours + $r->only_theirs + $r->different)->toBe(0);
+});
+
+it('repairs what the operator lost and raises what only the operator has, never correcting it', function () {
+    $session = openSeamless();
+    $this->sessions->debit($session->session_token, '20.00', 'kk_bet_30');
+    $this->sessions->credit($session->session_token, '38.40', 'kk_win_30');
+    $this->op->missingFromStatement = ['debit:kk_bet_30', 'credit:kk_win_30'];
+    $this->op->extraStatementLines = [['reference' => 'kk_bet_999', 'kind' => 'debit', 'amount' => '5.00', 'state' => 'settled', 'transaction_id' => 'x']];
+
+    $r = app(\App\Services\Operator\OperatorReconciler::class)->reconcile($this->integration->fresh('tenant'), now('UTC')->toDateString());
+
+    expect($r->status)->toBe('differences')->and($r->only_ours)->toBe(2)->and($r->only_theirs)->toBe(1)
+        ->and(OperatorMovement::where('kind', 'credit')->where('reference', 'kk_win_30')->value('status'))->toBe('retrying')
+        ->and(OperatorMovement::where('kind', 'rollback')->where('reference', 'kk_bet_30')->value('status'))->toBe('retrying')
+        ->and(OperatorMovement::where('reference', 'kk_bet_999')->exists())->toBeFalse();
+    $this->artisan('operators:reconcile', ['--date' => now('UTC')->toDateString()])->assertFailed();
+});

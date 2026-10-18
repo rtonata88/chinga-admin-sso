@@ -72,6 +72,10 @@ class FakeOperatorWallet
             return Http::response(['status' => 'error', 'code' => 'unauthorized', 'message' => 'bad signature'], 401);
         }
 
+        if ($endpoint === 'statement') {
+            return $this->statement();
+        }
+
         $failure = empty($this->failures[$endpoint]) ? null : array_shift($this->failures[$endpoint]);
         if ($failure !== null && $failure['mode'] === 'pass') {
             $failure = null; // a queued normal answer, so a later failure lands on the right call
@@ -154,6 +158,29 @@ class FakeOperatorWallet
         }
 
         return Http::response(['status' => 'error', 'code' => 'invalid_request', 'message' => 'unknown endpoint'], 400);
+    }
+
+    /** @var list<array<string, mixed>> extra statement lines, for lines we never sent */
+    public array $extraStatementLines = [];
+
+    /** @var list<string> ledger keys ("debit:ref") the statement leaves out, as if lost at the operator */
+    public array $missingFromStatement = [];
+
+    /** The day's ledger as JSON lines (the spec's GET /wallet/statement). */
+    private function statement(): mixed
+    {
+        $lines = [];
+        foreach ($this->ledger as $key => $e) {
+            if (in_array($key, $this->missingFromStatement, true)) {
+                continue;
+            }
+            $lines[] = json_encode(['reference' => substr($key, strpos($key, ':') + 1), 'kind' => $e['kind'], 'amount' => $e['amount'], 'state' => $e['state'], 'transaction_id' => $e['id'], 'settled_at' => now()->toIso8601String()]);
+        }
+        foreach ($this->extraStatementLines as $l) {
+            $lines[] = json_encode($l);
+        }
+
+        return Http::response(implode("\n", $lines)."\n", 200, ['Content-Type' => 'application/x-ndjson']);
     }
 
     private function ok(string $player, ?string $id = null): mixed
