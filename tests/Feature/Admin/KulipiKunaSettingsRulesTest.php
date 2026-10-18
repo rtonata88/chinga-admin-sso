@@ -98,3 +98,9 @@ it('draws no depth preview for an off-grid edge or a stake range too wide to lis
     );
     expect($result['out'])->toBe([10, 0, 0, 201]);
 });
+
+it('keeps the time to cash out or continue at least as long as the betting window', function () {
+    expect(KulipiKunaConfigRules::violations(['level_decision_seconds' => 10, 'decision_seconds' => 8]))->toHaveKey('decision_seconds')
+        ->and(KulipiKunaConfigRules::violations(['level_decision_seconds' => 10, 'decision_seconds' => 10]))->not->toHaveKey('decision_seconds')
+        ->and(KulipiKunaConfigRules::violations([]))->not->toHaveKey('decision_seconds'); // defaults: 6 and 30
+});

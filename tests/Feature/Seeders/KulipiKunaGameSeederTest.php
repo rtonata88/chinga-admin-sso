@@ -26,7 +26,7 @@ test('seeds Kulipi Kuna with the PRD §9 settings, its schema and no backend by 
 
     SettingsSchema::assertValid($game->settings_schema);
     $schema = new SettingsSchema($game->settings_schema);
-    expect($schema->keys())->toHaveCount(8)
+    expect($schema->keys())->toHaveCount(9)
         ->and($schema->isOverridable('house_edge'))->toBeFalse()
         ->and($schema->isOverridable('hard_level_cap'))->toBeFalse()
         ->and($schema->isOverridable('max_bet_amount'))->toBeTrue();

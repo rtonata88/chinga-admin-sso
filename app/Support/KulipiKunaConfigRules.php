@@ -73,6 +73,13 @@ class KulipiKunaConfigRules
             $out['max_win_per_ladder'] = "max_win_per_ladder {$sym}{$maxWin} does not cover level 1 at the max stake ({$sym}{$level1}).";
         }
 
+        $betting = (int) $s['level_decision_seconds'];
+        $decision = (int) $s['decision_seconds'];
+        if ($decision < $betting) {
+            // A Continue only lands in a round's betting window, so a shorter decision time could end inside it.
+            $out['decision_seconds'] = "decision_seconds {$decision} is shorter than the betting window ({$betting} s); it must be at least as long.";
+        }
+
         return $out;
     }
 }
