@@ -128,6 +128,42 @@ class WalletService
     }
 
     /**
+     * An operator taking its money back out of our wallet (hosted operator integration).
+     * Unlike a cash withdrawal the whole balance can go: the funds came from the
+     * operator's own wallet, so the winnings-only rule for cash players does not apply.
+     * Drains the deposit pool first, then winnings, and records the split.
+     */
+    public function transferOut(Wallet $wallet, string $amount, ?string $reference = null): WalletTransaction
+    {
+        $this->validateAmount($amount);
+        $this->ensureWalletActive($wallet);
+
+        return DB::transaction(function () use ($wallet, $amount, $reference) {
+            $wallet = Wallet::lockForUpdate()->find($wallet->id);
+            if (bccomp($wallet->balance, $amount, 2) < 0) {
+                throw new \RuntimeException('Insufficient balance.');
+            }
+            $deposit = $wallet->deposit_balance ?? '0';
+            $fromDeposit = bccomp($deposit, $amount, 2) >= 0 ? $amount : $deposit;
+            $fromWinnings = bcsub($amount, $fromDeposit, 2);
+
+            $balanceBefore = $wallet->balance;
+            $balanceAfter = bcsub($balanceBefore, $amount, 2);
+            $wallet->update([
+                'balance' => $balanceAfter,
+                'deposit_balance' => bcsub($deposit, $fromDeposit, 2),
+                'winnings_balance' => bcsub($wallet->winnings_balance ?? '0', $fromWinnings, 2),
+                'total_withdrawn' => bcadd($wallet->total_withdrawn, $amount, 2),
+            ]);
+
+            return $this->recordTransaction(
+                $wallet, 'withdrawal', $amount, $balanceBefore, $balanceAfter, null, $reference,
+                'Transfer to operator', null, $fromDeposit, $fromWinnings,
+            );
+        });
+    }
+
+    /**
      * Debit a wallet for a game bet. Drains the deposit pool first; if the
      * bet exceeds deposits, the overflow comes from winnings. The split is
      * recorded on the transaction so a future refund can restore each pool

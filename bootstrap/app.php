@@ -35,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // Game session API routes
             require base_path('routes/game.php');
             require base_path('routes/channel.php');
+            require base_path('routes/operator.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
