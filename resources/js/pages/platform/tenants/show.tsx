@@ -2,13 +2,16 @@
 //
 // Tenant detail, brass-on-ink to match /tenant-overview. Header
 // (with status pill + actions) → KPI strip → Company / Configuration
-// info panels (with inline commercial-terms editor) → Assigned
-// Games table → Venues table. Dialogs (Add venue, Manage games)
+// info panels (with inline commercial-terms editor) → Operator
+// integration (settings, recent calls, movements needing attention) →
+// Assigned Games table → Venues table. Dialogs (Add venue, Manage games)
 // stay on PrimeReact for their form state.
 
 import { KpiCard, formatCount } from '@/components/operator/kpi-card';
 import UserLayout from '@/layouts/user-layout';
+import { useClipboard } from '@/hooks/use-clipboard';
 import { csrfHeader } from '@/lib/csrf';
+import { formatMoney, useCurrencies } from '@/lib/money';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -146,6 +149,666 @@ function InfoPanel({ title, items, action }: { title: string; items: InfoItem[];
                     </div>
                 ))}
             </div>
+        </div>
+    );
+}
+
+// ── Operator integration ───────────────────────────────────────────────
+// The console form of `php artisan operators:setup`. The secret comes back
+// once, from create and rotate, and is shown in a dialog that forgets it on
+// close; no read ever returns it.
+
+interface IntegrationSummary {
+    operator_players: number;
+    calls_in_24h: number;
+    calls_out_24h: number;
+    refused_24h: number;
+    movements_attention: number;
+}
+
+type WalletMode = 'hosted' | 'seamless';
+type IntegrationStatus = 'active' | 'suspended';
+
+interface Integration {
+    operator_key: string;
+    wallet_mode: WalletMode;
+    wallet_base_url: string | null;
+    allowed_ips: string[];
+    embed_origins: string[];
+    status: IntegrationStatus;
+    secret_rotated_at: string | null;
+    previous_secret_valid_until: string | null;
+    created_at: string | null;
+    summary: IntegrationSummary;
+}
+
+interface OperatorCallRow {
+    id: number;
+    created_at: string;
+    direction: 'in' | 'out';
+    endpoint: string;
+    reference: string | null;
+    http_status: number | null;
+    outcome: string;
+    duration_ms: number | null;
+    error: string | null;
+}
+
+interface OperatorMovementRow {
+    id: number;
+    created_at: string;
+    updated_at: string;
+    kind: 'debit' | 'credit' | 'rollback';
+    reference: string;
+    debit_reference: string | null;
+    amount: string;
+    currency: string;
+    status: string;
+    error_code: string | null;
+    attempts: number;
+    next_attempt_at: string | null;
+    external_player_id: string | null;
+}
+
+interface IntegrationForm {
+    wallet_mode: WalletMode;
+    wallet_base_url: string;
+    embed_origins: string;
+    allowed_ips: string;
+    status: IntegrationStatus;
+}
+
+type FieldErrors = Record<string, string[]>;
+
+type Notify = (severity: 'success' | 'info' | 'warn' | 'error', summary: string, detail: string) => void;
+
+const REFUSED_OUTCOMES = ['unknown_operator', 'bad_signature', 'operator_inactive', 'ip_not_allowed'];
+
+function formatDateTime(iso: string | null): string {
+    if (!iso) return '—';
+    return new Intl.DateTimeFormat('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    }).format(new Date(iso));
+}
+
+function outcomePill(outcome: string): string {
+    if (outcome === 'ok') return 'live';
+    if (REFUSED_OUTCOMES.includes(outcome)) return 'flagged';
+    return 'pending';
+}
+
+function lines(text: string): string[] {
+    return text.split(/[\n,]/).map((s) => s.trim()).filter((s) => s !== '');
+}
+
+/** The first message for a field, including its list items (embed_origins.0, …). */
+function fieldError(errors: FieldErrors, field: string): string | null {
+    const key = Object.keys(errors).find((k) => k === field || k.startsWith(`${field}.`));
+    return key ? errors[key][0] ?? null : null;
+}
+
+const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'var(--cg-ink-card)',
+    border: '1px solid var(--cg-rule-strong)',
+    borderRadius: 4,
+    color: 'var(--cg-fg-1)',
+    padding: '6px 8px',
+    fontSize: 12,
+};
+
+const monoFieldStyle: React.CSSProperties = { ...fieldStyle, fontFamily: 'var(--cg-mono)' };
+
+function FormRow({ label, error, hint, children }: { label: string; error: string | null; hint?: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <div style={{ display: 'grid', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>{label}</span>
+            {children}
+            {hint && !error && <small style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>{hint}</small>}
+            {error && <small style={{ fontSize: 11, color: 'var(--cg-neg)' }}>{error}</small>}
+        </div>
+    );
+}
+
+const tableBarStyle: React.CSSProperties = {
+    borderRadius: '8px 8px 0 0',
+    borderTop: '1px solid var(--cg-rule)',
+    borderLeft: '1px solid var(--cg-rule)',
+    borderRight: '1px solid var(--cg-rule)',
+    marginTop: 0,
+};
+
+function IntegrationPanel({ tenantUuid, notify }: { tenantUuid: string; notify: Notify }) {
+    const base = `/api/v1/platform/tenants/${tenantUuid}/integration`;
+    const currencyOf = useCurrencies();
+    const [, copy] = useClipboard();
+
+    const [integration, setIntegration] = useState<Integration | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [calls, setCalls] = useState<OperatorCallRow[]>([]);
+    const [movements, setMovements] = useState<OperatorMovementRow[]>([]);
+
+    const [busy, setBusy] = useState(false);
+    const [confirmingRotate, setConfirmingRotate] = useState(false);
+    const [shownSecret, setShownSecret] = useState<{ secret: string; reason: 'created' | 'rotated' } | null>(null);
+
+    const [editing, setEditing] = useState(false);
+    const [form, setForm] = useState<IntegrationForm>({ wallet_mode: 'hosted', wallet_base_url: '', embed_origins: '', allowed_ips: '', status: 'active' });
+    const [errors, setErrors] = useState<FieldErrors>({});
+
+    const jsonHeaders = (): Record<string, string> => ({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...csrfHeader(),
+    });
+
+    const load = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(base, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+            const body: { data: Integration | null } = await res.json();
+            setIntegration(body.data);
+            if (body.data) {
+                const [callsRes, movementsRes] = await Promise.all([
+                    fetch(`${base}/calls?limit=50`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' }),
+                    fetch(`${base}/movements?status=retrying,abandoned`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' }),
+                ]);
+                const callsBody: { data: OperatorCallRow[] } = await callsRes.json();
+                const movementsBody: { data: OperatorMovementRow[] } = await movementsRes.json();
+                setCalls(callsBody.data ?? []);
+                setMovements(movementsBody.data ?? []);
+            }
+        } catch (error) {
+            console.error('Failed to load operator integration:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        void load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tenantUuid]);
+
+    const handleCreate = async () => {
+        setBusy(true);
+        try {
+            const res = await fetch(base, { method: 'POST', headers: jsonHeaders(), credentials: 'same-origin', body: JSON.stringify({}) });
+            const body: { data?: Integration; secret?: string; message?: string } = await res.json();
+            if (res.ok && body.data && body.secret) {
+                setIntegration(body.data);
+                setShownSecret({ secret: body.secret, reason: 'created' });
+                void load();
+            } else {
+                notify('error', 'Error', body.message ?? 'Failed to set up the integration.');
+            }
+        } catch {
+            notify('error', 'Error', 'Failed to set up the integration.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleRotate = async () => {
+        setBusy(true);
+        try {
+            const res = await fetch(`${base}/rotate-secret`, { method: 'POST', headers: jsonHeaders(), credentials: 'same-origin' });
+            const body: { data?: Integration; secret?: string; message?: string } = await res.json();
+            if (res.ok && body.data && body.secret) {
+                setIntegration(body.data);
+                setShownSecret({ secret: body.secret, reason: 'rotated' });
+                setConfirmingRotate(false);
+            } else {
+                notify('error', 'Error', body.message ?? 'Failed to rotate the secret.');
+            }
+        } catch {
+            notify('error', 'Error', 'Failed to rotate the secret.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const startEdit = () => {
+        if (!integration) return;
+        setForm({
+            wallet_mode: integration.wallet_mode,
+            wallet_base_url: integration.wallet_base_url ?? '',
+            embed_origins: integration.embed_origins.join('\n'),
+            allowed_ips: integration.allowed_ips.join('\n'),
+            status: integration.status,
+        });
+        setErrors({});
+        setConfirmingRotate(false);
+        setEditing(true);
+    };
+
+    const handleSave = async () => {
+        setBusy(true);
+        setErrors({});
+        try {
+            const res = await fetch(base, {
+                method: 'PUT',
+                headers: jsonHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    wallet_mode: form.wallet_mode,
+                    wallet_base_url: form.wallet_base_url.trim() || null,
+                    embed_origins: lines(form.embed_origins),
+                    allowed_ips: lines(form.allowed_ips),
+                    status: form.status,
+                }),
+            });
+            const body: { data?: Integration; message?: string; errors?: FieldErrors } = await res.json();
+            if (res.ok && body.data) {
+                const originsChanged = body.data.embed_origins.join('\n') !== (integration?.embed_origins ?? []).join('\n');
+                setIntegration(body.data);
+                setEditing(false);
+                notify(
+                    'success',
+                    'Saved',
+                    originsChanged
+                        ? 'Integration updated. Embed origins changed: update the game hosts’ nginx line.'
+                        : 'Integration updated.',
+                );
+            } else {
+                setErrors(body.errors ?? {});
+                notify('error', 'Not saved', body.message ?? 'Failed to update the integration.');
+            }
+        } catch {
+            notify('error', 'Error', 'Failed to update the integration.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const copyText = async (text: string, what: string) => {
+        const ok = await copy(text);
+        notify(ok ? 'info' : 'warn', ok ? 'Copied' : 'Copy failed', ok ? `${what} copied to clipboard.` : `Select the ${what.toLowerCase()} and copy it by hand.`);
+    };
+
+    const nginxHint = (
+        <>
+            After changing embed origins, put the line printed by{' '}
+            <code style={{ fontFamily: 'var(--cg-mono)', color: 'var(--cg-brass-hi)' }}>php artisan operators:frame-origins --nginx</code>{' '}
+            into the game hosts&apos; nginx config and reload it, or the games will not load in the operator&apos;s frame.
+        </>
+    );
+
+    if (loading && !integration) {
+        return (
+            <InfoPanel
+                title="Operator integration"
+                items={[{ label: 'Status', value: <span style={{ color: 'var(--cg-fg-3)' }}>Loading…</span>, span: 12 }]}
+            />
+        );
+    }
+
+    const secretDialog = (
+        <Dialog
+            header={shownSecret?.reason === 'created' ? 'Integration created' : 'Secret rotated'}
+            visible={shownSecret !== null}
+            style={{ width: '30rem', maxWidth: 'calc(100vw - 2rem)' }}
+            onHide={() => setShownSecret(null)}
+            modal
+            draggable={false}
+            footer={
+                <div className="flex justify-end gap-2">
+                    <Button label="I have saved it" onClick={() => setShownSecret(null)} />
+                </div>
+            }
+        >
+            {shownSecret && (
+                <div className="space-y-4">
+                    <p style={{ fontSize: 12, color: 'var(--cg-neg)', fontWeight: 600 }}>
+                        You won&apos;t see this secret again. Copy it now and give it to the operator over a secure channel.
+                    </p>
+                    {shownSecret.reason === 'rotated' && (
+                        <p style={{ fontSize: 12, color: 'var(--cg-fg-3)' }}>
+                            The previous secret keeps verifying for 24 hours, so the operator can switch without downtime.
+                        </p>
+                    )}
+                    <div style={{ background: 'var(--cg-ink-elevated)', border: '1px solid var(--cg-rule)', borderRadius: 6, padding: 14 }}>
+                        <div className="cgo-uid" style={{ marginBottom: 4 }}>Signing secret</div>
+                        <code style={{ display: 'block', fontFamily: 'var(--cg-mono)', fontSize: 12, color: 'var(--cg-brass-hi)', wordBreak: 'break-all' }}>
+                            {shownSecret.secret}
+                        </code>
+                    </div>
+                    {integration && (
+                        <div className="cgo-uid">
+                            Operator key (X-Chinga-Operator): <span style={{ fontFamily: 'var(--cg-mono)' }}>{integration.operator_key}</span>
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        className="cg-btn cg-btn--ghost cg-btn--sm"
+                        onClick={() => void copyText(shownSecret.secret, 'Secret')}
+                        style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                        Copy secret
+                    </button>
+                </div>
+            )}
+        </Dialog>
+    );
+
+    if (!integration) {
+        return (
+            <>
+                <InfoPanel
+                    title="Operator integration"
+                    action={
+                        <button type="button" className="cg-btn cg-btn--primary cg-btn--sm" onClick={() => void handleCreate()} disabled={busy}>
+                            {busy ? 'Setting up…' : 'Set up integration'}
+                        </button>
+                    }
+                    items={[{
+                        label: 'Not set up',
+                        span: 12,
+                        value: (
+                            <span style={{ color: 'var(--cg-fg-3)' }}>
+                                This tenant has no operator integration. Setting one up issues an operator key and a signing secret
+                                (hosted wallet, active); the secret is shown once.
+                            </span>
+                        ),
+                    }]}
+                />
+                {secretDialog}
+            </>
+        );
+    }
+
+    const s = integration.summary;
+    const actions = (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {!editing && (
+                <button type="button" className="cg-btn cg-btn--text cg-btn--sm" onClick={startEdit} disabled={busy}>
+                    Edit
+                </button>
+            )}
+            {!confirmingRotate && (
+                <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setConfirmingRotate(true)} disabled={busy}>
+                    Rotate secret
+                </button>
+            )}
+        </div>
+    );
+
+    const rotateConfirm: InfoItem = {
+        label: 'Rotate secret?',
+        span: 12,
+        value: (
+            <div
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    border: '1px solid var(--cg-brass)', background: 'var(--cg-brass-wash)', borderRadius: 6, padding: '10px 12px',
+                }}
+            >
+                <span style={{ flex: '1 1 260px', color: 'var(--cg-fg-2)', fontSize: 12 }}>
+                    A new secret is issued and shown once. The current one keeps verifying for 24 hours; after that, the
+                    operator&apos;s calls signed with it are refused.
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="cg-btn cg-btn--text cg-btn--sm" onClick={() => setConfirmingRotate(false)} disabled={busy}>
+                        Cancel
+                    </button>
+                    <button type="button" className="cg-btn cg-btn--primary cg-btn--sm" onClick={() => void handleRotate()} disabled={busy}>
+                        {busy ? 'Rotating…' : 'Yes, rotate'}
+                    </button>
+                </div>
+            </div>
+        ),
+    };
+
+    const editItem: InfoItem = {
+        label: 'Edit integration',
+        span: 12,
+        value: (
+            <div style={{ display: 'grid', gap: 12, paddingTop: 4 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
+                    <FormRow label="Wallet mode" error={fieldError(errors, 'wallet_mode')} hint="Changes only while no operator player holds money in the current mode.">
+                        <select
+                            value={form.wallet_mode}
+                            onChange={(e) => setForm({ ...form, wallet_mode: e.target.value as WalletMode })}
+                            disabled={busy}
+                            style={fieldStyle}
+                        >
+                            <option value="hosted">Hosted (money in our wallet)</option>
+                            <option value="seamless">Seamless (money at the operator)</option>
+                        </select>
+                    </FormRow>
+                    <FormRow label="Status" error={fieldError(errors, 'status')}>
+                        <select
+                            value={form.status}
+                            onChange={(e) => setForm({ ...form, status: e.target.value as IntegrationStatus })}
+                            disabled={busy}
+                            style={fieldStyle}
+                        >
+                            <option value="active">Active (accept calls)</option>
+                            <option value="suspended">Suspended (refuse calls)</option>
+                        </select>
+                    </FormRow>
+                </div>
+                <FormRow
+                    label={form.wallet_mode === 'seamless' ? 'Operator wallet URL *' : 'Operator wallet URL'}
+                    error={fieldError(errors, 'wallet_base_url')}
+                    hint="https, the base of the operator's wallet API. Required for seamless."
+                >
+                    <InputText
+                        value={form.wallet_base_url}
+                        onChange={(e) => setForm({ ...form, wallet_base_url: e.target.value })}
+                        placeholder="https://wallet.operator.com/chinga"
+                        disabled={busy}
+                        style={monoFieldStyle}
+                    />
+                </FormRow>
+                <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
+                    <FormRow label="Embed origins (one per line)" error={fieldError(errors, 'embed_origins')} hint="scheme://host[:port], no path.">
+                        <textarea
+                            rows={3}
+                            value={form.embed_origins}
+                            onChange={(e) => setForm({ ...form, embed_origins: e.target.value })}
+                            placeholder="https://www.operator.com"
+                            disabled={busy}
+                            style={monoFieldStyle}
+                        />
+                    </FormRow>
+                    <FormRow label="Allowed IPs (one per line)" error={fieldError(errors, 'allowed_ips')} hint="Addresses or CIDR ranges. Empty = any.">
+                        <textarea
+                            rows={3}
+                            value={form.allowed_ips}
+                            onChange={(e) => setForm({ ...form, allowed_ips: e.target.value })}
+                            placeholder="196.44.0.0/16"
+                            disabled={busy}
+                            style={monoFieldStyle}
+                        />
+                    </FormRow>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>{nginxHint}</div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button type="button" className="cg-btn cg-btn--text cg-btn--sm" onClick={() => setEditing(false)} disabled={busy}>
+                        Cancel
+                    </button>
+                    <button type="button" className="cg-btn cg-btn--primary cg-btn--sm" onClick={() => void handleSave()} disabled={busy}>
+                        {busy ? 'Saving…' : 'Save'}
+                    </button>
+                </div>
+            </div>
+        ),
+    };
+
+    const items: InfoItem[] = [
+        {
+            label: 'Wallet mode',
+            span: 3,
+            value: <span className={`cgo-pill ${integration.wallet_mode === 'seamless' ? 'settled' : 'live'}`}>{integration.wallet_mode}</span>,
+        },
+        { label: 'Status', span: 3, value: <span className={`cgo-pill ${statusPill(integration.status)}`}>{integration.status}</span> },
+        {
+            label: 'Operator key (X-Chinga-Operator)',
+            span: 6,
+            value: (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'var(--cg-mono)', wordBreak: 'break-all' }}>{integration.operator_key}</span>
+                    <button type="button" className="cg-btn cg-btn--text cg-btn--sm" onClick={() => void copyText(integration.operator_key, 'Operator key')}>
+                        Copy
+                    </button>
+                </span>
+            ),
+        },
+        { label: 'Wallet URL', span: 12, mono: true, value: integration.wallet_base_url || '—' },
+        {
+            label: 'Embed origins',
+            span: 6,
+            mono: true,
+            value: integration.embed_origins.length ? integration.embed_origins.map((o) => <div key={o}>{o}</div>) : '—',
+        },
+        {
+            label: 'Allowed IPs',
+            span: 6,
+            mono: true,
+            value: integration.allowed_ips.length ? integration.allowed_ips.map((ip) => <div key={ip}>{ip}</div>) : 'any',
+        },
+        {
+            label: 'Last secret rotation',
+            span: 6,
+            value: (
+                <>
+                    {integration.secret_rotated_at ? formatDateTime(integration.secret_rotated_at) : 'Never (issued at set-up)'}
+                    {integration.previous_secret_valid_until && (
+                        <div style={{ fontSize: 11, color: 'var(--cg-fg-3)' }}>
+                            Previous secret verifies until {formatDateTime(integration.previous_secret_valid_until)}
+                        </div>
+                    )}
+                </>
+            ),
+        },
+        {
+            label: 'Last 24 hours',
+            span: 6,
+            value: (
+                <span style={{ color: 'var(--cg-fg-3)', fontSize: 12 }}>
+                    <span style={{ color: 'var(--cg-fg-1)', fontFamily: 'var(--cg-mono)' }}>{formatCount(s.operator_players)}</span> operator players ·{' '}
+                    <span style={{ color: 'var(--cg-fg-1)', fontFamily: 'var(--cg-mono)' }}>{formatCount(s.calls_in_24h)}</span> in /{' '}
+                    <span style={{ color: 'var(--cg-fg-1)', fontFamily: 'var(--cg-mono)' }}>{formatCount(s.calls_out_24h)}</span> out ·{' '}
+                    <span style={{ color: s.refused_24h > 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)', fontFamily: 'var(--cg-mono)' }}>{formatCount(s.refused_24h)}</span> refused ·{' '}
+                    <span style={{ color: s.movements_attention > 0 ? 'var(--cg-neg)' : 'var(--cg-fg-1)', fontFamily: 'var(--cg-mono)' }}>{formatCount(s.movements_attention)}</span> movements need attention
+                </span>
+            ),
+        },
+    ];
+    if (!editing) items.push({ label: 'Frame headers', span: 12, value: <span style={{ fontSize: 12, color: 'var(--cg-fg-3)' }}>{nginxHint}</span> });
+
+    return (
+        <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 16 }}>
+                <InfoPanel
+                    title="Operator integration"
+                    action={actions}
+                    items={[...(confirmingRotate ? [rotateConfirm] : []), ...(editing ? [editItem] : []), ...items]}
+                />
+            </div>
+
+            {/* Recent operator calls */}
+            <div className="cgo-table-bar" style={tableBarStyle}>
+                <div className="cgo-table-bar-title">Recent operator calls · {calls.length}</div>
+                <button type="button" className="cg-btn cg-btn--text cg-btn--sm" onClick={() => void load()} disabled={loading}>
+                    {loading ? 'Refreshing…' : 'Refresh'}
+                </button>
+            </div>
+            <div className="cgo-table-wrap cgo-table-wrap--scroll" style={{ borderRadius: '0 0 8px 8px', marginBottom: 16 }}>
+                <table className="cgo-wagers">
+                    <thead>
+                        <tr>
+                            <th style={{ width: 170 }}>Time</th>
+                            <th style={{ width: 60 }}>Dir</th>
+                            <th style={{ minWidth: 120 }}>Endpoint</th>
+                            <th style={{ minWidth: 140 }}>Reference</th>
+                            <th style={{ minWidth: 160 }}>Status</th>
+                            <th className="cgo-r" style={{ width: 70 }}>ms</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {calls.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>No signed calls yet.</td>
+                            </tr>
+                        ) : (
+                            calls.map((c) => (
+                                <tr key={c.id}>
+                                    <td><span className="cgo-uid">{formatDateTime(c.created_at)}</span></td>
+                                    <td><span className="cgo-uid">{c.direction}</span></td>
+                                    <td><span style={{ fontFamily: 'var(--cg-mono)', fontSize: 12 }}>{c.endpoint}</span></td>
+                                    <td><span className="cgo-uid">{c.reference ?? '—'}</span></td>
+                                    <td>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                            <span className="cgo-uid">{c.http_status ?? '—'}</span>
+                                            <span className={`cgo-pill ${outcomePill(c.outcome)}`} title={c.error ?? undefined}>{c.outcome}</span>
+                                        </span>
+                                    </td>
+                                    <td className="cgo-r"><span className="cgo-odds">{c.duration_ms ?? '—'}</span></td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Seamless movements needing attention */}
+            <div className="cgo-table-bar" style={tableBarStyle}>
+                <div className="cgo-table-bar-title">Movements needing attention · {movements.length}</div>
+            </div>
+            <div className="cgo-table-wrap cgo-table-wrap--scroll" style={{ borderRadius: '0 0 8px 8px' }}>
+                <table className="cgo-wagers">
+                    <thead>
+                        <tr>
+                            <th style={{ width: 170 }}>Updated</th>
+                            <th style={{ width: 80 }}>Kind</th>
+                            <th style={{ minWidth: 110 }}>Player</th>
+                            <th style={{ minWidth: 140 }}>Reference</th>
+                            <th className="cgo-r" style={{ width: 120 }}>Amount</th>
+                            <th style={{ minWidth: 140 }}>Status</th>
+                            <th className="cgo-r" style={{ width: 80 }}>Attempts</th>
+                            <th style={{ width: 170 }}>Next attempt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {movements.length === 0 ? (
+                            <tr>
+                                <td colSpan={8} style={{ textAlign: 'center', color: 'var(--cg-fg-3)' }}>
+                                    Nothing retrying or abandoned.
+                                </td>
+                            </tr>
+                        ) : (
+                            movements.map((m) => {
+                                const profile = currencyOf(m.currency);
+                                return (
+                                    <tr key={m.id}>
+                                        <td><span className="cgo-uid">{formatDateTime(m.updated_at)}</span></td>
+                                        <td><span className="cgo-uid">{m.kind}</span></td>
+                                        <td><span className="cgo-uid">{m.external_player_id ?? '—'}</span></td>
+                                        <td><span className="cgo-uid">{m.reference}</span></td>
+                                        <td className="cgo-r">
+                                            <span className="cgo-odds">{profile ? formatMoney(m.amount, profile) : `${m.currency} ${m.amount}`}</span>
+                                        </td>
+                                        <td>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                <span className={`cgo-pill ${m.status === 'abandoned' ? 'flagged' : 'pending'}`}>{m.status}</span>
+                                                {m.error_code && <span className="cgo-uid">{m.error_code}</span>}
+                                            </span>
+                                        </td>
+                                        <td className="cgo-r"><span className="cgo-odds">{m.attempts}</span></td>
+                                        <td><span className="cgo-uid">{m.status === 'retrying' ? formatDateTime(m.next_attempt_at) : '—'}</span></td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {secretDialog}
         </div>
     );
 }
@@ -709,6 +1372,12 @@ export default function TenantShow() {
                     <InfoPanel title="Company" items={companyItems} />
                     <InfoPanel title="Configuration" items={configItems} />
                 </div>
+
+                {/* Operator integration (platform admins only: the whole page is) */}
+                <IntegrationPanel
+                    tenantUuid={uuid}
+                    notify={(severity, summary, detail) => toast.current?.show({ severity, summary, detail })}
+                />
 
                 {/* Tenant admins */}
                 <div

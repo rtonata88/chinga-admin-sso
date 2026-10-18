@@ -63,6 +63,7 @@ class OperatorSetup extends Command
                 'operator_key' => (string) Str::uuid(),
                 'secret' => $newSecret,
                 'wallet_mode' => $mode ?? OperatorIntegration::MODE_HOSTED,
+                'status' => 'active',
             ]);
         } elseif ($this->option('rotate')) {
             $newSecret = Str::random(48);
@@ -71,9 +72,7 @@ class OperatorSetup extends Command
 
         if ($mode !== null && $integration->exists && $mode !== $integration->wallet_mode) {
             // Money held under one mode must never be shown or spent under the other.
-            $funded = \App\Models\Wallet::where('tenant_id', $tenant->id)->where('mode', $integration->wallet_mode)
-                ->whereHas('user', fn ($q) => $q->withoutGlobalScopes()->whereNotNull('external_player_id'))
-                ->where('balance', '<>', 0)->count();
+            $funded = $integration->fundedPlayerWallets();
             if ($funded > 0) {
                 $this->error("{$funded} operator player wallet(s) still hold a {$integration->wallet_mode} balance. Settle them before changing the mode.");
 

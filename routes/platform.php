@@ -13,6 +13,7 @@ use App\Http\Controllers\Platform\CompanyController;
 use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\GameController;
 use App\Http\Controllers\Platform\InvoiceController;
+use App\Http\Controllers\Platform\OperatorIntegrationController;
 use App\Http\Controllers\Platform\PlatformRoleManagementController;
 use App\Http\Controllers\Platform\RevenueController;
 use App\Http\Controllers\Platform\TenantController;
@@ -145,6 +146,14 @@ Route::middleware(['auth', EnsurePlatformAdmin::class])->prefix('api/v1/platform
     // Tenant OAuth clients
     Route::get('tenants/{tenant}/oauth-clients', [TenantController::class, 'oauthClients'])->name('tenants.oauth-clients');
     Route::post('tenants/{tenant}/oauth-clients', [TenantController::class, 'createOAuthClient'])->name('tenants.oauth-clients.store');
+
+    // Tenant operator integration (the console form of operators:setup). Secrets are returned once, by store and rotate-secret.
+    Route::get('tenants/{tenant}/integration', [OperatorIntegrationController::class, 'show'])->name('tenants.integration.show');
+    Route::post('tenants/{tenant}/integration', [OperatorIntegrationController::class, 'store'])->name('tenants.integration.store');
+    Route::put('tenants/{tenant}/integration', [OperatorIntegrationController::class, 'update'])->name('tenants.integration.update');
+    Route::post('tenants/{tenant}/integration/rotate-secret', [OperatorIntegrationController::class, 'rotateSecret'])->name('tenants.integration.rotate-secret');
+    Route::get('tenants/{tenant}/integration/calls', [OperatorIntegrationController::class, 'calls'])->name('tenants.integration.calls');
+    Route::get('tenants/{tenant}/integration/movements', [OperatorIntegrationController::class, 'movements'])->name('tenants.integration.movements');
 
     // Game catalog CRUD
     Route::get('games', [GameController::class, 'index'])->name('games.index');

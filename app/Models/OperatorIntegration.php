@@ -47,6 +47,21 @@ class OperatorIntegration extends Model
         return $this->wallet_mode === self::MODE_SEAMLESS;
     }
 
+    /**
+     * Operator-player wallets on this tenant still holding money in the given mode (the
+     * current one by default). Money held under one mode must never be shown or spent
+     * under the other, so the mode may change only while this is 0.
+     */
+    public function fundedPlayerWallets(?string $mode = null): int
+    {
+        return Wallet::withoutGlobalScopes()
+            ->where('tenant_id', $this->tenant_id)
+            ->where('mode', $mode ?? $this->wallet_mode)
+            ->whereHas('user', fn ($q) => $q->withoutGlobalScopes()->whereNotNull('external_player_id'))
+            ->where('balance', '<>', 0)
+            ->count();
+    }
+
     /** @return list<string> the secrets a signature may be made with right now */
     public function verifyingSecrets(): array
     {
